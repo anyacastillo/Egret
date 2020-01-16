@@ -22,9 +22,9 @@ def create_dicts_of_fdf(md, base_point=BasePointType.SOLUTION):
     bus_attrs = md.attributes(element_type='bus')
 
     reference_bus = md.data['system']['reference_bus']
-    ptdf, ptdf_c, pldf, pldf_c, va_sensi, va_const = tx_calc.calculate_ptdf_pldf(branches, buses, branch_attrs['names'], bus_attrs['names'],
-                                                    reference_bus, base_point)
-    qtdf, qtdf_c, qldf, qldf_c, vm_sensi, vm_const = tx_calc.calculate_qtdf_qldf_vdf(branches, buses, branch_attrs['names'],
+    ptdf, ptdf_c, pldf, pldf_c, va_sensi, va_const = tx_calc.calculate_ptdf_pldf(branches, buses, branch_attrs['names'],
+                                                    bus_attrs['names'], reference_bus, base_point)
+    qtdf, qtdf_c, qldf, qldf_c, vm_sensi, vm_const = tx_calc.calculate_qtdf_qldf(branches, buses, branch_attrs['names'],
                                                     bus_attrs['names'], reference_bus, base_point)
 
     Ft, ft_c, Fv, fv_c = tx_calc.calculate_lccm_flow_sensitivies(branches, buses, branch_attrs['names'], bus_attrs['names'],

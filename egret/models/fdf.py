@@ -25,6 +25,7 @@ from egret.model_library.defn import ApproximationType, SensitivityCalculationMe
 from egret.data.model_data import zip_items
 import egret.data.data_utils_deprecated as data_utils_deprecated
 import egret.model_library.decl as decl
+import egret.common.lazy_ptdf_utils as lpu
 
 
 def _include_system_feasibility_slack(model, gen_attrs, bus_p_loads, bus_q_loads, penalty=1000):
@@ -77,10 +78,13 @@ def create_fixed_fdf_model(model_data, **kwargs):
 
     model, md = create_fdf_model(model_data, include_feasibility_slack=True, include_v_feasibility_slack=True, **kwargs)
 
+    gens = dict(model_data.elements(element_type='generator'))
+    baseMVA = model_data.data['system']['baseMVA']
+
     for g, pg in model.pg.items():
-        pg.value = value(m_ac.pg[g])
+        pg.value = gens[g]['pg'] / baseMVA
     for g, qg in model.qg.items():
-        qg.value = value(m_ac.qg[g])
+        qg.value = gens[g]['qg'] / baseMVA
 
     model.pg.fix()
     model.qg.fix()
@@ -88,7 +92,19 @@ def create_fixed_fdf_model(model_data, **kwargs):
     return model, md
 
 
-def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feasibility_slack=False, calculation_method=SensitivityCalculationMethod.INVERT):
+def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feasibility_slack=False,
+                     ptdf_options=None, calculation_method=SensitivityCalculationMethod.INVERT):
+
+    if ptdf_options is None:
+        ptdf_options = dict()
+
+    lpu.populate_default_ptdf_options(ptdf_options)
+    ptdf_options['lazy'] = True
+    ptdf_options['lazy_voltage'] = True
+
+    baseMVA = model_data.data['system']['baseMVA']
+    lpu.check_and_scale_ptdf_options(ptdf_options, baseMVA)
+
     md = model_data.clone_in_service()
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
@@ -108,11 +124,14 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
     branch_attrs = md.attributes(element_type='branch')
     load_attrs = md.attributes(element_type='load')
     shunt_attrs = md.attributes(element_type='shunt')
+    system_attrs = md.data['system']
 
     inlet_branches_by_bus, outlet_branches_by_bus = tx_utils.inlet_outlet_branches_by_bus(branches, buses)
     gens_by_bus = tx_utils.gens_by_bus(buses, gens)
 
     model = pe.ConcreteModel()
+
+    model._ptdf_options = ptdf_options
 
     ### declare (and fix) the loads at the buses
     bus_p_loads, bus_q_loads = tx_utils.dict_of_bus_loads(buses, loads)
@@ -157,16 +176,19 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
     q_neg_bounds = {k: (0, inf) for k in gen_attrs['qg']}
     decl.declare_var('q_neg', model=model, index_set=gen_attrs['names'], bounds=q_neg_bounds)
 
-    ### declare the net withdrawal variables (for later use in defining constraints with efficient 'LinearExpression')
+    ### declare the net withdrawal variables and definition constraints
     p_net_withdrawal_init = {k: 0 for k in bus_attrs['names']}
     libbus.declare_var_p_nw(model, bus_attrs['names'], initialize=p_net_withdrawal_init)
 
     q_net_withdrawal_init = {k: 0 for k in bus_attrs['names']}
     libbus.declare_var_q_nw(model, bus_attrs['names'], initialize=q_net_withdrawal_init)
 
+    libbus.declare_eq_p_net_withdraw_fdf(model,bus_attrs['names'],buses,bus_p_loads,gens_by_bus,bus_gs_fixed_shunts)
+
+    libbus.declare_eq_q_net_withdraw_fdf(model,bus_attrs['names'],buses,bus_q_loads,gens_by_bus,bus_bs_fixed_shunts)
+
+
     ### declare the current flows in the branches #TODO: Why are we calculating currents for FDF initialization? Only need P,Q,V,theta
-    vr_init = {k: bus_attrs['vm'][k] * pe.cos(bus_attrs['va'][k]) for k in bus_attrs['vm']}
-    vj_init = {k: bus_attrs['vm'][k] * pe.sin(bus_attrs['va'][k]) for k in bus_attrs['vm']}
     s_max = {k: branches[k]['rating_long_term'] for k in branches.keys()}
     s_lbub = dict()
     for k in branches.keys():
@@ -188,46 +210,109 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
         qf_init[branch_name] = (branch['qf'] - branch['qt']) / 2
         qfl_init[branch_name] = branch['qf'] + branch['qt']
 
-    libbranch.declare_var_pf(model=model,
-                             index_set=branch_attrs['names'],
-                             initialize=pf_init)#,
-#                             bounds=pf_bounds
-#                             )
+    if ptdf_options['lazy']:
+
+        for branch_name, branch in branches.items():
+            pf_init[branch_name] = 0
+            qf_init[branch_name] = 0
+
+        libbranch.declare_var_pf(model=model,
+                                 index_set=branch_attrs['names'],
+                                 initialize = pf_init,
+                                 bounds=pf_bounds
+                                 )
+        libbranch.declare_var_qf(model=model,
+                                 index_set=branch_attrs['names'],
+                                 initialize = qf_init,
+                                 bounds=qf_bounds
+                                 )
+        model.eq_pf_branch = pe.Constraint(branch_attrs['names'])
+        model.eq_qf_branch = pe.Constraint(branch_attrs['names'])
+
+        libbranch.declare_fdf_thermal_limit(model=model,
+                                            index_set=branch_attrs['names'],
+                                            thermal_limits=s_max,
+                                            )
+
+        ### add helpers for tracking monitored branches
+        lpu.add_monitored_branch_tracker(model)
+
+    else:
+
+        libbranch.declare_var_pf(model=model,
+                                 index_set=branch_attrs['names'],
+                                 initialize=pf_init,
+                                 bounds=pf_bounds
+                                 )
+
+        libbranch.declare_var_qf(model=model,
+                                 index_set=branch_attrs['names'],
+                                 initialize=qf_init,
+                                 bounds=qf_bounds
+                                 )
+
+        libbranch.declare_eq_branch_pf_fdf_approx(model=model,
+                                                  index_set=branch_attrs['names'],
+                                                  sensitivity=branch_attrs['ptdf'],
+                                                  constant=branch_attrs['ptdf_c'],
+                                                  rel_tol=None,
+                                                  abs_tol=None
+                                                  )
+
+        libbranch.declare_eq_branch_qf_fdf_approx(model=model,
+                                                  index_set=branch_attrs['names'],
+                                                  sensitivity=branch_attrs['qtdf'],
+                                                  constant=branch_attrs['qtdf_c'],
+                                                  rel_tol=None,
+                                                  abs_tol=None
+                                                  )
+
+        libbranch.declare_fdf_thermal_limit(model=model,
+                                            index_set=branch_attrs['names'],
+                                            thermal_limits=s_max,
+                                            )
+
+    if ptdf_options['lazy_voltage']:
+
+        shunt_buses = set()
+        for shunt_name, shunt in shunts.items():
+            if shunt['shunt_type'] == 'fixed':
+                bus_name = shunt['bus']
+                shunt_buses.add(bus_name)
+
+        model.eq_vm_bus = pe.Constraint(bus_attrs['names'])
+
+        lpu.add_monitored_vm_tracker(model)
+
+        for i,bn in enumerate(bus_attrs['names']):
+            if bn in shunt_buses:
+                bus = buses[bn]
+                vdf = bus['vdf']
+                vdf_c = bus['vdf_c']
+                expr = libbus.get_vm_expr_vdf_approx(model, bn, vdf, vdf_c)
+                model.eq_vm_bus[bn] = model.vm[bn] == expr
+                model._vm_idx_monitored.append(i)
+
+    else:
+        libbus.declare_eq_vm_vdf_approx(model=model,
+                                        index_set=bus_attrs['names'],
+                                        sensitivity=bus_attrs['vdf'],
+                                        constant=bus_attrs['vdf_c'],
+                                        rel_tol=None,
+                                        abs_tol=None
+                                        )
+
+
     libbranch.declare_var_pfl(model=model,
                              index_set=branch_attrs['names'],
                              initialize=pfl_init)#,
 #                             bounds=pfl_bounds
-#                             )
-    libbranch.declare_var_qf(model=model,
-                             index_set=branch_attrs['names'],
-                             initialize=qf_init)#,
-#                             bounds=qf_bounds
 #                             )
     libbranch.declare_var_qfl(model=model,
                               index_set=branch_attrs['names'],
                               initialize=qfl_init)  # ,
 #                              bounds=qfl_bounds
 #                              )
-
-    ### declare net withdrawal definition constraints
-    libbus.declare_eq_p_net_withdraw_fdf(model,bus_attrs['names'],buses,bus_p_loads,gens_by_bus,bus_gs_fixed_shunts)
-    libbus.declare_eq_q_net_withdraw_fdf(model,bus_attrs['names'],buses,bus_q_loads,gens_by_bus,bus_bs_fixed_shunts)
-
-    libbranch.declare_eq_branch_pf_fdf_approx(model=model,
-                                              index_set=branch_attrs['names'],
-                                              sensitivity=branch_attrs['ptdf'],
-                                              constant=branch_attrs['ptdf_c'],
-                                              rel_tol=None,
-                                              abs_tol=None
-                                              )
-
-    libbranch.declare_eq_branch_qf_fdf_approx(model=model,
-                                              index_set=branch_attrs['names'],
-                                              sensitivity=branch_attrs['qtdf'],
-                                              constant=branch_attrs['qtdf_c'],
-                                              rel_tol=None,
-                                              abs_tol=None
-                                              )
 
     libbranch.declare_eq_branch_pfl_fdf_approx(model=model,
                                                index_set=branch_attrs['names'],
@@ -244,14 +329,6 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                                rel_tol=None,
                                                abs_tol=None
                                                )
-
-    libbus.declare_eq_vm_vdf_approx(model=model,
-                                    index_set=bus_attrs['names'],
-                                    sensitivity=bus_attrs['vdf'],
-                                    constant=bus_attrs['vdf_c'],
-                                    rel_tol=None,
-                                    abs_tol=None
-                                    )
 
     ### declare the p balance
     libbus.declare_eq_p_balance_fdf(model=model,
@@ -274,12 +351,6 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                     include_losses=branch_attrs['names'],
                                     **q_rhs_kwargs
                                     )
-
-    ### declare the apparent power flow limits
-    libbranch.declare_fdf_thermal_limit(model=model,
-                                        index_set=branch_attrs['names'],
-                                        thermal_limits=s_max,
-                                        )
 
     libgen.declare_eq_q_fdf_deviation(model=model,
                                       index_set=gen_attrs['names'],
@@ -507,8 +578,10 @@ def create_ccm_model(model_data, include_feasibility_slack=False, include_v_feas
 
 
 def _load_solution_to_model_data(m, md, results):
+    import numpy as np
     from pyomo.environ import value
     from egret.model_library.transmission.tx_utils import unscale_ModelData_to_pu
+    from egret.model_library.transmission.tx_calc import linsolve_theta_fdf, linsolve_vmag_fdf
 
     # save results data to ModelData object
     gens = dict(md.elements(element_type='generator'))
@@ -516,47 +589,80 @@ def _load_solution_to_model_data(m, md, results):
     branches = dict(md.elements(element_type='branch'))
 
     bus_attrs = md.attributes(element_type='bus')
+    branch_attrs = md.attributes(element_type='branch')
+    buses_idx = bus_attrs['names']
+    branches_idx = branch_attrs['names']
     mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(bus_attrs['names'])}
-
-    theta = tx_calc.linsolve_theta_fdf(m, md)
 
     md.data['system']['total_cost'] = value(m.obj)
     md.data['system']['ploss'] = sum(value(m.pfl[b]) for b,b_dict in branches.items())
     md.data['system']['qloss'] = sum(value(m.qfl[b]) for b,b_dict in branches.items())
 
+    ## back-solve for theta/vmag then solve for p/q power flows
+    THETA = linsolve_theta_fdf(m, md)
+    Ft = md.data['system']['Ft']
+    ft_c = md.data['system']['ft_c']
+    PFV = Ft.dot(THETA) + ft_c
+
+    VMAG = linsolve_vmag_fdf(m, md)
+    Fv = md.data['system']['Fv']
+    fv_c = md.data['system']['fv_c']
+    QFV = Fv.dot(VMAG) + fv_c
+
+    ## initialize LMP energy components
+    LMPE = value(m.dual[m.eq_p_balance])
+    LMPL = np.zeros(len(buses_idx))
+    LMPC = np.zeros(len(buses_idx))
+
+    QLMPE = value(m.dual[m.eq_q_balance])
+    QLMPL = np.zeros(len(buses_idx))
+    QLMPC = np.zeros(len(buses_idx))
+
+    # branch data
+    for i, branch_name in enumerate(branches_idx):
+        k_dict = branches[branch_name]
+        k_dict['pf'] = PFV[i]
+        k_dict['qf'] = QFV[i]
+        if branch_name in m.eq_pf_branch:
+            PFD = value(m.dual[m.eq_pf_branch[branch_name]])
+            QFD = value(m.dual[m.eq_qf_branch[branch_name]])
+            PLD = value(m.dual[m.eq_pfl_branch[branch_name]])
+            QLD = value(m.dual[m.eq_qfl_branch[branch_name]])
+            k_dict['pf_dual'] = PFD
+            k_dict['qf_dual'] = QFD
+            k_dict['pfl_dual'] = PLD
+            k_dict['qfl_dual'] = QLD
+            if PFD != 0:
+                ptdf = k_dict['ptdf']
+                for j, bus_name in enumerate(buses_idx):
+                    LMPC[j] += ptdf[bus_name] * PFD
+            if QFD != 0:
+                qtdf = k_dict['qtdf']
+                for j, bus_name in enumerate(buses_idx):
+                    QLMPC[j] += qtdf[bus_name] * QFD
+            if PLD != 0:
+                pldf = k_dict['pldf']
+                for j, bus_name in enumerate(buses_idx):
+                    LMPL[j] += pldf[bus_name] * PLD
+            if QLD != 0:
+                qldf = k_dict['qldf']
+                for j, bus_name in enumerate(buses_idx):
+                    QLMPL[j] += qldf[bus_name] * QLD
+
+    # bus data
+    for i,b in enumerate(buses_idx):
+        b_dict = buses[b]
+        b_dict['lmp'] = LMPE + LMPL[i] + LMPC[i]
+        b_dict['qlmp'] = QLMPE + QLMPL[i] + QLMPC[i]
+        b_dict['pl'] = value(m.pl[b])
+        b_dict['ql'] = value(m.ql[b])
+        b_dict['va'] = THETA[i]
+        b_dict['vm'] = VMAG[i]
+
+    ## generator data
     for g,g_dict in gens.items():
         g_dict['pg'] = value(m.pg[g])
         g_dict['qg'] = value(m.qg[g])
-
-    for b,b_dict in buses.items():
-        b_dict['pl'] = value(m.pl[b])
-        b_dict['ql'] = value(m.ql[b])
-        b_dict['vm'] = value(m.vm[b])
-
-        idx = mapping_bus_to_idx[b]
-        b_dict['va'] = theta[idx]
-
-        b_dict['lmp'] = value(m.dual[m.eq_p_balance])
-        b_dict['qlmp'] = value(m.dual[m.eq_q_balance])
-        for k, k_dict in branches.items():
-            # TODO: check if if statement needed in line congestion calc (reapply from/to bus conditionals?)
-            #if k_dict['from_bus'] == b or k_dict['to_bus'] == b:
-            ptdf = k_dict['ptdf']
-            pldf = k_dict['pldf']
-            b_dict['lmp'] += ptdf[b]*value(m.dual[m.eq_pf_branch[k]])
-            b_dict['lmp'] += pldf[b]*value(m.dual[m.eq_pfl_branch[k]])
-
-            qtdf = k_dict['qtdf']
-            qldf = k_dict['qldf']
-            b_dict['qlmp'] += qtdf[b]*value(m.dual[m.eq_qf_branch[k]])
-            b_dict['qlmp'] += qldf[b]*value(m.dual[m.eq_qfl_branch[k]])
-
-    for k, k_dict in branches.items():
-        k_dict['pf'] = value(m.pf[k])
-        k_dict['qf'] = value(m.qf[k])
-        k_dict['pfl'] = value(m.pfl[k])
-        k_dict['qfl'] = value(m.qfl[k])
-
 
     unscale_ModelData_to_pu(md, inplace=True)
 
@@ -604,21 +710,33 @@ def solve_fdf(model_data,
 
     import pyomo.environ as pe
     from egret.common.solver_interface import _solve_model
+    from egret.common.lazy_ptdf_utils import _lazy_model_solve_loop
+    from pyomo.solvers.plugins.solvers.persistent_solver import PersistentSolver
 
     m, md = fdf_model_generator(model_data, **kwargs)
 
-    # for debugging purposes
-    #m.pg.fix()
-    #m.qg.fix()
-
     m.dual = pe.Suffix(direction=pe.Suffix.IMPORT)
+    if isinstance(solver, PersistentSolver) or 'persistent' in solver:
+        vars_to_load = [var for var in m.p_nw.values()]
+        vars_to_load += [var for var in m.q_nw.values()]
+    else:
+        vars_to_load = None
 
     m, results, solver = _solve_model(m,solver,timelimit=timelimit,solver_tee=solver_tee,
                               symbolic_solver_labels=symbolic_solver_labels,options=options,return_solver=True)
 
+    if fdf_model_generator == create_fdf_model and m._ptdf_options['lazy']:
+        iter_limit = m._ptdf_options['iteration_limit']
+        term_cond = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee,
+                                           symbolic_solver_labels=symbolic_solver_labels,iteration_limit=iter_limit,
+                                           vars_to_load = vars_to_load)
+    if isinstance(solver, PersistentSolver):
+        solver.load_vars()
+
     if not hasattr(md,'results'):
         md.data['results'] = dict()
-    md.data['results']['time'] = results.Solver.Time
+    # TODO: needs "manual" time recording due to use of persistent solver
+    #md.data['results']['time'] = results.Solver.Time
     md.data['results']['#_cons'] = results.Problem[0]['Number of constraints']
     md.data['results']['#_vars'] = results.Problem[0]['Number of variables']
     md.data['results']['#_nz'] = results.Problem[0]['Number of nonzeros']
@@ -638,7 +756,7 @@ def solve_fdf(model_data,
         return md, results
     return md
 
-def compare_results(results, c1, c2, tol=1e-6):
+def compare_results(results, c1, c2, display_results=False, tol=1e-6):
     import numpy as np
     c1_results = results.get(c1)
     c2_results = results.get(c2)
@@ -647,6 +765,7 @@ def compare_results(results, c1, c2, tol=1e-6):
     diff = (c1_array - c2_array)
     adiff = np.absolute(diff)
     idx = adiff.argmax()
+
     suma = sum(adiff)
     if suma < tol:
         print('Sum of absolute differences is less than {}.'.format(tol))
@@ -654,11 +773,84 @@ def compare_results(results, c1, c2, tol=1e-6):
         print('Sum of absolute differences is {}.'.format(suma))
         print('Largest difference is {} at index {}.'.format(diff[idx],idx+1))
 
+    if display_results:
+        print(pd.DataFrame(results))
+
+def compare_to_acopf(md):
+
+    # keyword arguments
+    kwargs = {'include_v_feasibility_slack': False}
+
+    # solve ACOPF
+    from egret.models.acopf import solve_acopf
+    md_ac, m_ac, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
+    print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
+    print(results.Solver)
+    gen = md_ac.attributes(element_type='generator')
+    bus = md_ac.attributes(element_type='bus')
+    branch = md_ac.attributes(element_type='branch')
+    pg_dict = {'acopf': gen['pg']}
+    qg_dict = {'acopf': gen['qg']}
+    tmp_pf = branch['pf']
+    tmp_pt = branch['pt']
+    tmp = {key: (tmp_pf[key] - tmp_pt.get(key, 0)) / 2 for key in tmp_pf.keys()}
+    pf_dict = {'acopf': tmp}
+    pfl_dict = {'acopf': branch['pfl']}
+    tmp_qf = branch['qf']
+    tmp_qt = branch['qt']
+    tmp = {key: (tmp_qf[key] - tmp_qt.get(key, 0)) / 2 for key in tmp_qf.keys()}
+    qf_dict = {'acopf': tmp}
+    qfl_dict = {'acopf': branch['qfl']}
+    va_dict = {'acopf': bus['va']}
+    vm_dict = {'acopf': bus['vm']}
+
+    # keyword arguments
+    kwargs = {}
+    # kwargs = {'include_v_feasibility_slack':True,'include_feasibility_slack':True}
+
+    # solve (fixed) FDF
+    md, m, results = solve_fdf(md_ac, "gurobi", fdf_model_generator=create_fdf_model, return_model=True,
+                               return_results=True, solver_tee=False, **kwargs)
+    print('FDF cost: $%3.2f' % md.data['system']['total_cost'])
+    print(results.Solver)
+    if 'm.p_slack_pos' in locals():
+        if value(m.p_slack_pos + m.p_slack_neg) > 1e-6:
+            print('REAL POWER IMBALANCE: {}'.format(value(m.p_slack_pos + m.p_slack_neg)))
+        if value(m.q_slack_pos + m.q_slack_neg) > 1e-6:
+            print('REACTIVE POWER IMBALANCE: {}'.format(value(m.q_slack_pos + m.q_slack_neg)))
+    gen = md.attributes(element_type='generator')
+    bus = md.attributes(element_type='bus')
+    branch = md.attributes(element_type='branch')
+    pg_dict.update({'fdf': gen['pg']})
+    qg_dict.update({'fdf': gen['qg']})
+    pf_dict.update({'fdf': branch['pf']})
+    pfl_dict.update({'fdf': branch['pfl']})
+    qf_dict.update({'fdf': branch['qf']})
+    qfl_dict.update({'fdf': branch['qfl']})
+    va_dict.update({'fdf': bus['va']})
+    vm_dict.update({'fdf': bus['vm']})
+
+    # display results in dataframes
+    compare_dict = {'pg' : pg_dict,
+                    'qg' : qg_dict,
+                    'pf' : pf_dict,
+                    'qf' : qf_dict,
+                    'pfl' : pfl_dict,
+                    'qfl' : qfl_dict,
+                    'va' : va_dict,
+                    'vm' : vm_dict,
+                    }
+
+    for mv,results in compare_dict.items():
+        print('-{}:'.format(mv))
+        compare_results(results,'fdf', 'acopf', display_results=True)
+
 
 def printresults(results):
     solver = results.attributes(element_type='Solver')
 
 if __name__ == '__main__':
+
     import os
     from egret.parsers.matpower_parser import create_ModelData
     from pyomo.environ import value
@@ -668,11 +860,11 @@ if __name__ == '__main__':
     path = os.path.dirname(__file__)
     #filename = 'pglib_opf_case3_lmbd.m'
     #filename = 'pglib_opf_case5_pjm.m'
-    filename = 'pglib_opf_case14_ieee.m'
+    #filename = 'pglib_opf_case14_ieee.m'
     #filename = 'pglib_opf_case30_ieee.m'
     #filename = 'pglib_opf_case57_ieee.m'
     #filename = 'pglib_opf_case118_ieee.m'
-    #filename = 'pglib_opf_case162_ieee_dtc.m'
+    filename = 'pglib_opf_case162_ieee_dtc.m'
     #filename = 'pglib_opf_case179_goc.m'
     #filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
@@ -680,86 +872,27 @@ if __name__ == '__main__':
     md = create_ModelData(matpower_file)
 
     # keyword arguments
-    kwargs = {'include_v_feasibility_slack':False}
+    kwargs = {'include_v_feasibility_slack': False}
 
     # solve ACOPF
+    print('begin ACOPF...')
     from egret.models.acopf import solve_acopf
-    md_ac, m_ac, results = solve_acopf(md, "ipopt", return_model=True,return_results=True,solver_tee=False)
+    md_ac, m_ac, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
     print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
     print(results.Solver)
-    gen = md_ac.attributes(element_type='generator')
-    bus = md_ac.attributes(element_type='bus')
-    branch = md_ac.attributes(element_type='branch')
-    pg_dict = {'acopf' : gen['pg']}
-    qg_dict = {'acopf' : gen['qg']}
-    tmp_pf = branch['pf']
-    tmp_pt = branch['pt']
-    tmp = {key : (tmp_pf[key] - tmp_pt.get(key,0)) / 2 for key in tmp_pf.keys()}
-    pf_dict = {'acopf' : tmp}
-    pfl_dict = {'acopf' : branch['pfl']}
-    tmp_qf = branch['qf']
-    tmp_qt = branch['qt']
-    tmp = {key : (tmp_qf[key] - tmp_qt.get(key,0)) / 2 for key in tmp_qf.keys()}
-    qf_dict = {'acopf' : tmp}
-    qfl_dict = {'acopf' : branch['qfl']}
-    va_dict = {'acopf' : bus['va']}
-    vm_dict = {'acopf' : bus['vm']}
-
 
     # keyword arguments
     kwargs = {}
-    #kwargs = {'include_v_feasibility_slack':True,'include_feasibility_slack':True}
+    # kwargs = {'include_v_feasibility_slack':True,'include_feasibility_slack':True}
 
     # solve (fixed) FDF
-    md, m, results = solve_fdf(md_ac, "gurobi", fdf_model_generator=create_fdf_model, return_model=True,return_results=True,solver_tee=False, **kwargs)
+    print('begin FDF...')
+    options={}
+    options['method'] = 1
+    md, m, results = solve_fdf(md_ac, "gurobi_persistent", fdf_model_generator=create_fdf_model, return_model=True,
+                               return_results=True, solver_tee=False, options=options, **kwargs)
     print('FDF cost: $%3.2f' % md.data['system']['total_cost'])
     print(results.Solver)
-    if 'm.p_slack_pos' in locals():
-        if value(m.p_slack_pos+m.p_slack_neg)>1e-6:
-            print('REAL POWER IMBALANCE: {}'.format(value(m.p_slack_pos+m.p_slack_neg)))
-        if value(m.q_slack_pos+m.q_slack_neg)>1e-6:
-            print('REACTIVE POWER IMBALANCE: {}'.format(value(m.q_slack_pos+m.q_slack_neg)))
-    gen = md.attributes(element_type='generator')
-    bus = md.attributes(element_type='bus')
-    branch = md.attributes(element_type='branch')
-    pg_dict.update({'fdf' : gen['pg']})
-    qg_dict.update({'fdf' : gen['qg']})
-    pf_dict.update({'fdf' : branch['pf']})
-    pfl_dict.update({'fdf' : branch['pfl']})
-    qf_dict.update({'fdf' : branch['qf']})
-    qfl_dict.update({'fdf' : branch['qfl']})
-    va_dict.update({'fdf' : bus['va']})
-    vm_dict.update({'fdf' : bus['vm']})
-
-    # display results in dataframes
-    print('-pg:')
-    compare_results(pg_dict,'fdf','acopf')
-    print(pd.DataFrame(pg_dict))
-    print('-qg:')
-    compare_results(qg_dict,'fdf','acopf')
-    print(pd.DataFrame(qg_dict))
-#    print('-pt:')
-#    print(pd.DataFrame(pt_dict))
-    print('-pf:')
-    compare_results(pf_dict,'fdf','acopf')
-    print(pd.DataFrame(pf_dict))
-    print('-pfl:')
-    compare_results(pfl_dict,'fdf','acopf')
-    print(pd.DataFrame(pfl_dict))
-#    print('-qt:')
-#    print(pd.DataFrame(qt_dict))
-    print('-qf:')
-    compare_results(qf_dict,'fdf','acopf')
-    print(pd.DataFrame(qf_dict))
-    print('-qfl:')
-    compare_results(qfl_dict,'fdf','acopf')
-    print(pd.DataFrame(qfl_dict))
-#    print('-va:')
-#    print(pd.DataFrame(va_dict))
-    print('-vm:')
-    compare_results(vm_dict,'fdf','acopf')
-    print(pd.DataFrame(vm_dict))
-
 
 # not solving pglib_opf_case57_ieee
 # pglib_opf_case500_tamu

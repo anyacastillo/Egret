@@ -105,7 +105,8 @@ def create_fixed_vm_fdf_model(model_data, **kwargs):
     model.vm.fix()
 
 
-def create_simplified_fdf_model(model_data, include_feasibility_slack=False, include_v_feasibility_slack=False, ptdf_options=None, calculation_method=SensitivityCalculationMethod.INVERT):
+def create_simplified_fdf_model(model_data, include_feasibility_slack=False, include_v_feasibility_slack=False,
+                                ptdf_options=None, calculation_method=SensitivityCalculationMethod.INVERT):
 
     if ptdf_options is None:
         ptdf_options = dict()
@@ -203,8 +204,6 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                                          bus_bs_fixed_shunts)
 
     ### declare the current flows in the branches #TODO: Why are we calculating currents for FDF initialization? Only need P,Q,V,theta
-    vr_init = {k: bus_attrs['vm'][k] * pe.cos(bus_attrs['va'][k]) for k in bus_attrs['vm']}
-    vj_init = {k: bus_attrs['vm'][k] * pe.sin(bus_attrs['va'][k]) for k in bus_attrs['vm']}
     s_max = {k: branches[k]['rating_long_term'] for k in branches.keys()}
     s_lbub = dict()
     for k in branches.keys():
@@ -219,10 +218,10 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
     pf_init = dict()
     qf_init = dict()
     _len_branch = len(branch_attrs['names'])
-#    ploss_init = {'system' : sum(branches[idx]['pf'] + branches[idx]['pt'] for idx in list(range(0, _len_branch))) }
-#    qloss_init = {'system' : sum(branches[idx]['qf'] + branches[idx]['qt'] for idx in list(range(0, _len_branch))) }
-    ploss_init = 0
-    qloss_init = 0
+    ploss_init = sum(branches[bn]['pf'] + branches[bn]['pt'] for bn in branch_attrs['names']) / baseMVA
+    qloss_init = sum(branches[bn]['qf'] + branches[bn]['qt'] for bn in branch_attrs['names']) / baseMVA
+    #ploss_init = 0
+    #qloss_init = 0
 
 
     ### declare the branch power flow variables and approximation constraints
@@ -290,7 +289,6 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                                             thermal_limits=s_max,
                                             )
 
-    # TODO: default include m.eq_vm_bus if bus has shunt device
     if ptdf_options['lazy_voltage']:
 
         shunt_buses = set()
