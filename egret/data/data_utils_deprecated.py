@@ -257,7 +257,7 @@ def create_dicts_of_ptdf_losses(md, base_point=BasePointType.SOLUTION):
     bus_attrs = md.attributes(element_type='bus')
 
     reference_bus = md.data['system']['reference_bus']
-    ptdf, ptdf_c, pldf, pldf_c = tx_calc.calculate_ptdf_pldf(branches, buses, branch_attrs['names'], bus_attrs['names'],
+    ptdf, ptdf_c, pldf, pldf_c, _,_ = tx_calc.calculate_ptdf_pldf(branches, buses, branch_attrs['names'], bus_attrs['names'],
                                                     reference_bus, base_point)
 
     Ft, ft_c, Fv, fv_c = tx_calc.calculate_lccm_flow_sensitivies(branches, buses, branch_attrs['names'], bus_attrs['names'],
@@ -357,7 +357,7 @@ def create_dicts_of_ptdf(md, base_point=BasePointType.FLATSTART):
     bus_attrs = md.attributes(element_type='bus')
 
     reference_bus = md.data['system']['reference_bus']
-    ptdf, ptdf_c, pldf, pldf_c = tx_calc.calculate_ptdf_pldf(branches, buses, branch_attrs['names'], bus_attrs['names'],
+    ptdf, ptdf_c, pldf, pldf_c, _,_ = tx_calc.calculate_ptdf_pldf(branches, buses, branch_attrs['names'], bus_attrs['names'],
                                                     reference_bus, base_point)
 
     Ft, ft_c, Fv, fv_c = tx_calc.calculate_lccm_flow_sensitivies(branches, buses, branch_attrs['names'], bus_attrs['names'],

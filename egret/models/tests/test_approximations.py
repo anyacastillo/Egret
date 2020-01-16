@@ -216,7 +216,7 @@ def record_results(idx, mult, md):
     '''
 
     # delete sensitivity matrices from 'system'. May need to add these back to modelData when opening the .json file.
-    sensi = ['Ft', 'ft_c', 'Fv', 'fv_c', 'Lt', 'lt_c', 'Lv', 'lv_c']
+    sensi = ['Ft', 'ft_c', 'Fv', 'fv_c', 'Lt', 'lt_c', 'Lv', 'lv_c','va_SENSI','va_CONST','vm_SENSI','vm_CONST']
     for s in sensi:
         if s in md.data['system']:
             del md.data['system'][s]
@@ -749,13 +749,13 @@ if __name__ == '__main__':
 
     test_model_dict = \
         {'ccm' :              False,
-         'lccm' :             False,
-         'fdf' :              False,
+         'lccm' :             True,
+         'fdf' :              True,
          'fdf_simplified' :   True,
-         'ptdf_losses' :      False,
-         'ptdf' :             False,
+         'ptdf_losses' :      True,
+         'ptdf' :             True,
          'btheta_losses' :    False,
-         'btheta' :           False
+         'btheta' :           True
          }
 
     solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
