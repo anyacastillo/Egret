@@ -49,22 +49,22 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 case_names = ['pglib_opf_case3_lmbd',
               'pglib_opf_case5_pjm',
               'pglib_opf_case14_ieee',
-              'pglib_opf_case24_ieee_rts',
-              'pglib_opf_case30_as',
-              'pglib_opf_case30_fsr',
-              'pglib_opf_case30_ieee',
-              'pglib_opf_case39_epri',
-              'pglib_opf_case57_ieee',
-              'pglib_opf_case73_ieee_rts',
-              'pglib_opf_case89_pegase',
-              'pglib_opf_case118_ieee',
-              'pglib_opf_case162_ieee_dtc',
-              'pglib_opf_case179_goc',
-              'pglib_opf_case200_tamu',
-              'pglib_opf_case240_pserc',
-              'pglib_opf_case300_ieee',
-              'pglib_opf_case500_tamu',
-              'pglib_opf_case588_sdet',
+              # 'pglib_opf_case24_ieee_rts',
+              # 'pglib_opf_case30_as',
+              # 'pglib_opf_case30_fsr',
+              # 'pglib_opf_case30_ieee',
+              # 'pglib_opf_case39_epri',
+              # 'pglib_opf_case57_ieee',
+              # 'pglib_opf_case73_ieee_rts',
+              # 'pglib_opf_case89_pegase',
+              # 'pglib_opf_case118_ieee',
+              # 'pglib_opf_case162_ieee_dtc',
+              # 'pglib_opf_case179_goc',
+              # 'pglib_opf_case200_tamu',
+              # 'pglib_opf_case240_pserc',
+              # 'pglib_opf_case300_ieee',
+              # 'pglib_opf_case500_tamu',
+              # 'pglib_opf_case588_sdet',
               ]
 test_cases = [os.path.join(current_dir, 'transmission_test_instances', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
 
@@ -181,12 +181,12 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             record_results(idx, mult, md_lccm)
 
         if val and idx == 'fdf':
-            md_fdf, m, results = solve_fdf(md, "gurobi", return_model=True, return_results=True, solver_tee=False)
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False)
 
             record_results(idx, mult, md_fdf)
 
         if val and idx == 'fdf_simplified':
-            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi", return_model=True, return_results=True, solver_tee=False)
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False)
 
             record_results(idx, mult, md_fdfs)
 
@@ -201,7 +201,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             record_results(idx, mult, md_bthetal)
 
         if val and idx == 'ptdf':
-            md_ptdf, m, results = solve_dcopf(md, "gurobi", dcopf_model_generator=create_ptdf_dcopf_model,
+            md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
                                             return_model=True, return_results=True, solver_tee=False)
             record_results(idx, mult, md_ptdf)
 

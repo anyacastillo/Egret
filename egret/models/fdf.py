@@ -741,12 +741,9 @@ def solve_fdf(model_data,
         term_cond = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee,
                                            symbolic_solver_labels=symbolic_solver_labels,iteration_limit=iter_limit,
                                            vars_to_load = vars_to_load)
+
     loop_time = time.time() - start_loop_time
     total_time = init_solve_time + loop_time
-
-    if persistent_solver:
-        solver.load_vars()
-        solver.load_duals()
 
     if not hasattr(md,'results'):
         md.data['results'] = dict()
@@ -755,6 +752,11 @@ def solve_fdf(model_data,
     md.data['results']['#_vars'] = results.Problem[0]['Number of variables']
     md.data['results']['#_nz'] = results.Problem[0]['Number of nonzeros']
     md.data['results']['termination'] = results.solver.termination_condition.__str__()
+
+    if persistent_solver:
+        solver.load_vars()
+        solver.load_duals()
+
 
     if results.Solver.status.key == 'ok':
         _load_solution_to_model_data(m, md, results)

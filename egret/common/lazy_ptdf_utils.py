@@ -23,6 +23,7 @@ class LazyPTDFTerminationCondition(Enum):
     NORMAL = 1
     ITERATION_LIMIT = 2
     FLOW_VIOLATION = 3
+    INFEASIBLE = 4
 
 def populate_default_ptdf_options(ptdf_options):
     if 'rel_ptdf_tol' not in ptdf_options:
@@ -396,12 +397,16 @@ def _lazy_model_solve_loop(m, md, solver, timelimit, solver_tee=True, symbolic_s
 
         #m.ineq_pf_branch_thermal_lb.pprint()
         #m.ineq_pf_branch_thermal_ub.pprint()
-
-        if persistent_solver:
-            solver.solve(m, tee=solver_tee, load_solutions=False, save_results=False)
-            solver.load_vars(vars_to_load=vars_to_load)
-        else:
-            solver.solve(m, tee=solver_tee, symbolic_solver_labels=symbolic_solver_labels)
+        from egret.common.solver_interface import _solve_model
+        m, results, solver = _solve_model(m, solver, solver_tee=solver_tee, return_solver=True)
+        if results.solver.termination_condition == pe.TerminationCondition.infeasible:
+            print('WARNING: Solution infeasible.')
+            return LazyPTDFTerminationCondition.INFEASIBLE
+        # if persistent_solver:
+        #     solver.solve(m, tee=solver_tee, load_solutions=False, save_results=False)
+        #     solver.load_vars(vars_to_load=vars_to_load)
+        # else:
+        #     solver.solve(m, tee=solver_tee, symbolic_solver_labels=symbolic_solver_labels)
 
     else: # we hit the iteration limit
         print('WARNING: Exiting on maximum iterations for lazy PTDF model.')

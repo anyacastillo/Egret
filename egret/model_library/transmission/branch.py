@@ -398,8 +398,8 @@ def _get_df_expr( var, coefs, const, rel_tol, abs_tol ):
     rel_tol -- relative sensitivity tolerance
     abs_tol -- absolution sensitivity tolerance
     """
-    if not isinstance(var, pe.Var):
-        raise Exception("Sensitivity constraints must be simple linear constraints of variables and coefficients")
+    # if not isinstance(var, pe.Var):
+    #     raise Exception("Sensitivity constraints must be simple linear constraints of variables and coefficients")
 
     if rel_tol is None:
         rel_tol = 0.
@@ -412,22 +412,27 @@ def _get_df_expr( var, coefs, const, rel_tol, abs_tol ):
     else:
         sensi_tol = abs_tol
 
-    coef_list = list()
-    var_list = list()
-    for idx, coef in coefs.items():
-        if abs(coef) < sensi_tol:
-            ## add to the constant the value currently in var
-            ## TODO: should this **always** be the initialization value??
-            const += coef*value(var[idx])
-        else:
-            coef_list.append(coef)
-            var_list.append(var[idx])
+    if isinstance(var, pe.Var):
+        coef_list = list()
+        var_list = list()
+        for idx, coef in coefs.items():
+            if abs(coef) < sensi_tol:
+                ## add to the constant the value currently in var
+                ## TODO: should this **always** be the initialization value??
+                const += coef*value(var[idx])
+            else:
+                coef_list.append(coef)
+                var_list.append(var[idx])
+        expr = LinearExpression(constant=const, linear_coefs=coef_list, linear_vars=var_list)
+    elif isinstance(var, pe.Expression):
+        expr = quicksum((coef*value(var[idx]) for idx, coef in coefs.items() if abs(coef) >= sensi_tol),
+                        start=const, linear=True)
 
-    print('const: {}'.format(const))
-    print('coef_list: {}'.format(coef_list))
-    print('var_list: {}'.format(var_list))
+    # print('const: {}'.format(const))
+    # print('coef_list: {}'.format(coef_list))
+    # print('var_list: {}'.format(var_list))
 
-    return LinearExpression(constant=const, linear_coefs=coef_list, linear_vars=var_list)
+    return expr
 
 def get_expr_branch_pf_fdf_approx(model, branch_name, ptdf, ptdf_c, rel_tol=None, abs_tol=None):
     """
