@@ -423,6 +423,10 @@ def _get_df_expr( var, coefs, const, rel_tol, abs_tol ):
             coef_list.append(coef)
             var_list.append(var[idx])
 
+    print('const: {}'.format(const))
+    print('coef_list: {}'.format(coef_list))
+    print('var_list: {}'.format(var_list))
+
     return LinearExpression(constant=const, linear_coefs=coef_list, linear_vars=var_list)
 
 def get_expr_branch_pf_fdf_approx(model, branch_name, ptdf, ptdf_c, rel_tol=None, abs_tol=None):

@@ -212,10 +212,6 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
 
     if ptdf_options['lazy']:
 
-        for branch_name, branch in branches.items():
-            pf_init[branch_name] = 0
-            qf_init[branch_name] = 0
-
         libbranch.declare_var_pf(model=model,
                                  index_set=branch_attrs['names'],
                                  initialize = pf_init,
@@ -709,6 +705,7 @@ def solve_fdf(model_data,
     '''
 
     import pyomo.environ as pe
+    import time
     from egret.common.solver_interface import _solve_model
     from egret.common.lazy_ptdf_utils import _lazy_model_solve_loop
     from pyomo.solvers.plugins.solvers.persistent_solver import PersistentSolver
@@ -716,27 +713,44 @@ def solve_fdf(model_data,
     m, md = fdf_model_generator(model_data, **kwargs)
 
     m.dual = pe.Suffix(direction=pe.Suffix.IMPORT)
-    if isinstance(solver, PersistentSolver) or 'persistent' in solver:
-        vars_to_load = [var for var in m.p_nw.values()]
-        vars_to_load += [var for var in m.q_nw.values()]
+
+    ## flag for persistent solver
+    persistent_solver = isinstance(solver, PersistentSolver) or 'persistent' in solver
+
+    if persistent_solver:
+        vars_to_load = list()
+        vars_to_load.extend(m.p_nw.values())
+        vars_to_load.extend(m.q_nw.values())
+        vars_to_load.extend(m.pf.values())
+        vars_to_load.extend(m.qf.values())
+        vars_to_load.extend(m.vm.values())
     else:
         vars_to_load = None
 
     m, results, solver = _solve_model(m,solver,timelimit=timelimit,solver_tee=solver_tee,
                               symbolic_solver_labels=symbolic_solver_labels,options=options,return_solver=True)
 
+    if persistent_solver:
+        init_solve_time = results.Solver[0]['Wallclock time']
+    else:
+        init_solve_time = results.Solver.Time
+
+    start_loop_time = time.time()
     if fdf_model_generator == create_fdf_model and m._ptdf_options['lazy']:
         iter_limit = m._ptdf_options['iteration_limit']
         term_cond = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee,
                                            symbolic_solver_labels=symbolic_solver_labels,iteration_limit=iter_limit,
                                            vars_to_load = vars_to_load)
-    if isinstance(solver, PersistentSolver):
+    loop_time = time.time() - start_loop_time
+    total_time = init_solve_time + loop_time
+
+    if persistent_solver:
         solver.load_vars()
+        solver.load_duals()
 
     if not hasattr(md,'results'):
         md.data['results'] = dict()
-    # TODO: needs "manual" time recording due to use of persistent solver
-    #md.data['results']['time'] = results.Solver.Time
+    md.data['results']['time'] = total_time
     md.data['results']['#_cons'] = results.Problem[0]['Number of constraints']
     md.data['results']['#_vars'] = results.Problem[0]['Number of variables']
     md.data['results']['#_nz'] = results.Problem[0]['Number of nonzeros']

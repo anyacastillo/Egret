@@ -555,7 +555,6 @@ def solve_fdf_simplified(model_data,
 
     if not hasattr(md,'results'):
         md.data['results'] = dict()
-    # TODO: needs "manual" time recording due to use of persistent solver
     md.data['results']['time'] = total_time
     md.data['results']['#_cons'] = results.Problem[0]['Number of constraints']
     md.data['results']['#_vars'] = results.Problem[0]['Number of variables']
