@@ -656,6 +656,7 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
 
         inner_loop_solves(md_basept, mult, test_model_dict)
 
+    create_testcase_directory(test_case)
 
 def generate_sensitivity_plot(test_case, test_model_dict, data_generator=total_cost, vector_norm=2, show_plot=False):
 
@@ -761,6 +762,8 @@ if __name__ == '__main__':
     for tc in test_cases:
         solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
+    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas, show_plot=True)
     #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
     #generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas, show_plot=True)
     #generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas)

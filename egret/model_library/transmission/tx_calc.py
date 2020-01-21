@@ -1038,6 +1038,8 @@ def linsolve_theta_fdf(model, model_data, base_point=BasePointType.SOLUTION, map
 
         return theta
 
+    print('solving theta with power flow Jacobian.')
+
     # Rectangular sensitivity matrices
     J = md.data['system']['Ft']
     L = md.data['system']['Lt']
@@ -1118,6 +1120,8 @@ def linsolve_vmag_fdf(model, model_data, base_point=BasePointType.SOLUTION, mapp
         vmag = Z.dot(m_q_nw) + c
 
         return vmag
+
+    print('solving vmag with power flow Jacobian.')
 
     # Rectangular sensitivity matrices
     J = md.data['system']['Fv']
