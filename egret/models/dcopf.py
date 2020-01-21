@@ -363,9 +363,11 @@ def solve_dcopf(model_data,
 
 
     if persistent_solver:
-        vars_to_load = list()
-        vars_to_load.extend(m.p_nw.values())
-        vars_to_load.extend(m.pf.values())
+        ## TODO: work out what these should be for this model
+        vars_to_load = None
+        #vars_to_load = list()
+        #vars_to_load.extend(m.pg.values())
+        #vars_to_load.extend(m.pf.values())
     else:
         vars_to_load = None
 

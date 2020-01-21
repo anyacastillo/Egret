@@ -388,11 +388,11 @@ def declare_eq_branch_loss_btheta_approx(model, index_set, branches, relaxation_
                 m.pfl[branch_name] >= \
                 g * (m.dva[branch_name])**2
 
-def _get_df_expr( var, coefs, const, rel_tol, abs_tol ):
+def _get_df_expr( pyo_idx_var_expr, coefs, const, rel_tol, abs_tol ):
     """
     create a general sensitivity linear expression
 
-    var -- pyomo IndexedVar
+    pyo_idx_var_expr -- a Pyomo indexed Var or index Expression
     coefs -- dictionary of coefs, keys are same a indexed var
     const -- expression constant
     rel_tol -- relative sensitivity tolerance
@@ -412,7 +412,8 @@ def _get_df_expr( var, coefs, const, rel_tol, abs_tol ):
     else:
         sensi_tol = abs_tol
 
-    if isinstance(var, pe.Var):
+    if isinstance(pyo_idx_var_expr, pe.Var):
+        var = pyo_idx_var_expr
         coef_list = list()
         var_list = list()
         for idx, coef in coefs.items():
@@ -424,8 +425,14 @@ def _get_df_expr( var, coefs, const, rel_tol, abs_tol ):
                 coef_list.append(coef)
                 var_list.append(var[idx])
         expr = LinearExpression(constant=const, linear_coefs=coef_list, linear_vars=var_list)
-    elif isinstance(var, pe.Expression):
-        expr = quicksum((coef*value(var[idx]) for idx, coef in coefs.items() if abs(coef) >= sensi_tol),
+    elif isinstance(pyo_idx_var_expr, pe.Expression):
+        Expr = pyo_idx_var_expr
+        ## if the coef is bigger than tolerance, we add the the coef*Expression, otherwise we add
+        ## coef*(value of the Expression now), 
+        expr = quicksum( (coef*Expr[idx] 
+                                if abs(coef) >= sensi_tol else 
+                         coef*value(Expr[idx]) 
+                                for idx, coef in coefs.items()),
                         start=const, linear=True)
 
     # print('const: {}'.format(const))
