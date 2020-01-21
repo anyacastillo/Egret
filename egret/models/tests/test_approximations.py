@@ -759,10 +759,10 @@ if __name__ == '__main__':
          'btheta' :           True
          }
 
-    #for tc in test_cases:
-    #    solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    for tc in test_cases:
+        solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
-    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
     #generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas, show_plot=True)
     #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
     #generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas, show_plot=True)
