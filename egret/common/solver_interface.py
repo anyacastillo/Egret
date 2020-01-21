@@ -128,7 +128,7 @@ def _solve_model(model,
     elif isinstance(solver, po.base.OptSolver):
         pass
     else:
-        raise Exception('solver must be string or an instanciated pyomo solver')
+        raise Exception('solver must be string or an instantiated pyomo solver')
 
     _set_options(solver, mipgap, timelimit, options)
 
@@ -141,6 +141,8 @@ def _solve_model(model,
 
     flag = True
     if results.solver.termination_condition not in safe_termination_conditions:
+        if model._ptdf_options["lazy"]:
+            return model, results, solver
         raise Exception('Problem encountered during solve, termination_condition {}'.format(results.solver.termination_condition))
 
     if isinstance(solver, PersistentSolver):
