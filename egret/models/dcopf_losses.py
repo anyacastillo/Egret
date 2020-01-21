@@ -381,33 +381,72 @@ def solve_dcopf_losses(model_data,
 
     import pyomo.environ as pe
     import numpy as np
+    import time
     from pyomo.environ import value
     from egret.common.solver_interface import _solve_model
     from egret.model_library.transmission.tx_utils import \
         scale_ModelData_to_pu, unscale_ModelData_to_pu
     from egret.common.lazy_ptdf_utils import _lazy_model_solve_loop
     from egret.model_library.transmission.tx_calc import linsolve_theta_fdf
+    from pyomo.solvers.plugins.solvers.persistent_solver import PersistentSolver
 
     m, md = dcopf_losses_model_generator(model_data, **kwargs)
 
     m.dual = pe.Suffix(direction=pe.Suffix.IMPORT)
 
+    persistent_solver = isinstance(solver, PersistentSolver) or 'persistent' in solver
+
+
+    if persistent_solver:
+        vars_to_load = list()
+        vars_to_load.extend(m.p_nw.values())
+        vars_to_load.extend(m.pf.values())
+        vars_to_load.extend(m.ploss.values())
+    else:
+        vars_to_load = None
+
     m, results, solver = _solve_model(m,solver,timelimit=timelimit,solver_tee=solver_tee,
                               symbolic_solver_labels=symbolic_solver_labels,options=options, return_solver=True)
 
 
+    if persistent_solver:
+        init_solve_time = results.Solver[0]['Wallclock time']
+    else:
+        init_solve_time = results.Solver.Time
+
+
+    start_loop_time = time.time()
+    term_cond = 0
     if dcopf_losses_model_generator == create_ptdf_losses_dcopf_model and m._ptdf_options['lazy']:
         iter_limit = m._ptdf_options['iteration_limit']
-        term_cond = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee, symbolic_solver_labels=symbolic_solver_labels,iteration_limit=iter_limit)
+        term_cond = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee,
+                                           symbolic_solver_labels=symbolic_solver_labels,iteration_limit=iter_limit,
+                                           vars_to_load = vars_to_load)
 
+    loop_time = time.time() - start_loop_time
+    total_time = init_solve_time + loop_time
 
     if not hasattr(md,'results'):
         md.data['results'] = dict()
-    md.data['results']['time'] = results.Solver.Time
+    md.data['results']['time'] = total_time
     md.data['results']['#_cons'] = results.Problem[0]['Number of constraints']
     md.data['results']['#_vars'] = results.Problem[0]['Number of variables']
     md.data['results']['#_nz'] = results.Problem[0]['Number of nonzeros']
     md.data['results']['termination'] = results.solver.termination_condition.__str__()
+
+    from egret.common.lazy_ptdf_utils import LazyPTDFTerminationCondition
+    if not results.Solver.status.key == 'ok' or term_cond == LazyPTDFTerminationCondition.INFEASIBLE:
+        if return_model and return_results:
+            return md, m, results
+        elif return_model:
+            return md, m
+        elif return_results:
+            return md, results
+        return md
+
+    if persistent_solver:
+        solver.load_vars()
+        solver.load_duals()
 
     # save results data to ModelData object
     gens = dict(md.elements(element_type='generator'))
