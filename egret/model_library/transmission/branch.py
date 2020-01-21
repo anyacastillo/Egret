@@ -388,18 +388,18 @@ def declare_eq_branch_loss_btheta_approx(model, index_set, branches, relaxation_
                 m.pfl[branch_name] >= \
                 g * (m.dva[branch_name])**2
 
-def _get_df_expr( pyo_idx_var_expr, coefs, const, rel_tol, abs_tol ):
+def _get_df_expr( var, coefs, const, rel_tol, abs_tol ):
     """
     create a general sensitivity linear expression
 
-    pyo_idx_var_expr -- a Pyomo indexed Var or index Expression
+    var -- pyomo IndexedVar
     coefs -- dictionary of coefs, keys are same a indexed var
     const -- expression constant
     rel_tol -- relative sensitivity tolerance
     abs_tol -- absolution sensitivity tolerance
     """
-    # if not isinstance(var, pe.Var):
-    #     raise Exception("Sensitivity constraints must be simple linear constraints of variables and coefficients")
+    if not isinstance(var, pe.Var):
+        raise Exception("Sensitivity constraints must be simple linear constraints of variables and coefficients")
 
     if rel_tol is None:
         rel_tol = 0.
@@ -412,34 +412,18 @@ def _get_df_expr( pyo_idx_var_expr, coefs, const, rel_tol, abs_tol ):
     else:
         sensi_tol = abs_tol
 
-    if isinstance(pyo_idx_var_expr, pe.Var):
-        var = pyo_idx_var_expr
-        coef_list = list()
-        var_list = list()
-        for idx, coef in coefs.items():
-            if abs(coef) < sensi_tol:
-                ## add to the constant the value currently in var
-                ## TODO: should this **always** be the initialization value??
-                const += coef*value(var[idx])
-            else:
-                coef_list.append(coef)
-                var_list.append(var[idx])
-        expr = LinearExpression(constant=const, linear_coefs=coef_list, linear_vars=var_list)
-    elif isinstance(pyo_idx_var_expr, pe.Expression):
-        Expr = pyo_idx_var_expr
-        ## if the coef is bigger than tolerance, we add the the coef*Expression, otherwise we add
-        ## coef*(value of the Expression now), 
-        expr = quicksum( (coef*Expr[idx] 
-                                if abs(coef) >= sensi_tol else 
-                         coef*value(Expr[idx]) 
-                                for idx, coef in coefs.items()),
-                        start=const, linear=True)
+    coef_list = list()
+    var_list = list()
+    for idx, coef in coefs.items():
+        if abs(coef) < sensi_tol:
+            ## add to the constant the value currently in var
+            ## TODO: should this **always** be the initialization value??
+            const += coef*value(var[idx])
+        else:
+            coef_list.append(coef)
+            var_list.append(var[idx])
 
-    # print('const: {}'.format(const))
-    # print('coef_list: {}'.format(coef_list))
-    # print('var_list: {}'.format(var_list))
-
-    return expr
+    return LinearExpression(constant=const, linear_coefs=coef_list, linear_vars=var_list)
 
 def get_expr_branch_pf_fdf_approx(model, branch_name, ptdf, ptdf_c, rel_tol=None, abs_tol=None):
     """

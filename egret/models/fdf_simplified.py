@@ -751,7 +751,7 @@ if __name__ == '__main__':
 
     # set case and filepath
     path = os.path.dirname(__file__)
-    filename = 'pglib_opf_case3_lmbd.m'
+    #filename = 'pglib_opf_case3_lmbd.m'
     #filename = 'pglib_opf_case5_pjm.m'
     #filename = 'pglib_opf_case14_ieee.m'
     #filename = 'pglib_opf_case30_ieee.m'
@@ -759,7 +759,7 @@ if __name__ == '__main__':
     #filename = 'pglib_opf_case118_ieee.m'
     #filename = 'pglib_opf_case162_ieee_dtc.m'
     #filename = 'pglib_opf_case179_goc.m'
-    #filename = 'pglib_opf_case300_ieee.m'
+    filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
     md = create_ModelData(matpower_file)
@@ -769,6 +769,7 @@ if __name__ == '__main__':
     md_ac, m_ac, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
     print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
     print('ACOPF time: %3.5f' % md_ac.data['results']['time'])
+    print(results.Solver)
 
     # keyword arguments
     kwargs = {}
@@ -782,6 +783,7 @@ if __name__ == '__main__':
                                           options=options, **kwargs)
     print('FDF cost: $%3.2f' % md.data['system']['total_cost'])
     print('FDF time: %3.5f' % md.data['results']['time'])
+    print(results.Solver)
 
 # not solving pglib_opf_case57_ieee
 # pglib_opf_case500_tamu
