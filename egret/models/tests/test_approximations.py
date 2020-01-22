@@ -191,7 +191,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             record_results(idx, mult, md_fdfs)
 
         if val and idx == 'ptdf_losses':
-            md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi", dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
+            md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent", dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
                                                     return_model=True, return_results=True, solver_tee=False)
             record_results(idx, mult, md_ptdfl)
 
