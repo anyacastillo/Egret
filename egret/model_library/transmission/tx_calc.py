@@ -991,7 +991,8 @@ def calculate_lccm_loss_sensitivies(branches, buses, index_set_branch, index_set
     return Lt, lt_c, Lv, lv_c
 
 
-def linsolve_theta_fdf(model, model_data, base_point=BasePointType.SOLUTION, mapping_bus_to_idx=None):
+def linsolve_theta_fdf(model, model_data, base_point=BasePointType.SOLUTION,
+        mapping_bus_to_idx=None, index_set_bus=None, index_set_branch=None):
     '''
     Finds the implied voltage angles from an FDF model solution
 
@@ -999,35 +1000,20 @@ def linsolve_theta_fdf(model, model_data, base_point=BasePointType.SOLUTION, map
     '''
     md = model_data
 
-    buses = dict(md.elements(element_type='bus'))
-    branches = dict(md.elements(element_type='branch'))
+    if base_point is BasePointType.SOLUTION:
+        approximation_type = ApproximationType.PTDF_LOSSES
+    else:
+        approximation_type = ApproximationType.PTDF
 
-    bus_attrs = md.attributes(element_type='bus')
-    branch_attrs = md.attributes(element_type='branch')
-
-    index_set_bus = bus_attrs['names']
-    index_set_branch = branch_attrs['names']
-
-    reference_bus = md.data['system']['reference_bus']
-
-    _len_bus = len(index_set_bus)
-    _len_branch = len(index_set_branch)
-
-    if mapping_bus_to_idx is None:
-        mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}
-
-    _ref_bus_idx = mapping_bus_to_idx[reference_bus]
-
+    if index_set_bus is None:
+        index_set_bus = md.attributes(element_type='bus')['names']
     if base_point is BasePointType.SOLUTION:
         approximation_type = ApproximationType.PTDF_LOSSES
     else:
         approximation_type = ApproximationType.PTDF
 
     # Nodal net withdrawal to a Numpy array
-    m_p_nw = np.zeros(_len_bus)
-    for b, bus in buses.items():
-        idx = mapping_bus_to_idx[b]
-        m_p_nw[idx] = value(model.p_nw[b])
+    m_p_nw = np.fromiter((value(model.p_nw[b]) for b in index_set_bus), float, count=len(index_set_bus))
 
     if 'va_SENSI' in md.data['system']:
 
@@ -1045,6 +1031,17 @@ def linsolve_theta_fdf(model, model_data, base_point=BasePointType.SOLUTION, map
     L = md.data['system']['Lt']
     Jc = md.data['system']['ft_c']
     Lc = md.data['system']['lt_c']
+
+    ## TODO: we should be getting A from somewhere else,
+    ##       not constructing it each time
+    if mapping_bus_to_idx is None:
+        mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}
+
+    if index_set_branch is None:
+        branch_attrs = md.attributes(element_type='branch')
+        index_set_branch = branch_attrs['names']
+
+    branches = dict(md.elements(element_type='branch'))
 
     A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
     AA = calculate_absolute_adjacency_matrix(A)
@@ -1074,7 +1071,8 @@ def linsolve_theta_fdf(model, model_data, base_point=BasePointType.SOLUTION, map
 
     return theta
 
-def linsolve_vmag_fdf(model, model_data, base_point=BasePointType.SOLUTION, mapping_bus_to_idx=None):
+def linsolve_vmag_fdf(model, model_data, base_point=BasePointType.SOLUTION,
+        mapping_bus_to_idx=None, index_set_bus=None, index_set_branch=None):
     '''
     Finds the implied voltage angles from an FDF model solution
 
@@ -1082,35 +1080,15 @@ def linsolve_vmag_fdf(model, model_data, base_point=BasePointType.SOLUTION, mapp
     '''
     md = model_data
 
-    buses = dict(md.elements(element_type='bus'))
-    branches = dict(md.elements(element_type='branch'))
-
-    bus_attrs = md.attributes(element_type='bus')
-    branch_attrs = md.attributes(element_type='branch')
-
-    index_set_bus = bus_attrs['names']
-    index_set_branch = branch_attrs['names']
-
-    reference_bus = md.data['system']['reference_bus']
-
-    _len_bus = len(index_set_bus)
-    _len_branch = len(index_set_branch)
-
-    if mapping_bus_to_idx is None:
-        mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}
-
-    _ref_bus_idx = mapping_bus_to_idx[reference_bus]
-
     if base_point is BasePointType.SOLUTION:
         approximation_type = ApproximationType.PTDF_LOSSES
     else:
         approximation_type = ApproximationType.PTDF
 
+    if index_set_bus is None:
+        index_set_bus = md.attributes(element_type='bus')['names']
     # Nodal net withdrawal to a Numpy array
-    m_q_nw = np.zeros(_len_bus)
-    for b, bus in buses.items():
-        idx = mapping_bus_to_idx[b]
-        m_q_nw[idx] = value(model.q_nw[b])
+    m_q_nw = np.fromiter((value(model.q_nw[b]) for b in index_set_bus), float, count=len(index_set_bus))
 
     if 'vm_SENSI' in md.data['system']:
 
@@ -1128,6 +1106,17 @@ def linsolve_vmag_fdf(model, model_data, base_point=BasePointType.SOLUTION, mapp
     L = md.data['system']['Lv']
     Jc = md.data['system']['fv_c']
     Lc = md.data['system']['lv_c']
+
+    ## TODO: we should be getting A from somewhere else,
+    ##       not constructing it each time
+    if mapping_bus_to_idx is None:
+        mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}
+
+    if index_set_branch is None:
+        branch_attrs = md.attributes(element_type='branch')
+        index_set_branch = branch_attrs['names']
+
+    branches = dict(md.elements(element_type='branch'))
 
     A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
     AA = calculate_absolute_adjacency_matrix(A)

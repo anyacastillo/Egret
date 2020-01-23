@@ -284,8 +284,6 @@ def create_ptdf_dcopf_model(model_data, include_feasibility_slack=False, base_po
                                                   index_set=branches_idx,
                                                   sensitivity=branch_attrs['ptdf'],
                                                   constant=branch_attrs['ptdf_c'],
-                                                  abs_ptdf_tol=None,
-                                                  rel_ptdf_tol=None,
                                                   )
 
     ### declare the generator cost objective

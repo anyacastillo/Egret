@@ -251,16 +251,12 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                                   index_set=branch_attrs['names'],
                                                   sensitivity=branch_attrs['ptdf'],
                                                   constant=branch_attrs['ptdf_c'],
-                                                  rel_tol=None,
-                                                  abs_tol=None
                                                   )
 
         libbranch.declare_eq_branch_qf_fdf_approx(model=model,
                                                   index_set=branch_attrs['names'],
                                                   sensitivity=branch_attrs['qtdf'],
                                                   constant=branch_attrs['qtdf_c'],
-                                                  rel_tol=None,
-                                                  abs_tol=None
                                                   )
 
         libbranch.declare_fdf_thermal_limit(model=model,
@@ -294,8 +290,6 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                         index_set=bus_attrs['names'],
                                         sensitivity=bus_attrs['vdf'],
                                         constant=bus_attrs['vdf_c'],
-                                        rel_tol=None,
-                                        abs_tol=None
                                         )
 
 
@@ -314,16 +308,12 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                                index_set=branch_attrs['names'],
                                                sensitivity=branch_attrs['pldf'],
                                                constant=branch_attrs['pldf_c'],
-                                               rel_tol=None,
-                                               abs_tol=None
                                                )
 
     libbranch.declare_eq_branch_qfl_fdf_approx(model=model,
                                                index_set=branch_attrs['names'],
                                                sensitivity=branch_attrs['qldf'],
                                                constant=branch_attrs['qldf_c'],
-                                               rel_tol=None,
-                                               abs_tol=None
                                                )
 
     ### declare the p balance

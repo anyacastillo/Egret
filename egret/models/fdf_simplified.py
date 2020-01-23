@@ -413,7 +413,7 @@ def _load_solution_to_model_data(m, md, results):
     ft_c = md.data['system']['ft_c']
     PFV = Ft.dot(THETA) + ft_c
 
-    VMAG = linsolve_vmag_fdf(m, md)
+    VMAG = linsolve_vmag_fdf(m, md, index_set_bus=buses_idx)
     Fv = md.data['system']['Fv']
     fv_c = md.data['system']['fv_c']
     QFV = Fv.dot(VMAG) + fv_c

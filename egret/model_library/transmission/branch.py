@@ -22,6 +22,7 @@ from egret.data.model_data import zip_items
 from pyomo.core.util import quicksum
 from pyomo.core.expr.numeric_expr import LinearExpression
 
+
 def declare_var_dva(model, index_set, **kwargs):
     """
     Create variable or the angle difference between interconnected bus pairs
@@ -388,50 +389,56 @@ def declare_eq_branch_loss_btheta_approx(model, index_set, branches, relaxation_
                 m.pfl[branch_name] >= \
                 g * (m.dva[branch_name])**2
 
-def _get_df_expr( var, coefs, const, rel_tol, abs_tol ):
+def _get_df_expr( var_or_expr, coefs, const, rel_tol=0., abs_tol=0. ):
     """
     create a general sensitivity linear expression
 
-    var -- pyomo IndexedVar
+    var_or_expr -- pyomo IndexedVar or Indexed Expression
     coefs -- dictionary of coefs, keys are same a indexed var
     const -- expression constant
     rel_tol -- relative sensitivity tolerance
     abs_tol -- absolution sensitivity tolerance
     """
-    if not isinstance(var, pe.Var):
-        raise Exception("Sensitivity constraints must be simple linear constraints of variables and coefficients")
-
-    if rel_tol is None:
-        rel_tol = 0.
-    if abs_tol is None:
-        abs_tol = 0.
-
     if rel_tol > 0:
         max_coef = max(abs(coef) for coef in coefs.values())
         sensi_tol = max(abs_tol, rel_tol*max_coef)
     else:
         sensi_tol = abs_tol
 
-    coef_list = list()
-    var_list = list()
-    for idx, coef in coefs.items():
-        if abs(coef) < sensi_tol:
-            ## add to the constant the value currently in var
-            ## TODO: should this **always** be the initialization value??
-            const += coef*value(var[idx])
-        else:
-            coef_list.append(coef)
-            var_list.append(var[idx])
+    if isinstance(var_or_expr, pe.Var):
+        var = var_or_expr
+        coef_list = list()
+        var_list = list()
+        for idx, coef in coefs.items():
+            if abs(coef) < sensi_tol:
+                ## add to the constant the value currently in var
+                ## TODO: should this **always** be the initialization value??
+                const += coef*value(var[idx])
+            else:
+                coef_list.append(coef)
+                var_list.append(var[idx])
 
-    return LinearExpression(constant=const, linear_coefs=coef_list, linear_vars=var_list)
+        return LinearExpression(constant=const, linear_coefs=coef_list, linear_vars=var_list)
 
-def get_expr_branch_pf_fdf_approx(model, branch_name, ptdf, ptdf_c, rel_tol=None, abs_tol=None):
+    elif isinstance(var_or_expr, pe.Expression):
+        expr = var_or_expr
+        return quicksum( (coef*expr[idx]
+                                if abs(coef) >= sensi_tol else
+                            coef*value(expr[idx])
+                                for idx, coef in coefs.items()),
+                            start=const, linear=True)
+
+    else:
+        raise Exception("Sensitivity constraints must be simple linear constraints of variables and "
+                        "coefficients or expressions and coefficients.")
+
+def get_expr_branch_pf_fdf_approx(model, branch_name, ptdf, ptdf_c, rel_tol=0., abs_tol=0.):
     """
     Create a pyomo power flow expression from PTDF matrix
     """
     return _get_df_expr(model.p_nw, ptdf, ptdf_c, rel_tol, abs_tol)
 
-def declare_eq_branch_pf_fdf_approx(model, index_set, sensitivity, constant, rel_tol=None, abs_tol=None):
+def declare_eq_branch_pf_fdf_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.):
     """
     Create the equality constraints or expressions for power (from PTDF 
     approximation) in the branch
@@ -461,13 +468,13 @@ def declare_eq_branch_pf_fdf_approx(model, index_set, sensitivity, constant, rel
         else:
             m.pf[branch_name] = expr
 
-def get_expr_branch_pfl_fdf_approx(model, branch_name, pldf, pldf_c, rel_tol=None, abs_tol=None):
+def get_expr_branch_pfl_fdf_approx(model, branch_name, pldf, pldf_c, rel_tol=0., abs_tol=0.):
     """
     Create a pyomo power flow loss expression from PTDF matrix
     """
     return _get_df_expr( model.p_nw, pldf, pldf_c, rel_tol, abs_tol )
 
-def declare_eq_branch_pfl_fdf_approx(model, index_set, sensitivity, constant, rel_tol=None, abs_tol=None):
+def declare_eq_branch_pfl_fdf_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.):
     """
     Create the equality constraints or expressions for losses (from PTDF 
     approximation) in the branch
@@ -494,13 +501,13 @@ def declare_eq_branch_pfl_fdf_approx(model, index_set, sensitivity, constant, re
         else:
             m.pfl[branch_name] = expr
 
-def get_expr_branch_qf_fdf_approx(model, branch_name, qtdf, qtdf_c, rel_tol=None, abs_tol=None):
+def get_expr_branch_qf_fdf_approx(model, branch_name, qtdf, qtdf_c, rel_tol=0., abs_tol=0.):
     """
     Create a pyomo power flow expression from QTDF matrix (reactive power flows)
     """
     return _get_df_expr(model.q_nw, qtdf, qtdf_c, rel_tol, abs_tol)
 
-def declare_eq_branch_qf_fdf_approx(model, index_set, sensitivity, constant, rel_tol=None, abs_tol=None):
+def declare_eq_branch_qf_fdf_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.):
     """
     Create the equality constraints or expressions for power (from QTDF
     approximation) in the branch
@@ -530,13 +537,13 @@ def declare_eq_branch_qf_fdf_approx(model, index_set, sensitivity, constant, rel
         else:
             m.qf[branch_name] = expr
 
-def get_expr_branch_qfl_fdf_approx(model, branch_name, qldf, qldf_c, rel_tol=None, abs_tol=None):
+def get_expr_branch_qfl_fdf_approx(model, branch_name, qldf, qldf_c, rel_tol=0., abs_tol=0.):
     """
     Create a pyomo power flow loss expression from QLDF matrix
     """
     return _get_df_expr( model.q_nw, qldf, qldf_c, rel_tol, abs_tol )
 
-def declare_eq_branch_qfl_fdf_approx(model, index_set, sensitivity, constant, rel_tol=None, abs_tol=None):
+def declare_eq_branch_qfl_fdf_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.):
     """
     Create the equality constraints or expressions for losses (from QLDF
     approximation) in the branch
@@ -563,13 +570,13 @@ def declare_eq_branch_qfl_fdf_approx(model, index_set, sensitivity, constant, re
         else:
             m.qfl[branch_name] = expr
 
-def get_expr_branch_pf_lccm_approx(model, branch_name, pf_sens, pf_const, rel_tol=None, abs_tol=None):
+def get_expr_branch_pf_lccm_approx(model, branch_name, pf_sens, pf_const, rel_tol=0., abs_tol=0.):
     """
     Create a pyomo power flow expression from CCM sensitivity
     """
     return _get_df_expr(model.va, pf_sens, pf_const, rel_tol, abs_tol)
 
-def declare_eq_branch_pf_lccm_approx(model, index_set, sensitivity, constant, rel_tol=None, abs_tol=None):
+def declare_eq_branch_pf_lccm_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.):
     """
     Create the equality constraints or expressions for power (from LCCM approximation) in the branch
     """
@@ -598,13 +605,13 @@ def declare_eq_branch_pf_lccm_approx(model, index_set, sensitivity, constant, re
         else:
             m.pf[branch_name] = expr
 
-def get_expr_branch_pfl_lccm_approx(model, branch_name, pfl_sens, pfl_const, rel_tol=None, abs_tol=None):
+def get_expr_branch_pfl_lccm_approx(model, branch_name, pfl_sens, pfl_const, rel_tol=0., abs_tol=0.):
     """
     Create a pyomo power flow loss expression from CCM sensitivity
     """
     return _get_df_expr(model.va, pfl_sens, pfl_const, rel_tol, abs_tol)
 
-def declare_eq_branch_pfl_lccm_approx(model, index_set, sensitivity, constant, rel_tol=None, abs_tol=None):
+def declare_eq_branch_pfl_lccm_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.):
     """
     Create the equality constraints or expressions for losses (from LCCM approximation) in the branch
     """
@@ -630,13 +637,13 @@ def declare_eq_branch_pfl_lccm_approx(model, index_set, sensitivity, constant, r
         else:
             m.pfl[branch_name] = expr
 
-def get_expr_branch_qf_lccm_approx(model, branch_name, qf_sens, qf_const, rel_tol=None, abs_tol=None):
+def get_expr_branch_qf_lccm_approx(model, branch_name, qf_sens, qf_const, rel_tol=0., abs_tol=0.):
     """
     Create a pyomo power flow expression from CCM sensitivity
     """
     return _get_df_expr(model.vm, qf_sens, qf_const, rel_tol, abs_tol)
 
-def declare_eq_branch_qf_lccm_approx(model, index_set, sensitivity, constant, rel_tol=None, abs_tol=None):
+def declare_eq_branch_qf_lccm_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.):
     """
     Create the equality constraints or expressions for power (from LCCM approximation) in the branch
     """
@@ -665,13 +672,13 @@ def declare_eq_branch_qf_lccm_approx(model, index_set, sensitivity, constant, re
         else:
             m.qf[branch_name] = expr
 
-def get_expr_branch_qfl_lccm_approx(model, branch_name, qfl_sens, qfl_const, rel_tol=None, abs_tol=None):
+def get_expr_branch_qfl_lccm_approx(model, branch_name, qfl_sens, qfl_const, rel_tol=0., abs_tol=0.):
     """
     Create a pyomo power flow loss expression from CCM sensitivity
     """
     return _get_df_expr(model.vm, qfl_sens, qfl_const, rel_tol, abs_tol)
 
-def declare_eq_branch_qfl_lccm_approx(model, index_set, sensitivity, constant, rel_tol=None, abs_tol=None):
+def declare_eq_branch_qfl_lccm_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.):
     """
     Create the equality constraints or expressions for losses (from LCCM approximation) in the branch
     """

@@ -631,13 +631,13 @@ def declare_ineq_vm_bus_lbub(model, index_set, buses, coordinate_type=Coordinate
                 m.vr[bus_name]**2 + m.vj[bus_name]**2 <= buses[bus_name]['v_max']**2
 
 
-def get_vm_expr_vdf_approx(model, bus_name, vdf, vdf_c, rel_tol=None, abs_tol=None):
+def get_vm_expr_vdf_approx(model, bus_name, vdf, vdf_c, rel_tol=0., abs_tol=0.):
     """
     Create a pyomo power flow expression from VDF matrix (voltage magnitudes)
     """
     return _get_df_expr(model.q_nw, vdf, vdf_c, rel_tol, abs_tol)
 
-def declare_eq_vm_vdf_approx(model, index_set, sensitivity, constant, rel_tol=None, abs_tol=None):
+def declare_eq_vm_vdf_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.):
     """
     Create the equality constraints or expressions for voltage magnitude
     (from VDF approximation) in the bus

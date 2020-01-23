@@ -290,8 +290,6 @@ def create_ptdf_losses_dcopf_model(model_data, include_feasibility_slack=False, 
                                                   index_set=branch_attrs['names'],
                                                   sensitivity=branch_attrs['ptdf'],
                                                   constant=branch_attrs['ptdf_c'],
-                                                  rel_tol=None,
-                                                  abs_tol=None
                                                   )
 
 
@@ -304,8 +302,6 @@ def create_ptdf_losses_dcopf_model(model_data, include_feasibility_slack=False, 
     libbranch.declare_eq_ploss_fdf_simplified(model=model,
                                               sensitivity=bus_attrs['ploss_sens'],
                                               constant=system_attrs['ploss_const'],
-                                              rel_tol=None,
-                                              abs_tol=None
                                               )
 
     ### declare the p balance

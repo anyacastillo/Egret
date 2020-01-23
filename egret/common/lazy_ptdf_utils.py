@@ -101,7 +101,7 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
     _len_branch = len(index_set_branch)
 
     ## Back-solve for theta then calculate real power flows with sparse sensitivity matrix
-    THETA = tx_calc.linsolve_theta_fdf(mb, md)
+    THETA = tx_calc.linsolve_theta_fdf(mb, md, index_set_bus=index_set_bus)
     Ft = md.data['system']['Ft']
     ft_c = md.data['system']['ft_c']
     PFV = Ft.dot(THETA) + ft_c
@@ -110,7 +110,7 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
     if hasattr(mb, "qg"):
         if max_viol_add_vm is None:
             max_viol_add_vm = max_viol_add
-        VMAG = tx_calc.linsolve_vmag_fdf(mb, md)
+        VMAG = tx_calc.linsolve_vmag_fdf(mb, md, index_set_bus = index_set_bus)
         Fv = md.data['system']['Fv']
         fv_c = md.data['system']['fv_c']
         QFV = Fv.dot(VMAG) + fv_c
@@ -124,7 +124,7 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
     rel_flow_tol = m._ptdf_options['rel_flow_tol']
 
     ## find thermal violations
-    branch_limits = np.array([enforced_branch_limits[k] for k in index_set_branch])
+    branch_limits = np.fromiter((enforced_branch_limits[k] for k in index_set_branch), float, count=len(index_set_branch))
     ## add some wiggle for tolerance 
     branch_limits += np.maximum(branch_limits*rel_flow_tol, abs_flow_tol)
     thermal_idx_monitored = mb._thermal_idx_monitored
@@ -134,9 +134,11 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
 
     ## find vmag violations
     if hasattr(mb, "qg"):
+        v_min = bus_attrs['v_min']
+        v_max = bus_attrs['v_max']
         pu_vm_tol = m._ptdf_options['pu_vm_tol']
-        vmag_lb_limits = np.array([bus_attrs['v_min'][b] for b in index_set_bus])
-        vmag_ub_limits = np.array([bus_attrs['v_max'][b] for b in index_set_bus])
+        vmag_lb_limits = np.fromiter((v_min[b] for b in index_set_bus), float, count=len(index_set_bus))
+        vmag_ub_limits = np.fromiter((v_max[b] for b in index_set_bus), float, count=len(index_set_bus))
         
         ## add some wiggle for tolerance
         vmag_lb_limits -= pu_vm_tol
@@ -263,11 +265,21 @@ def add_thermal_violations(thermal_viol_lazy, SV, mb, md, solver, ptdf_options, 
 
     pf = mb.pf
     eq_pf_constr = mb.eq_pf_branch
+
+    ## cache the dictionaries we need
+    ba_ptdf  = branch_attrs['ptdf']
+    ba_ptdf_c = branch_attrs['ptdf_c']
+    ba_rating_long_term = branch_attrs['rating_long_term']
+
     if include_reactive:
         qf = mb.qf
         eq_qf_constr = mb.eq_qf_branch
         ineq_branch_thermal_constr = mb.ineq_branch_thermal_limit
         _fdf_unitcircle = mb._fdf_unitcircle
+
+        ## cache the dictionaries we need
+        ba_qtdf = branch_attrs['qtdf']
+        ba_qtdf_c = branch_attrs['qtdf_c']
 
     ## helper for generating pf
     def _iter_over_viol_set(viol_set):
@@ -275,26 +287,22 @@ def add_thermal_violations(thermal_viol_lazy, SV, mb, md, solver, ptdf_options, 
             bn = branch_name_list[i]
             if bn not in eq_pf_constr:
                 ## add eq_pf_branch constraint
-                ptdf = branch_attrs['ptdf'][bn]
-                ptdf_c = branch_attrs['ptdf_c'][bn]
-                expr = libbranch.get_expr_branch_pf_fdf_approx(mb, bn, ptdf, ptdf_c,
+                expr = libbranch.get_expr_branch_pf_fdf_approx(mb, bn, ba_ptdf[bn], ba_ptdf_c[bn],
                                                                 rel_tol=rel_ptdf_tol, abs_tol=abs_ptdf_tol)
                 eq_pf_constr[bn] = pf[bn] == expr
                 if include_reactive:
                     ## add eq_qf_branch constraint
-                    qtdf = branch_attrs['qtdf'][bn]
-                    qtdf_c = branch_attrs['qtdf_c'][bn]
-                    expr = libbranch.get_expr_branch_qf_fdf_approx(mb, bn, qtdf, qtdf_c,
+                    expr = libbranch.get_expr_branch_qf_fdf_approx(mb, bn, ba_qtdf[bn], ba_qtdf_c[bn],
                                                                     rel_tol=rel_ptdf_tol, abs_tol=abs_ptdf_tol)
                     eq_qf_constr[bn] = qf[bn] == expr
                     ## add ineq_branch_thermal_limit constraint
-                    libbranch.add_constr_branch_thermal_limit(mb, bn, branch_attrs['rating_long_term'][bn])
+                    libbranch.add_constr_branch_thermal_limit(mb, bn, ba_rating_long_term[bn])
             yield i, bn
 
 
     thermal_viol_in_mb = mb._thermal_idx_monitored
     for i, bn in _iter_over_viol_set(thermal_viol_lazy):
-        thermal_limit = branch_attrs['rating_long_term'][bn]
+        thermal_limit = ba_rating_long_term[bn]
         logger.info(_generate_flow_monitor_message(bn, SV[i], thermal_limit, baseMVA, time))
         thermal_viol_in_mb.append(i)
         if persistent_solver:
@@ -323,24 +331,26 @@ def add_vmag_violations(vmag_viol_lazy, VMAG, mb, md, solver, ptdf_options, bus_
     vm = mb.vm
     constr = mb.eq_vm_bus
 
+    ## cache the dictionaries we need
+    ba_vdf = bus_attrs['vdf']
+    ba_vdf_c = bus_attrs['vdf_c']
+    ba_v_min = bus_attrs['v_min']
+    ba_v_max = bus_attrs['v_max']
+
     ## helper for generating pf
     def _iter_over_viol_set(viol_set):
         for i in viol_set:
             bn = bus_name_list[i]
             if bn not in mb.eq_vm_bus:
                 ## add eq_pf_branch constraint
-                vdf = bus_attrs['vdf'][bn]
-                vdf_c = bus_attrs['vdf_c'][bn]
-                expr = libbus.get_vm_expr_vdf_approx(mb, bn, vdf, vdf_c,
+                expr = libbus.get_vm_expr_vdf_approx(mb, bn, ba_vdf[bn], ba_vdf_c[bn],
                                                         rel_tol=rel_ptdf_tol, abs_tol=abs_ptdf_tol)
                 constr[bn] = vm[bn] == expr
             yield i, bn
 
     vmag_viol_in_mb = mb._vm_idx_monitored
     for i, bn in _iter_over_viol_set(vmag_viol_lazy):
-        lb_limit= bus_attrs['v_min'][bn]
-        ub_limit= bus_attrs['v_max'][bn]
-        logger.info(_generate_vmag_monitor_message(bn, VMAG[i], lb_limit, ub_limit, time))
+        logger.info(_generate_vmag_monitor_message(bn, VMAG[i], ba_v_min[bn], ba_v_max[bn], time))
         vmag_viol_in_mb.append(i)
         if persistent_solver:
             solver.add_constraint(constr[bn])
@@ -348,6 +358,7 @@ def add_vmag_violations(vmag_viol_lazy, VMAG, mb, md, solver, ptdf_options, bus_
 
 def _lazy_model_solve_loop(m, md, solver, timelimit, solver_tee=True, symbolic_solver_labels=False, iteration_limit=100000,
                            vars_to_load=None):
+
 
     branch_attrs = md.attributes(element_type='branch')
     bus_attrs = md.attributes(element_type='bus')
@@ -390,15 +401,15 @@ def _lazy_model_solve_loop(m, md, solver, timelimit, solver_tee=True, symbolic_s
             logger.warning('         Result is not transmission feasible.')
             return LazyPTDFTerminationCondition.FLOW_VIOLATION
 
+
         add_thermal_violations(thermal_viol_lazy, SV, m, md, solver, ptdf_options, branch_attrs)
 
         if ptdf_options['lazy_voltage']:
             add_vmag_violations(vmag_viol_lazy, VMAG, m, md, solver, ptdf_options, bus_attrs)
 
+
         #m.ineq_pf_branch_thermal_lb.pprint()
         #m.ineq_pf_branch_thermal_ub.pprint()
-        from egret.common.solver_interface import _solve_model
-        m, results, solver = _solve_model(m, solver, solver_tee=solver_tee, return_solver=True)
         if persistent_solver:
             results = solver.solve(m, tee=solver_tee, load_solutions=False, save_results=False)
         else:
