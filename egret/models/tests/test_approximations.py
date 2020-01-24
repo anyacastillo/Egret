@@ -91,7 +91,8 @@ case_names = ['pglib_opf_case3_lmbd',
               # 'pglib_opf_case10000_tamu',
               # 'pglib_opf_case13659_pegase',
               ]
-test_cases = [os.path.join(current_dir, 'transmission_test_instances', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
+test_cases = [join('../../../download/pglib-opf-master/', f + '.m') for f in case_names]
+#test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
 
 
 def set_acopf_basepoint_min_max(md_dict, init_min=0.9, init_max=1.1, **kwargs):

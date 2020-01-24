@@ -238,32 +238,32 @@ def create_lccm_model(model_data, include_feasibility_slack=False, include_v_fea
                                                index_set=branch_attrs['names'],
                                                sensitivity=branch_attrs['Ft'],
                                                constant=branch_attrs['ft_c'],
-                                               rel_tol=None,
-                                               abs_tol=None
+                                               rel_tol=0.,
+                                               abs_tol=0.
                                                )
 
     libbranch.declare_eq_branch_qf_lccm_approx(model=model,
                                                index_set=branch_attrs['names'],
                                                sensitivity=branch_attrs['Fv'],
                                                constant=branch_attrs['fv_c'],
-                                               rel_tol=None,
-                                               abs_tol=None
+                                               rel_tol=0.,
+                                               abs_tol=0.
                                                )
 
     libbranch.declare_eq_branch_pfl_lccm_approx(model=model,
                                                  index_set=branch_attrs['names'],
                                                  sensitivity=branch_attrs['Lt'],
                                                  constant=branch_attrs['lt_c'],
-                                                 rel_tol=None,
-                                                 abs_tol=None
+                                                 rel_tol=0.,
+                                                 abs_tol=0.
                                                  )
 
     libbranch.declare_eq_branch_qfl_lccm_approx(model=model,
                                                  index_set=branch_attrs['names'],
                                                  sensitivity=branch_attrs['Lv'],
                                                  constant=branch_attrs['lv_c'],
-                                                 rel_tol=None,
-                                                 abs_tol=None
+                                                 rel_tol=0.,
+                                                 abs_tol=0.
                                                  )
 
     ### declare the p balance

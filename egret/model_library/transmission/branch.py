@@ -389,7 +389,7 @@ def declare_eq_branch_loss_btheta_approx(model, index_set, branches, relaxation_
                 m.pfl[branch_name] >= \
                 g * (m.dva[branch_name])**2
 
-def _get_df_expr( var_or_expr, coefs, const, rel_tol=0., abs_tol=0. ):
+def _get_df_expr( var_or_expr, coefs, const, rel_tol=0., abs_tol=0.):
     """
     create a general sensitivity linear expression
 
@@ -705,7 +705,7 @@ def declare_eq_branch_qfl_lccm_approx(model, index_set, sensitivity, constant, r
             m.qfl[branch_name] = expr
 
 
-def declare_eq_ploss_fdf_simplified(model, sensitivity, constant, rel_tol, abs_tol):
+def declare_eq_ploss_fdf_simplified(model, sensitivity, constant, rel_tol=0., abs_tol=0.):
     """
     Create the equality constraints for total real power losses
     """
@@ -714,7 +714,7 @@ def declare_eq_ploss_fdf_simplified(model, sensitivity, constant, rel_tol, abs_t
     m.eq_ploss = pe.Constraint(expr= m.ploss == _get_df_expr(m.p_nw, sensitivity, constant, rel_tol, abs_tol))
 
 
-def declare_eq_qloss_fdf_simplified(model, sensitivity, constant, rel_tol, abs_tol):
+def declare_eq_qloss_fdf_simplified(model, sensitivity, constant, rel_tol=0., abs_tol=0.):
     """
     Create the equality constraints for total real power losses
     """
