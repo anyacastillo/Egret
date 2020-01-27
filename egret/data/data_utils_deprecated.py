@@ -456,3 +456,34 @@ def create_dicts_of_ptdf(md, base_point=BasePointType.FLATSTART):
         _row_phi_loss_q_to = {branch_attrs['names'][i]: phi_loss_q_to[idx, i] for i in list(range(0, _len_branch)) if
                             phi_loss_q_to[idx, i] != 0.}
         bus['phi_loss_q_to'] = _row_phi_loss_q_to
+
+
+
+def destroy_dicts_of_fdf(md):
+
+    branches = dict(md.elements(element_type='branch'))
+    buses = dict(md.elements(element_type='bus'))
+
+    # delete sensitivity matrices from 'system'. May need to add these back to modelData when opening the .json file.
+    sensi = ['Ft', 'ft_c', 'Fv', 'fv_c', 'Lt', 'lt_c', 'Lv', 'lv_c', 'va_SENSI', 'va_CONST', 'vm_SENSI', 'vm_CONST']
+    for s in sensi:
+        if s in md.data['system']:
+            del md.data['system'][s]
+
+    # delete sensitivities from 'branch'
+    sensi = ['ptdf', 'pldf', 'qtdf', 'qldf', 'ptdf_c', 'pldf_c', 'qtdf_c', 'qldf_c',]
+    for branch in branches:
+        for s in sensi:
+            if s in branch:
+                del branch[s]
+
+
+    # delete sensitivities from 'bus'
+    sensi = ['vdf', 'vdf_c', 'phi_from', 'phi_to', 'phi_loss_from', 'phi_loss_to',
+             'phi_q_from', 'phi_q_to', 'phi_loss_q_from', 'phi_loss_q_to']
+    for bus in buses:
+        for s in sensi:
+            if s in bus:
+                del bus[s]
+
+

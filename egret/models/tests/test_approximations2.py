@@ -46,18 +46,19 @@ from os.path import isfile, join
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 #test_cases = [join('../../../download/pglib-opf-master/', f) for f in listdir('../../../download/pglib-opf-master/') if isfile(join('../../../download/pglib-opf-master/', f)) and f.endswith('.m')]
-case_names = ['pglib_opf_case588_sdet',
-              'pglib_opf_case1354_pegase',
-              'pglib_opf_case1888_rte',
-              'pglib_opf_case1951_rte',
-              'pglib_opf_case2000_tamu',
-              'pglib_opf_case2316_sdet',
-              'pglib_opf_case2383wp_k',
+case_names = ['pglib_opf_case2383wp_k',
               'pglib_opf_case2736sp_k',
               'pglib_opf_case2737sop_k',
               'pglib_opf_case2746wop_k',
               'pglib_opf_case2746wp_k',
               'pglib_opf_case2848_rte',
+              'pglib_opf_case2853_sdet',
+              'pglib_opf_case2868_rte',
+              'pglib_opf_case2869_pegase',
+              'pglib_opf_case3012wp_k',
+              'pglib_opf_case3120sp_k',
+              'pglib_opf_case3375wp_k',
+              'pglib_opf_case4661_sdet',
               ]
 test_cases = [join('../../../download/pglib-opf-master/', f + '.m') for f in case_names]
 #test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
@@ -209,11 +210,7 @@ def record_results(idx, mult, md):
     writes model data (md) object to .json file
     '''
 
-    # delete sensitivity matrices from 'system'. May need to add these back to modelData when opening the .json file.
-    sensi = ['Ft', 'ft_c', 'Fv', 'fv_c', 'Lt', 'lt_c', 'Lv', 'lv_c','va_SENSI','va_CONST','vm_SENSI','vm_CONST']
-    for s in sensi:
-        if s in md.data['system']:
-            del md.data['system'][s]
+    data_utils_deprecated.destroy_dicts_of_fdf(md)
 
     filename = md.data['system']['model_name'] + '_' + idx + '_{0:04.0f}'.format(mult*1000)
     md.data['system']['mult'] = mult
@@ -739,8 +736,8 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=total_c
 
 if __name__ == '__main__':
 
-    test_case = test_cases[5]
-    print(test_case)
+    #test_case = test_cases[5]
+    #print(test_case)
 
     test_model_dict = \
         {'ccm' :              False,
@@ -754,6 +751,7 @@ if __name__ == '__main__':
          }
 
     for tc in test_cases:
+        print(tc)
         solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
     #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
