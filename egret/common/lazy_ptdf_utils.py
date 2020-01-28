@@ -52,12 +52,20 @@ def populate_default_ptdf_options(ptdf_options):
         ptdf_options['rel_flow_tol'] = 1.e-5
     if 'pu_vm_tol' not in ptdf_options:
         ptdf_options['pu_vm_tol'] = 1.e-5
+    if 'abs_thermal_init_tol' not in ptdf_options:
+        ptdf_options['abs_thermal_init_tol'] = 1
+    if 'rel_thermal_init_tol' not in ptdf_options:
+        ptdf_options['rel_thermal_init_tol'] = 0.2
+    if 'abs_vm_init_tol' not in ptdf_options:
+        ptdf_options['abs_vm_init_tol'] = 1.e-6
+    if 'rel_vm_init_tol' not in ptdf_options:
+        ptdf_options['rel_vm_init_tol'] = 1.e-10
     if 'iteration_limit' not in ptdf_options:
         ptdf_options['iteration_limit'] = 100000
     if 'lp_iteration_limit' not in ptdf_options:
         ptdf_options['lp_iteration_limit'] = 100
     if 'max_violations_per_iteration' not in ptdf_options:
-        ptdf_options['max_violations_per_iteration'] = 5
+        ptdf_options['max_violations_per_iteration'] = 15
     if 'vm_max_violations_per_iteration' not in ptdf_options:
         ptdf_options['vm_max_violations_per_iteration'] = 15
     if 'lazy' not in ptdf_options:
@@ -80,6 +88,8 @@ def check_and_scale_ptdf_options(ptdf_options, baseMVA):
     ptdf_options['abs_qloss_tol'] /= baseMVA
     ptdf_options['abs_vdf_tol'] /= baseMVA
     ptdf_options['abs_flow_tol'] /= baseMVA
+    ptdf_options['abs_thermal_init_tol'] /= baseMVA
+    ptdf_options['abs_vm_init_tol'] /= baseMVA
 
     rel_flow_tol = ptdf_options['rel_flow_tol']
     abs_flow_tol = ptdf_options['abs_flow_tol']

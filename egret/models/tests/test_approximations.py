@@ -207,72 +207,116 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             record_results(idx, mult, md_lccm)
 
         if val and idx == 'dlopf':
-            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False)
+            options = {}
+            options['method'] = 1
+            ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+                                           solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdf)
 
         if val and idx == 'dlopf_1E2':
+            options = {}
+            options['method'] = 1
             ptdf_options = {}
-            ptdf_options['abs_ptdf_tol'] = 0.01
-            ptdf_options['abs_qtdf_tol'] = 0.01
-            ptdf_options['rel_vdf_tol'] = 0.01
-            kwargs = {'ptdf_options' : ptdf_options}
-            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False, **kwargs)
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
+            ptdf_options['abs_ptdf_tol'] = 1e-2
+            ptdf_options['abs_qtdf_tol'] = 5e-2
+            ptdf_options['rel_vdf_tol'] = 10e-2
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+                                           solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdf)
 
         if val and idx == 'dlopf_1E3':
+            options = {}
+            options['method'] = 1
             ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
             ptdf_options['abs_ptdf_tol'] = 1e-3
-            ptdf_options['abs_qtdf_tol'] = 1e-3
-            ptdf_options['rel_vdf_tol'] = 1e-3
-            kwargs = {'ptdf_options' : ptdf_options}
-            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False, **kwargs)
+            ptdf_options['abs_qtdf_tol'] = 5e-3
+            ptdf_options['rel_vdf_tol'] = 10e-3
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+                                           solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdf)
 
         if val and idx == 'dlopf_1E4':
+            options = {}
+            options['method'] = 1
             ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
             ptdf_options['abs_ptdf_tol'] = 1e-4
-            ptdf_options['abs_qtdf_tol'] = 1e-4
-            ptdf_options['rel_vdf_tol'] = 1e-4
-            kwargs = {'ptdf_options' : ptdf_options}
-            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False, **kwargs)
+            ptdf_options['abs_qtdf_tol'] = 5e-4
+            ptdf_options['rel_vdf_tol'] = 10e-4
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+                                           solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdf)
 
         if val and idx == 'clopf':
-            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False)
+            options = {}
+            options['method'] = 1
+            ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+                                                       solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdfs)
 
         if val and idx == 'clopf_1E2':
+            options = {}
+            options['method'] = 1
             ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
             ptdf_options['abs_ptdf_tol'] = 1e-2
-            ptdf_options['abs_qtdf_tol'] = 1e-2
-            ptdf_options['rel_vdf_tol'] = 1e-2
-            kwargs = {'ptdf_options' : ptdf_options}
-            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False,**kwargs)
+            ptdf_options['abs_qtdf_tol'] = 5e-2
+            ptdf_options['rel_vdf_tol'] = 10e-2
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+                                                       solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdfs)
 
         if val and idx == 'clopf_1E3':
+            options = {}
+            options['method'] = 1
             ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
             ptdf_options['abs_ptdf_tol'] = 1e-3
-            ptdf_options['abs_qtdf_tol'] = 1e-3
-            ptdf_options['rel_vdf_tol'] = 1e-3
-            kwargs = {'ptdf_options' : ptdf_options}
-            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False,**kwargs)
+            ptdf_options['abs_qtdf_tol'] = 5e-3
+            ptdf_options['rel_vdf_tol'] = 10e-3
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+                                                       solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdfs)
 
         if val and idx == 'clopf_1E4':
+            options = {}
+            options['method'] = 1
             ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
             ptdf_options['abs_ptdf_tol'] = 1e-4
-            ptdf_options['abs_qtdf_tol'] = 1e-4
-            ptdf_options['rel_vdf_tol'] = 1e-4
-            kwargs = {'ptdf_options' : ptdf_options}
-            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False,**kwargs)
+            ptdf_options['abs_qtdf_tol'] = 5e-4
+            ptdf_options['rel_vdf_tol'] = 10e-4
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+                                                       solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdfs)
 
@@ -833,8 +877,14 @@ if __name__ == '__main__':
     test_model_dict = \
         {'ccm' :              False,
          'lccm' :             True,
-         'fdf' :              True,
-         'fdf_simplified' :   True,
+         'dlopf' :            True,
+         'dlopf1E2' :         True,
+         'dlopf1E3' :         True,
+         'dlopf1E4' :         True,
+         'clopf' :            True,
+         'clopf1E2' :         True,
+         'clopf1E3' :         True,
+         'clopf1E4' :         True,
          'ptdf_losses' :      True,
          'ptdf' :             True,
          'btheta_losses' :    False,

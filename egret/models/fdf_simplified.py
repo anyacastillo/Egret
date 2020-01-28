@@ -13,7 +13,7 @@ This module provides functions that create the modules for typical ACOPF formula
 #TODO: document this with examples
 """
 import pyomo.environ as pe
-from math import inf, pi
+from math import inf, pi, sqrt
 import pandas as pd
 import egret.model_library.transmission.tx_utils as tx_utils
 import egret.model_library.transmission.tx_calc as tx_calc
@@ -106,14 +106,12 @@ def create_fixed_vm_fdf_model(model_data, **kwargs):
 
 
 def create_simplified_fdf_model(model_data, include_feasibility_slack=False, include_v_feasibility_slack=False,
-                                ptdf_options=None, include_q_balance=True, calculation_method=SensitivityCalculationMethod.INVERT):
+                                ptdf_options=None, include_q_balance=False, calculation_method=SensitivityCalculationMethod.INVERT):
 
     if ptdf_options is None:
         ptdf_options = dict()
 
     lpu.populate_default_ptdf_options(ptdf_options)
-    ptdf_options['lazy'] = True
-    ptdf_options['lazy_voltage'] = True
 
     baseMVA = model_data.data['system']['baseMVA']
     lpu.check_and_scale_ptdf_options(ptdf_options, baseMVA)
@@ -227,9 +225,19 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
     ### declare the branch power flow variables and approximation constraints
     if ptdf_options['lazy']:
 
+        monitor_init = set()
         for branch_name, branch in branches.items():
-            pf_init[branch_name] = (branch['pf'] - branch['pt']) / 2
-            qf_init[branch_name] = (branch['qf'] - branch['qt']) / 2
+            pf = (branch['pf'] - branch['pt']) / 2
+            qf = (branch['qf'] - branch['qt']) / 2
+            pf_init[branch_name] = pf
+            qf_init[branch_name] = qf
+
+            lim = s_max[branch_name]
+            abs_slack = sqrt(lim**2 - (pf**2 + qf**2))
+            rel_slack =  abs_slack / lim
+
+            if abs_slack < ptdf_options['abs_thermal_init_tol'] or rel_slack < ptdf_options['rel_thermal_init_tol']:
+                monitor_init.add(branch_name)
 
         libbranch.declare_var_pf(model=model,
                                  index_set=branch_attrs['names'],
@@ -244,13 +252,23 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
         model.eq_pf_branch = pe.Constraint(branch_attrs['names'])
         model.eq_qf_branch = pe.Constraint(branch_attrs['names'])
 
+        ## Note: constructor does not build constraints for index_set when 'lazy' is enabled
         libbranch.declare_fdf_thermal_limit(model=model,
                                             index_set=branch_attrs['names'],
                                             thermal_limits=s_max,
                                             )
-
         ### add helpers for tracking monitored branches
         lpu.add_monitored_branch_tracker(model)
+        thermal_idx_monitored = model._thermal_idx_monitored
+
+        ## construct constraints of branches near limit
+        for i,bn in enumerate(branch_attrs['names']):
+            if bn in monitor_init:
+                thermal_limit = s_max[bn]
+                libbranch.add_constr_branch_thermal_limit(model, bn, thermal_limit)
+                thermal_idx_monitored.append(i)
+        print('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
+
 
     else:
 
@@ -297,18 +315,36 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                 bus_name = shunt['bus']
                 shunt_buses.add(bus_name)
 
+        monitor_init.clear()
+        for bus_name, bus in buses.items():
+            vm = bus['vm']
+            v_max = bus['v_max']
+            v_min = bus['v_min']
+            abs_slack = max( vm - v_min , v_max - vm )
+            rel_slack =  abs_slack / ((v_min + v_max)/2)
+            if abs_slack < ptdf_options['abs_vm_init_tol'] or rel_slack < ptdf_options['rel_vm_init_tol']:
+                print('adding vm: {} <= {} <= {}'.format(v_min, vm, v_max))
+                print('... abs_slack={} < abs_tol={}'.format(abs_slack,ptdf_options['abs_vm_init_tol']))
+                print('... rel_slack={} < rel_tol={}'.format(rel_slack,ptdf_options['rel_vm_init_tol']))
+                monitor_init.add(bus_name)
+
         model.eq_vm_bus = pe.Constraint(bus_attrs['names'])
 
         lpu.add_monitored_vm_tracker(model)
 
+        monitor_init = monitor_init.union(shunt_buses)
         for i,bn in enumerate(bus_attrs['names']):
-            if bn in shunt_buses:
+            if bn in monitor_init:
                 bus = buses[bn]
                 vdf = bus['vdf']
                 vdf_c = bus['vdf_c']
                 expr = libbus.get_vm_expr_vdf_approx(model, bn, vdf, vdf_c)
                 model.eq_vm_bus[bn] = model.vm[bn] == expr
                 model._vm_idx_monitored.append(i)
+        mon_message = '{} of {} voltage constraints added to initial monitored set'.format(len(monitor_init),
+                                                                                    len(bus_attrs['names']))
+        mon_message += ' ({} shunt devices).'.format(len(shunt_buses))
+        print(mon_message)
 
     else:
         libbus.declare_eq_vm_vdf_approx(model=model,
@@ -763,9 +799,12 @@ if __name__ == '__main__':
     #filename = 'pglib_opf_case118_ieee.m'
     #filename = 'pglib_opf_case162_ieee_dtc.m'
     #filename = 'pglib_opf_case179_goc.m'
-    filename = 'pglib_opf_case300_ieee.m'
+    #filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
+    #filename = 'pglib_opf_case2000_tamu.m'
+    filename = 'pglib_opf_case1951_rte.m'
     #filename = 'pglib_opf_case1354_pegase.m'
+    #filename = 'pglib_opf_case2869_pegase.m'
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
     md = create_ModelData(matpower_file)
 
@@ -784,78 +823,21 @@ if __name__ == '__main__':
     options={}
     options['method'] = 1
     ptdf_options = {}
+    ptdf_options['lazy'] = True
+    ptdf_options['lazy_voltage'] = True
     ptdf_options['abs_ptdf_tol'] = 1e-2
+    ptdf_options['abs_qtdf_tol'] = 5e-2
+    ptdf_options['rel_vdf_tol'] = 10e-2
     kwargs['ptdf_options'] = ptdf_options
     md, m, results = solve_fdf_simplified(md_ac, "gurobi_persistent", fdf_model_generator=create_simplified_fdf_model,
                                           return_model=True, return_results=True, solver_tee=False,
                                           options=options, **kwargs)
+
+    print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
+    print('ACOPF time: %3.5f' % md_ac.data['results']['time'])
+
     print('FDF cost: $%3.2f' % md.data['system']['total_cost'])
     print('FDF time: %3.5f' % md.data['results']['time'])
-    print(results.Solver)
-    gen = md.attributes(element_type='generator')
-    bus = md.attributes(element_type='bus')
-    branch = md.attributes(element_type='branch')
-    system = md.data['system']
-
-    pg_dict = {'fdf': gen['pg']}
-    qg_dict = {'fdf': gen['qg']}
-    pf_dict = {'fdf': branch['pf']}
-    qf_dict = {'fdf': branch['qf']}
-    ploss_dict = {'fdf': system['ploss']}
-    qloss_dict = {'fdf': system['qloss']}
-    va_dict = {'fdf': bus['va']}
-    vm_dict = {'fdf': bus['vm']}
-    lmp_dict = {'fdf' : bus['lmp']}
-    qlmp_dict = {'fdf' : bus['qlmp']}
-
-    print('remove FDF q balance...')
-    kwargs['include_q_balance'] = False
-    md2, m2, results = solve_fdf_simplified(md_ac, "gurobi_persistent", fdf_model_generator=create_simplified_fdf_model,
-                                          return_model=True, return_results=True, solver_tee=False,
-                                          options=options, **kwargs)
-    print('FDF cost: $%3.2f' % md2.data['system']['total_cost'])
-    print('FDF time: %3.5f' % md2.data['results']['time'])
-    print(results.Solver)
-    gen = md2.attributes(element_type='generator')
-    bus = md2.attributes(element_type='bus')
-    branch = md2.attributes(element_type='branch')
-    system = md2.data['system']
-
-    pg_dict['fdf2'] = gen['pg']
-    qg_dict['fdf2'] = gen['qg']
-    pf_dict['fdf2'] = branch['pf']
-    qf_dict['fdf2'] = branch['qf']
-    ploss_dict['fdf2'] = system['ploss']
-    qloss_dict['fdf2'] = system['qloss']
-    va_dict['fdf2'] = bus['va']
-    vm_dict['fdf2'] = bus['vm']
-    lmp_dict['fdf2'] = bus['lmp']
-    qlmp_dict['fdf2'] = bus['qlmp']
 
 
-    print('pf:')
-    compare_results(pg_dict, 'fdf', 'fdf2')
-    print('qg')
-    compare_results(qg_dict, 'fdf', 'fdf2')
-    print('pf:')
-    compare_results(pf_dict, 'fdf', 'fdf2')
-    print('qf')
-    compare_results(qf_dict, 'fdf', 'fdf2')
-    print('ploss')
-    print(ploss_dict)
-    print('qloss')
-    print(qloss_dict)
-    print('va:')
-    compare_results(va_dict, 'fdf', 'fdf2')
-    print('vm')
-    compare_results(vm_dict, 'fdf', 'fdf2')
-    print('lmp')
-    compare_results(lmp_dict, 'fdf', 'fdf2')
-    print('qlmp')
-    compare_results(qlmp_dict, 'fdf', 'fdf2')
 
-# not solving pglib_opf_case57_ieee
-# pglib_opf_case500_tamu
-# pglib_opf_case162_ieee_dtc
-# pglib_opf_case179_goc
-# pglib_opf_case300_ieee
