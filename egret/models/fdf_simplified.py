@@ -280,8 +280,8 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                                                   index_set=branch_attrs['names'],
                                                   sensitivity=branch_attrs['qtdf'],
                                                   constant=branch_attrs['qtdf_c'],
-                                                  rel_tol=ptdf_options['rel_ptdf_tol'],
-                                                  abs_tol=ptdf_options['abs_ptdf_tol'],
+                                                  rel_tol=ptdf_options['rel_qtdf_tol'],
+                                                  abs_tol=ptdf_options['abs_qtdf_tol'],
                                                   )
 
         libbranch.declare_fdf_thermal_limit(model=model,
@@ -315,8 +315,8 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                                         index_set=bus_attrs['names'],
                                         sensitivity=bus_attrs['vdf'],
                                         constant=bus_attrs['vdf_c'],
-                                        rel_tol=ptdf_options['rel_ptdf_tol'],
-                                        abs_tol=ptdf_options['abs_ptdf_tol'],
+                                        rel_tol=ptdf_options['rel_vdf_tol'],
+                                        abs_tol=ptdf_options['abs_vdf_tol'],
                                         )
 
 
@@ -332,15 +332,15 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
     libbranch.declare_eq_ploss_fdf_simplified(model=model,
                                            sensitivity=bus_attrs['ploss_sens'],
                                            constant=system_attrs['ploss_const'],
-                                           rel_tol=ptdf_options['rel_ptdf_tol'],
-                                           abs_tol=ptdf_options['abs_ptdf_tol'],
+                                           rel_tol=ptdf_options['rel_ploss_tol'],
+                                           abs_tol=ptdf_options['abs_ploss_tol'],
                                            )
 
     libbranch.declare_eq_qloss_fdf_simplified(model=model,
                                            sensitivity=bus_attrs['qloss_sens'],
                                            constant=system_attrs['qloss_const'],
-                                           rel_tol=ptdf_options['rel_ptdf_tol'],
-                                           abs_tol=ptdf_options['abs_ptdf_tol'],
+                                           rel_tol=ptdf_options['rel_qloss_tol'],
+                                           abs_tol=ptdf_options['abs_qloss_tol'],
                                            )
 
 
@@ -759,8 +759,9 @@ if __name__ == '__main__':
     #filename = 'pglib_opf_case118_ieee.m'
     #filename = 'pglib_opf_case162_ieee_dtc.m'
     #filename = 'pglib_opf_case179_goc.m'
-    filename = 'pglib_opf_case300_ieee.m'
+    #filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
+    filename = 'pglib_opf_case1354_pegase.m'
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
     md = create_ModelData(matpower_file)
 
@@ -778,6 +779,9 @@ if __name__ == '__main__':
     print('begin FDF...')
     options={}
     options['method'] = 1
+    ptdf_options = {}
+    ptdf_options['abs_ptdf_tol'] = 1e-2
+    kwargs = {'ptdf_options' : ptdf_options}
     md, m, results = solve_fdf_simplified(md_ac, "gurobi_persistent", fdf_model_generator=create_simplified_fdf_model,
                                           return_model=True, return_results=True, solver_tee=False,
                                           options=options, **kwargs)

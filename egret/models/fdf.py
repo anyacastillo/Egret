@@ -251,12 +251,16 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                                   index_set=branch_attrs['names'],
                                                   sensitivity=branch_attrs['ptdf'],
                                                   constant=branch_attrs['ptdf_c'],
+                                                  rel_tol=ptdf_options['rel_ptdf_tol'],
+                                                  abs_tol=ptdf_options['abs_ptdf_tol'],
                                                   )
 
         libbranch.declare_eq_branch_qf_fdf_approx(model=model,
                                                   index_set=branch_attrs['names'],
                                                   sensitivity=branch_attrs['qtdf'],
                                                   constant=branch_attrs['qtdf_c'],
+                                                  rel_tol=ptdf_options['rel_qtdf_tol'],
+                                                  abs_tol=ptdf_options['abs_qtdf_tol'],
                                                   )
 
         libbranch.declare_fdf_thermal_limit(model=model,
@@ -281,7 +285,10 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                 bus = buses[bn]
                 vdf = bus['vdf']
                 vdf_c = bus['vdf_c']
-                expr = libbus.get_vm_expr_vdf_approx(model, bn, vdf, vdf_c)
+                expr = libbus.get_vm_expr_vdf_approx(model, bn, vdf, vdf_c,
+                                        rel_tol=ptdf_options['rel_vdf_tol'],
+                                        abs_tol=ptdf_options['abs_vdf_tol'],
+                                                     )
                 model.eq_vm_bus[bn] = model.vm[bn] == expr
                 model._vm_idx_monitored.append(i)
 
@@ -290,6 +297,8 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                         index_set=bus_attrs['names'],
                                         sensitivity=bus_attrs['vdf'],
                                         constant=bus_attrs['vdf_c'],
+                                        rel_tol=ptdf_options['rel_vdf_tol'],
+                                        abs_tol=ptdf_options['abs_vdf_tol'],
                                         )
 
 
@@ -308,12 +317,16 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                                index_set=branch_attrs['names'],
                                                sensitivity=branch_attrs['pldf'],
                                                constant=branch_attrs['pldf_c'],
+                                               rel_tol=ptdf_options['rel_ploss_tol'],
+                                               abs_tol=ptdf_options['abs_ploss_tol'],
                                                )
 
     libbranch.declare_eq_branch_qfl_fdf_approx(model=model,
                                                index_set=branch_attrs['names'],
                                                sensitivity=branch_attrs['qldf'],
                                                constant=branch_attrs['qldf_c'],
+                                               rel_tol=ptdf_options['rel_qloss_tol'],
+                                               abs_tol=ptdf_options['abs_qloss_tol'],
                                                )
 
     ### declare the p balance

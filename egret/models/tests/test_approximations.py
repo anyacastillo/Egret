@@ -206,13 +206,73 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
 
             record_results(idx, mult, md_lccm)
 
-        if val and idx == 'fdf':
+        if val and idx == 'dlopf':
             md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False)
 
             record_results(idx, mult, md_fdf)
 
-        if val and idx == 'fdf_simplified':
+        if val and idx == 'dlopf_1E2':
+            ptdf_options = {}
+            ptdf_options['abs_ptdf_tol'] = 0.01
+            ptdf_options['abs_qtdf_tol'] = 0.01
+            ptdf_options['rel_vdf_tol'] = 0.01
+            kwargs = {'ptdf_options' : ptdf_options}
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False, **kwargs)
+
+            record_results(idx, mult, md_fdf)
+
+        if val and idx == 'dlopf_1E3':
+            ptdf_options = {}
+            ptdf_options['abs_ptdf_tol'] = 1e-3
+            ptdf_options['abs_qtdf_tol'] = 1e-3
+            ptdf_options['rel_vdf_tol'] = 1e-3
+            kwargs = {'ptdf_options' : ptdf_options}
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False, **kwargs)
+
+            record_results(idx, mult, md_fdf)
+
+        if val and idx == 'dlopf_1E4':
+            ptdf_options = {}
+            ptdf_options['abs_ptdf_tol'] = 1e-4
+            ptdf_options['abs_qtdf_tol'] = 1e-4
+            ptdf_options['rel_vdf_tol'] = 1e-4
+            kwargs = {'ptdf_options' : ptdf_options}
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False, **kwargs)
+
+            record_results(idx, mult, md_fdf)
+
+        if val and idx == 'clopf':
             md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False)
+
+            record_results(idx, mult, md_fdfs)
+
+        if val and idx == 'clopf_1E2':
+            ptdf_options = {}
+            ptdf_options['abs_ptdf_tol'] = 1e-2
+            ptdf_options['abs_qtdf_tol'] = 1e-2
+            ptdf_options['rel_vdf_tol'] = 1e-2
+            kwargs = {'ptdf_options' : ptdf_options}
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False,**kwargs)
+
+            record_results(idx, mult, md_fdfs)
+
+        if val and idx == 'clopf_1E3':
+            ptdf_options = {}
+            ptdf_options['abs_ptdf_tol'] = 1e-3
+            ptdf_options['abs_qtdf_tol'] = 1e-3
+            ptdf_options['rel_vdf_tol'] = 1e-3
+            kwargs = {'ptdf_options' : ptdf_options}
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False,**kwargs)
+
+            record_results(idx, mult, md_fdfs)
+
+        if val and idx == 'clopf_1E4':
+            ptdf_options = {}
+            ptdf_options['abs_ptdf_tol'] = 1e-4
+            ptdf_options['abs_qtdf_tol'] = 1e-4
+            ptdf_options['rel_vdf_tol'] = 1e-4
+            kwargs = {'ptdf_options' : ptdf_options}
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False,**kwargs)
 
             record_results(idx, mult, md_fdfs)
 

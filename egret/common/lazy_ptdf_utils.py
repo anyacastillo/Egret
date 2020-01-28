@@ -30,6 +30,22 @@ def populate_default_ptdf_options(ptdf_options):
         ptdf_options['rel_ptdf_tol'] = 1.e-6
     if 'abs_ptdf_tol' not in ptdf_options:
         ptdf_options['abs_ptdf_tol'] = 1.e-10
+    if 'rel_qtdf_tol' not in ptdf_options:
+        ptdf_options['rel_qtdf_tol'] = 1.e-6
+    if 'abs_qtdf_tol' not in ptdf_options:
+        ptdf_options['abs_qtdf_tol'] = 1.e-10
+    if 'rel_vdf_tol' not in ptdf_options:
+        ptdf_options['rel_vdf_tol'] = 1.e-6
+    if 'abs_vdf_tol' not in ptdf_options:
+        ptdf_options['abs_vdf_tol'] = 1.e-10
+    if 'rel_ploss_tol' not in ptdf_options:
+        ptdf_options['rel_ploss_tol'] = 1.e-6
+    if 'abs_ploss_tol' not in ptdf_options:
+        ptdf_options['abs_ploss_tol'] = 1.e-10
+    if 'rel_qloss_tol' not in ptdf_options:
+        ptdf_options['rel_qloss_tol'] = 1.e-6
+    if 'abs_qloss_tol' not in ptdf_options:
+        ptdf_options['abs_qloss_tol'] = 1.e-10
     if 'abs_flow_tol' not in ptdf_options:
         ptdf_options['abs_flow_tol'] = 1.e-3
     if 'rel_flow_tol' not in ptdf_options:
@@ -57,7 +73,12 @@ def populate_default_ptdf_options(ptdf_options):
 
 def check_and_scale_ptdf_options(ptdf_options, baseMVA):
     ## scale to base MVA
+    # TODO: not sure we need to scale any except abs_vdf and abs_flow. The rest are dimensionless factors.
     ptdf_options['abs_ptdf_tol'] /= baseMVA
+    ptdf_options['abs_qtdf_tol'] /= baseMVA
+    ptdf_options['abs_ploss_tol'] /= baseMVA
+    ptdf_options['abs_qloss_tol'] /= baseMVA
+    ptdf_options['abs_vdf_tol'] /= baseMVA
     ptdf_options['abs_flow_tol'] /= baseMVA
 
     rel_flow_tol = ptdf_options['rel_flow_tol']
@@ -272,6 +293,8 @@ def add_thermal_violations(thermal_viol_lazy, SV, mb, md, solver, ptdf_options, 
     ba_rating_long_term = branch_attrs['rating_long_term']
 
     if include_reactive:
+        rel_qtdf_tol = ptdf_options['rel_qtdf_tol']
+        abs_qtdf_tol = ptdf_options['abs_qtdf_tol']
         qf = mb.qf
         eq_qf_constr = mb.eq_qf_branch
         ineq_branch_thermal_constr = mb.ineq_branch_thermal_limit
@@ -293,7 +316,7 @@ def add_thermal_violations(thermal_viol_lazy, SV, mb, md, solver, ptdf_options, 
                 if include_reactive:
                     ## add eq_qf_branch constraint
                     expr = libbranch.get_expr_branch_qf_fdf_approx(mb, bn, ba_qtdf[bn], ba_qtdf_c[bn],
-                                                                    rel_tol=rel_ptdf_tol, abs_tol=abs_ptdf_tol)
+                                                                    rel_tol=rel_qtdf_tol, abs_tol=abs_qtdf_tol)
                     eq_qf_constr[bn] = qf[bn] == expr
                     ## add ineq_branch_thermal_limit constraint
                     libbranch.add_constr_branch_thermal_limit(mb, bn, ba_rating_long_term[bn])
@@ -325,8 +348,8 @@ def add_vmag_violations(vmag_viol_lazy, VMAG, mb, md, solver, ptdf_options, bus_
     persistent_solver = isinstance(solver, PersistentSolver)
 
     ## static information between runs
-    rel_ptdf_tol = ptdf_options['rel_ptdf_tol']
-    abs_ptdf_tol = ptdf_options['abs_ptdf_tol']
+    rel_vdf_tol = ptdf_options['rel_vdf_tol']
+    abs_vdf_tol = ptdf_options['abs_vdf_tol']
 
     vm = mb.vm
     constr = mb.eq_vm_bus
@@ -344,7 +367,7 @@ def add_vmag_violations(vmag_viol_lazy, VMAG, mb, md, solver, ptdf_options, bus_
             if bn not in mb.eq_vm_bus:
                 ## add eq_pf_branch constraint
                 expr = libbus.get_vm_expr_vdf_approx(mb, bn, ba_vdf[bn], ba_vdf_c[bn],
-                                                        rel_tol=rel_ptdf_tol, abs_tol=abs_ptdf_tol)
+                                                        rel_tol=rel_vdf_tol, abs_tol=abs_vdf_tol)
                 constr[bn] = vm[bn] == expr
             yield i, bn
 
