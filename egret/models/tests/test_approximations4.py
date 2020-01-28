@@ -46,11 +46,59 @@ from os.path import isfile, join
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 #test_cases = [join('../../../download/pglib-opf-master/', f) for f in listdir('../../../download/pglib-opf-master/') if isfile(join('../../../download/pglib-opf-master/', f)) and f.endswith('.m')]
-case_names = ['pglib_opf_case13659_pegase',
+case_names = ['pglib_opf_case3_lmbd',
+              'pglib_opf_case5_pjm',
+              'pglib_opf_case14_ieee',
+              'pglib_opf_case24_ieee_rts',
+              'pglib_opf_case30_as',
+              'pglib_opf_case30_fsr',
+              'pglib_opf_case30_ieee',
+              'pglib_opf_case39_epri',
+              'pglib_opf_case57_ieee',
+              'pglib_opf_case73_ieee_rts',
+              'pglib_opf_case89_pegase',
+              'pglib_opf_case118_ieee',
+              'pglib_opf_case162_ieee_dtc',
+              'pglib_opf_case179_goc',
+              'pglib_opf_case200_tamu',
+              'pglib_opf_case240_pserc',
+              'pglib_opf_case300_ieee',
+              'pglib_opf_case500_tamu',
+              'pglib_opf_case588_sdet',
+              'pglib_opf_case1354_pegase',
+              'pglib_opf_case1888_rte',
+              'pglib_opf_case1951_rte',
+              'pglib_opf_case2000_tamu',
+              'pglib_opf_case2316_sdet',
+              'pglib_opf_case2383wp_k',
+              'pglib_opf_case2736sp_k',
+              'pglib_opf_case2737sop_k',
+              'pglib_opf_case2746wop_k',
+              'pglib_opf_case2746wp_k',
+              'pglib_opf_case2848_rte',
+              'pglib_opf_case2853_sdet',
+              'pglib_opf_case2868_rte',
+              'pglib_opf_case2869_pegase',
+              'pglib_opf_case3012wp_k',
+              'pglib_opf_case3120sp_k',
+              'pglib_opf_case3375wp_k',
+              'pglib_opf_case4661_sdet',
+              'pglib_opf_case6468_rte',
+              'pglib_opf_case6470_rte',
+              'pglib_opf_case6495_rte',
+              'pglib_opf_case6515_rte',
+              'pglib_opf_case9241_pegase',
+              'pglib_opf_case10000_tamu',
+              'pglib_opf_case13659_pegase',
               ]
 test_cases = [join('../../../download/pglib-opf-master/', f + '.m') for f in case_names]
 #test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
 
+test_cases0 = test_cases[0:18]      ## < 1000 buses
+test_cases1 = test_cases[19:23]     ## 1354 - 2316 buses
+test_cases2 = test_cases[24:35]     ## 2383 - 4661 buses
+test_cases3 = test_cases[36:42]     ## 6468 - 10000 buses
+test_cases4 = test_cases[43]        ## 13659 buses
 
 def set_acopf_basepoint_min_max(md_dict, init_min=0.9, init_max=1.1, **kwargs):
     '''
@@ -163,18 +211,122 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
 
             record_results(idx, mult, md_lccm)
 
-        if val and idx == 'fdf':
-            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False)
+        if val and idx == 'dlopf':
+            options = {}
+            options['method'] = 1
+            ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+                                           solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdf)
 
-        if val and idx == 'fdf_simplified':
-            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False)
+        if val and idx == 'dlopf_1E2':
+            options = {}
+            options['method'] = 1
+            ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
+            ptdf_options['abs_ptdf_tol'] = 1e-2
+            ptdf_options['abs_qtdf_tol'] = 5e-2
+            ptdf_options['rel_vdf_tol'] = 10e-2
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+                                           solver_tee=False, options=options, **kwargs)
+
+            record_results(idx, mult, md_fdf)
+
+        if val and idx == 'dlopf_1E3':
+            options = {}
+            options['method'] = 1
+            ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
+            ptdf_options['abs_ptdf_tol'] = 1e-3
+            ptdf_options['abs_qtdf_tol'] = 5e-3
+            ptdf_options['rel_vdf_tol'] = 10e-3
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+                                           solver_tee=False, options=options, **kwargs)
+
+            record_results(idx, mult, md_fdf)
+
+        if val and idx == 'dlopf_1E4':
+            options = {}
+            options['method'] = 1
+            ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
+            ptdf_options['abs_ptdf_tol'] = 1e-4
+            ptdf_options['abs_qtdf_tol'] = 5e-4
+            ptdf_options['rel_vdf_tol'] = 10e-4
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+                                           solver_tee=False, options=options, **kwargs)
+
+            record_results(idx, mult, md_fdf)
+
+        if val and idx == 'clopf':
+            options = {}
+            options['method'] = 1
+            ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+                                                       solver_tee=False, options=options, **kwargs)
+
+            record_results(idx, mult, md_fdfs)
+
+        if val and idx == 'clopf_1E2':
+            options = {}
+            options['method'] = 1
+            ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
+            ptdf_options['abs_ptdf_tol'] = 1e-2
+            ptdf_options['abs_qtdf_tol'] = 5e-2
+            ptdf_options['rel_vdf_tol'] = 10e-2
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+                                                       solver_tee=False, options=options, **kwargs)
+
+            record_results(idx, mult, md_fdfs)
+
+        if val and idx == 'clopf_1E3':
+            options = {}
+            options['method'] = 1
+            ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
+            ptdf_options['abs_ptdf_tol'] = 1e-3
+            ptdf_options['abs_qtdf_tol'] = 5e-3
+            ptdf_options['rel_vdf_tol'] = 10e-3
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+                                                       solver_tee=False, options=options, **kwargs)
+
+            record_results(idx, mult, md_fdfs)
+
+        if val and idx == 'clopf_1E4':
+            options = {}
+            options['method'] = 1
+            ptdf_options = {}
+            ptdf_options['lazy'] = True
+            ptdf_options['lazy_voltage'] = True
+            ptdf_options['abs_ptdf_tol'] = 1e-4
+            ptdf_options['abs_qtdf_tol'] = 5e-4
+            ptdf_options['rel_vdf_tol'] = 10e-4
+            kwargs['ptdf_options'] = ptdf_options
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+                                                       solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdfs)
 
         if val and idx == 'ptdf_losses':
-            md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi", dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
+            md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent", dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
                                                     return_model=True, return_results=True, solver_tee=False)
             record_results(idx, mult, md_ptdfl)
 
@@ -730,15 +882,21 @@ if __name__ == '__main__':
     test_model_dict = \
         {'ccm' :              False,
          'lccm' :             True,
-         'fdf' :              True,
-         'fdf_simplified' :   True,
+         'dlopf' :            True,
+         'dlopf1E2' :         True,
+         'dlopf1E3' :         True,
+         'dlopf1E4' :         True,
+         'clopf' :            True,
+         'clopf1E2' :         True,
+         'clopf1E3' :         True,
+         'clopf1E4' :         True,
          'ptdf_losses' :      True,
          'ptdf' :             True,
          'btheta_losses' :    False,
          'btheta' :           True
          }
 
-    for tc in test_cases:
+    for tc in test_cases4:
         print(tc)
         solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 

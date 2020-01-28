@@ -65,35 +65,40 @@ case_names = ['pglib_opf_case3_lmbd',
               'pglib_opf_case300_ieee',
               'pglib_opf_case500_tamu',
               'pglib_opf_case588_sdet',
-              # 'pglib_opf_case1354_pegase',
-              # 'pglib_opf_case1888_rte',
-              # 'pglib_opf_case1951_rte',
-              # 'pglib_opf_case2000_tamu',
-              # 'pglib_opf_case2316_sdet',
-              # 'pglib_opf_case2383wp_k',
-              # 'pglib_opf_case2736sp_k',
-              # 'pglib_opf_case2737sop_k',
-              # 'pglib_opf_case2746wop_k',
-              # 'pglib_opf_case2746wp_k',
-              # 'pglib_opf_case2848_rte',
-              # 'pglib_opf_case2853_sdet',
-              # 'pglib_opf_case2868_rte',
-              # 'pglib_opf_case2869_pegase',
-              # 'pglib_opf_case3012wp_k',
-              # 'pglib_opf_case3120sp_k',
-              # 'pglib_opf_case3375wp_k',
-              # 'pglib_opf_case4661_sdet',
-              # 'pglib_opf_case6468_rte',
-              # 'pglib_opf_case6470_rte',
-              # 'pglib_opf_case6495_rte',
-              # 'pglib_opf_case6515_rte',
-              # 'pglib_opf_case9241_pegase',
-              # 'pglib_opf_case10000_tamu',
-              # 'pglib_opf_case13659_pegase',
+              'pglib_opf_case1354_pegase',
+              'pglib_opf_case1888_rte',
+              'pglib_opf_case1951_rte',
+              'pglib_opf_case2000_tamu',
+              'pglib_opf_case2316_sdet',
+              'pglib_opf_case2383wp_k',
+              'pglib_opf_case2736sp_k',
+              'pglib_opf_case2737sop_k',
+              'pglib_opf_case2746wop_k',
+              'pglib_opf_case2746wp_k',
+              'pglib_opf_case2848_rte',
+              'pglib_opf_case2853_sdet',
+              'pglib_opf_case2868_rte',
+              'pglib_opf_case2869_pegase',
+              'pglib_opf_case3012wp_k',
+              'pglib_opf_case3120sp_k',
+              'pglib_opf_case3375wp_k',
+              'pglib_opf_case4661_sdet',
+              'pglib_opf_case6468_rte',
+              'pglib_opf_case6470_rte',
+              'pglib_opf_case6495_rte',
+              'pglib_opf_case6515_rte',
+              'pglib_opf_case9241_pegase',
+              'pglib_opf_case10000_tamu',
+              'pglib_opf_case13659_pegase',
               ]
 test_cases = [join('../../../download/pglib-opf-master/', f + '.m') for f in case_names]
 #test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
 
+test_cases0 = test_cases[0:18]      ## < 1000 buses
+test_cases1 = test_cases[19:23]     ## 1354 - 2316 buses
+test_cases2 = test_cases[24:35]     ## 2383 - 4661 buses
+test_cases3 = test_cases[36:42]     ## 6468 - 10000 buses
+test_cases4 = test_cases[43]        ## 13659 buses
 
 def set_acopf_basepoint_min_max(md_dict, init_min=0.9, init_max=1.1, **kwargs):
     '''
@@ -891,7 +896,7 @@ if __name__ == '__main__':
          'btheta' :           True
          }
 
-    for tc in test_cases:
+    for tc in test_cases0:
         print(tc)
         solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
