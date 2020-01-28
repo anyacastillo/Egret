@@ -93,7 +93,7 @@ def create_fixed_fdf_model(model_data, **kwargs):
 
 
 def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feasibility_slack=False,
-                     ptdf_options=None, calculation_method=SensitivityCalculationMethod.INVERT):
+                     ptdf_options=None, include_q_balance=True, calculation_method=SensitivityCalculationMethod.INVERT):
 
     if ptdf_options is None:
         ptdf_options = dict()
@@ -341,7 +341,8 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                     )
 
     ### declare the q balance
-    libbus.declare_eq_q_balance_fdf(model=model,
+    if include_q_balance:
+        libbus.declare_eq_q_balance_fdf(model=model,
                                     index_set=bus_attrs['names'],
                                     buses=buses,
                                     bus_q_loads=bus_q_loads,
@@ -613,7 +614,10 @@ def _load_solution_to_model_data(m, md, results):
     LMPL = np.zeros(len(buses_idx))
     LMPC = np.zeros(len(buses_idx))
 
-    QLMPE = value(m.dual[m.eq_q_balance])
+    if hasattr(m,'eq_q_balance'):
+        QLMPE = value(m.dual[m.eq_q_balance])
+    else:
+        QLMPE = 0
     QLMPL = np.zeros(len(buses_idx))
     QLMPC = np.zeros(len(buses_idx))
 
@@ -887,6 +891,7 @@ if __name__ == '__main__':
     #filename = 'pglib_opf_case179_goc.m'
     filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
+    #filename = 'pglib_opf_case1354_pegase.m'
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
     md = create_ModelData(matpower_file)
 
@@ -909,11 +914,75 @@ if __name__ == '__main__':
     print('begin FDF...')
     options={}
     options['method'] = 1
+    ptdf_options = {}
+    ptdf_options['abs_ptdf_tol'] = 1e-2
+    kwargs['ptdf_options'] = ptdf_options
     md, m, results = solve_fdf(md_ac, "gurobi_persistent", fdf_model_generator=create_fdf_model, return_model=True,
                                return_results=True, solver_tee=False, options=options, **kwargs)
     print('FDF cost: $%3.2f' % md.data['system']['total_cost'])
     print('FDF time: %3.5f' % md.data['results']['time'])
     print(results.Solver)
+    gen = md.attributes(element_type='generator')
+    bus = md.attributes(element_type='bus')
+    branch = md.attributes(element_type='branch')
+    system = md.data['system']
+
+    pg_dict = {'fdf': gen['pg']}
+    qg_dict = {'fdf': gen['qg']}
+    pf_dict = {'fdf': branch['pf']}
+    qf_dict = {'fdf': branch['qf']}
+    ploss_dict = {'fdf': system['ploss']}
+    qloss_dict = {'fdf': system['qloss']}
+    va_dict = {'fdf': bus['va']}
+    vm_dict = {'fdf': bus['vm']}
+    lmp_dict = {'fdf' : bus['lmp']}
+    qlmp_dict = {'fdf' : bus['qlmp']}
+
+    print('remove FDF q balance...')
+    kwargs['include_q_balance'] = False
+    md2, m2, results = solve_fdf(md_ac, "gurobi_persistent", fdf_model_generator=create_fdf_model,
+                                          return_model=True, return_results=True, solver_tee=False,
+                                          options=options, **kwargs)
+    print('FDF cost: $%3.2f' % md2.data['system']['total_cost'])
+    print('FDF time: %3.5f' % md2.data['results']['time'])
+    print(results.Solver)
+    gen = md2.attributes(element_type='generator')
+    bus = md2.attributes(element_type='bus')
+    branch = md2.attributes(element_type='branch')
+    system = md2.data['system']
+
+    pg_dict['fdf2'] = gen['pg']
+    qg_dict['fdf2'] = gen['qg']
+    pf_dict['fdf2'] = branch['pf']
+    qf_dict['fdf2'] = branch['qf']
+    ploss_dict['fdf2'] = system['ploss']
+    qloss_dict['fdf2'] = system['qloss']
+    va_dict['fdf2'] = bus['va']
+    vm_dict['fdf2'] = bus['vm']
+    lmp_dict['fdf2'] = bus['lmp']
+    qlmp_dict['fdf2'] = bus['qlmp']
+
+
+    print('pf:')
+    compare_results(pg_dict, 'fdf', 'fdf2')
+    print('qg')
+    compare_results(qg_dict, 'fdf', 'fdf2')
+    print('pf:')
+    compare_results(pf_dict, 'fdf', 'fdf2')
+    print('qf')
+    compare_results(qf_dict, 'fdf', 'fdf2')
+    print('ploss')
+    print(ploss_dict)
+    print('qloss')
+    print(qloss_dict)
+    print('va:')
+    compare_results(va_dict, 'fdf', 'fdf2')
+    print('vm')
+    compare_results(vm_dict, 'fdf', 'fdf2')
+    print('lmp')
+    compare_results(lmp_dict, 'fdf', 'fdf2')
+    print('qlmp')
+    compare_results(qlmp_dict, 'fdf', 'fdf2')
 
 # not solving pglib_opf_case57_ieee
 # pglib_opf_case500_tamu
