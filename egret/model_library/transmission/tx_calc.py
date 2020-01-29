@@ -315,15 +315,17 @@ def _calculate_J11(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_
 
         val = -b * vn * vm * cos(tn - tm + shift)
 
-        idx_col = mapping_bus_to_idx[from_bus]
-        row.append(idx_row)
-        col.append(idx_col)
-        data.append(val)
+        # else somebody might have to check
+        if val != 0.0:
+            idx_col = mapping_bus_to_idx[from_bus]
+            row.append(idx_row)
+            col.append(idx_col)
+            data.append(val)
 
-        idx_col = mapping_bus_to_idx[to_bus]
-        row.append(idx_row)
-        col.append(idx_col)
-        data.append(-val)
+            idx_col = mapping_bus_to_idx[to_bus]
+            row.append(idx_row)
+            col.append(idx_col)
+            data.append(-val)
 
     J11 = sp.sparse.coo_matrix( (data, (row,col)), shape=(_len_branch, _len_bus))
     return J11.tocsr()
@@ -366,17 +368,21 @@ def _calculate_J22(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_
 
         val = -(b + bc/2) * vn / (tau**2) - g * vm * sin(tn - tm + shift)/tau
 
-        idx_col = mapping_bus_to_idx[from_bus]
-        row.append(idx_row)
-        col.append(idx_col)
-        data.append(val)
+        # else somebody might have to check
+        if val != 0.0:
+            idx_col = mapping_bus_to_idx[from_bus]
+            row.append(idx_row)
+            col.append(idx_col)
+            data.append(val)
 
         val = (b + bc/2) * vm - g * vn * sin(tn - tm + shift)/tau
 
-        idx_col = mapping_bus_to_idx[to_bus]
-        row.append(idx_row)
-        col.append(idx_col)
-        data.append(val)
+        # else somebody might have to check
+        if val != 0.0:
+            idx_col = mapping_bus_to_idx[to_bus]
+            row.append(idx_row)
+            col.append(idx_col)
+            data.append(val)
 
     J22 = sp.sparse.coo_matrix( (data, (row,col)), shape=(_len_branch, _len_bus))
     return J22.tocsr()
@@ -419,15 +425,17 @@ def _calculate_L11(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_
 
         val = 2 * g * vn * vm * sin(tn - tm + shift)
 
-        idx_col = mapping_bus_to_idx[from_bus]
-        row.append(idx_row)
-        col.append(idx_col)
-        data.append(val)
+        # else somebody might have to check
+        if val != 0.0:
+            idx_col = mapping_bus_to_idx[from_bus]
+            row.append(idx_row)
+            col.append(idx_col)
+            data.append(val)
 
-        idx_col = mapping_bus_to_idx[to_bus]
-        row.append(idx_row)
-        col.append(idx_col)
-        data.append(-val)
+            idx_col = mapping_bus_to_idx[to_bus]
+            row.append(idx_row)
+            col.append(idx_col)
+            data.append(-val)
 
     L11 = sp.sparse.coo_matrix((data,(row,col)),shape=(_len_branch,_len_bus))
     return L11.tocsr()
@@ -470,17 +478,21 @@ def _calculate_L22(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_
 
         val = -2 * (b + bc/2) * vn / (tau**2) + 2 * b * vm * cos(tn - tm + shift)/tau
 
-        idx_col = mapping_bus_to_idx[from_bus]
-        row.append(idx_row)
-        col.append(idx_col)
-        data.append(val)
+        # else somebody might have to check
+        if val != 0.0:
+            idx_col = mapping_bus_to_idx[from_bus]
+            row.append(idx_row)
+            col.append(idx_col)
+            data.append(val)
 
         val = -2 * (b + bc/2) * vm + 2 * b * vn * cos(tn - tm + shift)/tau
 
-        idx_col = mapping_bus_to_idx[to_bus]
-        row.append(idx_row)
-        col.append(idx_col)
-        data.append(val)
+        # else somebody might have to check
+        if val != 0.0:
+            idx_col = mapping_bus_to_idx[to_bus]
+            row.append(idx_row)
+            col.append(idx_col)
+            data.append(val)
 
     L22 = sp.sparse.coo_matrix((data,(row,col)),shape=(_len_branch,_len_bus))
     return L22.tocsr()
@@ -520,10 +532,12 @@ def calculate_phi_constant(branches,index_set_branch,index_set_bus,approximation
         elif approximation_type == ApproximationType.PTDF_LOSSES:
             b = calculate_susceptance(branch)*(shift/tau)
 
-        row_from.append(mapping_bus_to_idx[from_bus])
-        row_to.append(mapping_bus_to_idx[to_bus])
-        col.append(idx_col)
-        data.append(b)
+        # else somebody might have to check
+        if b != 0.0:
+            row_from.append(mapping_bus_to_idx[from_bus])
+            row_to.append(mapping_bus_to_idx[to_bus])
+            col.append(idx_col)
+            data.append(b)
 
     phi_from = sp.sparse.coo_matrix((data,(row_from,col)), shape=(_len_bus,_len_branch))
     phi_to = sp.sparse.coo_matrix((data,(row_to,col)), shape=(_len_bus,_len_branch))
@@ -560,10 +574,12 @@ def calculate_phi_q_constant(branches,index_set_branch,index_set_bus,mapping_bus
 
         g = calculate_conductance(branch)*(shift/tau)
 
-        row_from.append(mapping_bus_to_idx[from_bus])
-        row_to.append(mapping_bus_to_idx[to_bus])
-        col.append(idx_col)
-        data.append(g)
+        # else somebody might have to check
+        if g != 0.0:
+            row_from.append(mapping_bus_to_idx[from_bus])
+            row_to.append(mapping_bus_to_idx[to_bus])
+            col.append(idx_col)
+            data.append(g)
 
     phi_from = sp.sparse.coo_matrix((data,(row_from,col)), shape=(_len_bus,_len_branch))
     phi_to = sp.sparse.coo_matrix((data,(row_to,col)), shape=(_len_bus,_len_branch))
@@ -605,10 +621,12 @@ def calculate_phi_loss_constant(branches,index_set_branch,index_set_bus,approxim
         elif approximation_type == ApproximationType.PTDF_LOSSES:
             g = calculate_conductance(branch)*(1/tau)*shift**2
 
-        row_from.append(mapping_bus_to_idx[from_bus])
-        row_to.append(mapping_bus_to_idx[to_bus])
-        col.append(idx_col)
-        data.append(g)
+        # else somebody might have to check
+        if g != 0.0:
+            row_from.append(mapping_bus_to_idx[from_bus])
+            row_to.append(mapping_bus_to_idx[to_bus])
+            col.append(idx_col)
+            data.append(g)
 
     phi_loss_from = sp.sparse.coo_matrix((data,(row_from,col)),shape=(_len_bus,_len_branch))
     phi_loss_to = sp.sparse.coo_matrix((data,(row_to,col)),shape=(_len_bus,_len_branch))
@@ -645,10 +663,12 @@ def calculate_phi_loss_q_constant(branches,index_set_branch,index_set_bus,mappin
 
         b = calculate_susceptance(branch)*(1/tau)*shift**2
 
-        row_from.append(mapping_bus_to_idx[from_bus])
-        row_to.append(mapping_bus_to_idx[to_bus])
-        col.append(idx_col)
-        data.append(b)
+        # else somebody might have to check
+        if b != 0.0:
+            row_from.append(mapping_bus_to_idx[from_bus])
+            row_to.append(mapping_bus_to_idx[to_bus])
+            col.append(idx_col)
+            data.append(b)
 
     phi_loss_from = sp.sparse.coo_matrix((data,(row_from,col)),shape=(_len_bus,_len_branch))
     phi_loss_to = sp.sparse.coo_matrix((data,(row_to,col)),shape=(_len_bus,_len_branch))

@@ -15,6 +15,12 @@ import egret.model_library.transmission.tx_calc as tx_calc
 from egret.model_library.defn import BasePointType, ApproximationType
 
 
+def _make_sensi_dict_from_dense( name_list, array ):
+    return { n : val for n, val in zip(name_list, array) }
+def _make_sensi_dict_from_csr( name_list, csr_array ):
+    a_coo = csr_array.tocoo()
+    return { name_list[j] : val for j, val in zip(a_coo.col, a_coo.data) }
+
 def create_dicts_of_fdf(md, base_point=BasePointType.SOLUTION):
     branches = dict(md.elements(element_type='branch'))
     buses = dict(md.elements(element_type='bus'))
@@ -56,75 +62,53 @@ def create_dicts_of_fdf(md, base_point=BasePointType.SOLUTION):
     phi_q_from, phi_q_to = tx_calc.calculate_phi_q_constant(branches, branch_attrs['names'], bus_attrs['names'])
     phi_loss_q_from, phi_loss_q_to = tx_calc.calculate_phi_loss_q_constant(branches, branch_attrs['names'], bus_attrs['names'])
 
-    _len_branch = len(branch_attrs['names'])
-    _mapping_branch = {i: branch_attrs['names'][i] for i in list(range(0, _len_branch))}
+    branch_name_list = branch_attrs['names']
+    bus_name_list = bus_attrs['names']
 
-    _len_bus = len(bus_attrs['names'])
-    _mapping_bus = {i: bus_attrs['names'][i] for i in list(range(0, _len_bus))}
+    branches = md.data['elements']['branch']
+    buses = md.data['elements']['bus']
 
-    for idx, branch_name in _mapping_branch.items():
-        branch = md.data['elements']['branch'][branch_name]
-        _row_ptdf = {bus_attrs['names'][i]: ptdf[idx, i] for i in list(range(0, _len_bus))}
-        branch['ptdf'] = _row_ptdf
+    for idx, branch_name in enumerate(branch_name_list):
+        branch = branches[branch_name]
 
-        _row_pldf = {bus_attrs['names'][i]: pldf[idx, i] for i in list(range(0, _len_bus))}
-        branch['pldf'] = _row_pldf
+        branch['ptdf'] = _make_sensi_dict_from_dense(bus_name_list, ptdf[idx])
+
+        branch['pldf'] = _make_sensi_dict_from_dense(bus_name_list, pldf[idx])
 
         branch['ptdf_c'] = ptdf_c[idx]
 
         branch['pldf_c'] = pldf_c[idx]
 
-        _row_qtdf = {bus_attrs['names'][i]: qtdf[idx, i] for i in list(range(0, _len_bus))}
-        branch['qtdf'] = _row_qtdf
+        branch['qtdf'] = _make_sensi_dict_from_dense(bus_name_list, qtdf[idx])
 
-        _row_qldf = {bus_attrs['names'][i]: qldf[idx, i] for i in list(range(0, _len_bus))}
-        branch['qldf'] = _row_qldf
+        branch['qldf'] = _make_sensi_dict_from_dense(bus_name_list, qldf[idx])
 
         branch['qtdf_c'] = qtdf_c[idx]
 
         branch['qldf_c'] = qldf_c[idx]
 
+    for idx, bus_name in enumerate(bus_name_list):
+        bus = buses[bus_name]
 
-    for idx, bus_name in _mapping_bus.items():
-        bus = md.data['elements']['bus'][bus_name]
-
-        _row_vdf = {bus_attrs['names'][i]: vm_sensi[idx, i] for i in list(range(0, _len_bus))}
-        bus['vdf'] = _row_vdf
+        bus['vdf'] = _make_sensi_dict_from_dense(bus_name_list, vm_sensi[idx])
 
         bus['vdf_c'] = vm_const[idx]
 
-        _row_phi_from = {branch_attrs['names'][i]: phi_from[idx, i] for i in list(range(0, _len_branch)) if
-                         phi_from[idx, i] != 0.}
-        bus['phi_from'] = _row_phi_from
+        bus['phi_from'] = _make_sensi_dict_from_csr(branch_name_list, phi_from[idx]) 
 
-        _row_phi_to = {branch_attrs['names'][i]: phi_to[idx, i] for i in list(range(0, _len_branch)) if
-                       phi_to[idx, i] != 0.}
-        bus['phi_to'] = _row_phi_to
+        bus['phi_to'] = _make_sensi_dict_from_csr(branch_name_list, phi_to[idx])
 
-        _row_phi_loss_from = {branch_attrs['names'][i]: phi_loss_from[idx, i] for i in list(range(0, _len_branch)) if
-                              phi_loss_from[idx, i] != 0.}
-        bus['phi_loss_from'] = _row_phi_loss_from
+        bus['phi_loss_from'] = _make_sensi_dict_from_csr(branch_name_list, phi_loss_from[idx])
 
-        _row_phi_loss_to = {branch_attrs['names'][i]: phi_loss_to[idx, i] for i in list(range(0, _len_branch)) if
-                            phi_loss_to[idx, i] != 0.}
-        bus['phi_loss_to'] = _row_phi_loss_to
+        bus['phi_loss_to'] = _make_sensi_dict_from_csr(branch_name_list, phi_loss_to[idx])
 
-        _row_phi_q_from = {branch_attrs['names'][i]: phi_q_from[idx, i] for i in list(range(0, _len_branch)) if
-                         phi_q_from[idx, i] != 0.}
-        bus['phi_q_from'] = _row_phi_q_from
+        bus['phi_q_from'] = _make_sensi_dict_from_csr(branch_name_list, phi_q_from[idx])
 
-        _row_phi_q_to = {branch_attrs['names'][i]: phi_q_to[idx, i] for i in list(range(0, _len_branch)) if
-                       phi_q_to[idx, i] != 0.}
-        bus['phi_q_to'] = _row_phi_q_to
+        bus['phi_q_to'] = _make_sensi_dict_from_csr(branch_name_list, phi_q_to[idx])
 
-        _row_phi_loss_q_from = {branch_attrs['names'][i]: phi_loss_q_from[idx, i] for i in list(range(0, _len_branch)) if
-                              phi_loss_q_from[idx, i] != 0.}
-        bus['phi_loss_q_from'] = _row_phi_loss_q_from
+        bus['phi_loss_q_from'] = _make_sensi_dict_from_csr(branch_name_list, phi_loss_q_from[idx])
 
-        _row_phi_loss_q_to = {branch_attrs['names'][i]: phi_loss_q_to[idx, i] for i in list(range(0, _len_branch)) if
-                            phi_loss_q_to[idx, i] != 0.}
-        bus['phi_loss_q_to'] = _row_phi_loss_q_to
-
+        bus['phi_loss_q_to'] = _make_sensi_dict_from_csr(branch_name_list, phi_loss_q_to[idx])
 
 def create_dicts_of_lccm(md, base_point=BasePointType.SOLUTION):
     branches = dict(md.elements(element_type='branch'))
