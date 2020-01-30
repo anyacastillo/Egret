@@ -349,35 +349,27 @@ def create_dicts_of_fdf_simplified(md, base_point=BasePointType.SOLUTION):
             branch['qtdf_c'] = qtdf_c[idx]
             branch['qldf_c'] = qldf_c[idx]
 
-    _len_branch = len(branch_attrs['names'])
-    _mapping_branch = {i: branch_attrs['names'][i] for i in list(range(0, _len_branch))}
-
-    _len_bus = len(bus_attrs['names'])
-    _mapping_bus = {i: bus_attrs['names'][i] for i in list(range(0, _len_bus))}
-
-    # condensed loss factors are pldf and qldf summed over the set of branches
+    # need to sum over branches.items() since pldf_c may not have been independently calculated
     if update_ploss_sens:
-        md.data['system']['ploss_const'] = sum(pldf_c[idx] for idx in list(range(0, _len_branch)))
+        md.data['system']['ploss_const'] = sum(branch['pldf_c'] for bn,branch in branches.items())
     if update_qloss_sens:
-        md.data['system']['qloss_const'] = sum(qldf_c[idx] for idx in list(range(0, _len_branch)))
+        md.data['system']['qloss_const'] = sum(branch['qldf_c'] for bn,branch in branches.items())
 
     for idx, bus_name in enumerate(bus_name_list):
         bus = buses[bus_name]
 
         # condensed loss factors are pldf and qldf summed over the set of branches
         if update_ploss_sens:
-            _ploss_sens = sum(pldf[i, idx] for i in list(range(0, _len_branch)))
-            bus['ploss_sens'] = _ploss_sens
+            bus['ploss_sens'] = sum(branch['pldf'][bus_name] for bn,branch in branches.items())
 
         if update_qloss_sens:
-            _qloss_sens = sum(qldf[i, idx] for i in list(range(0, _len_branch)))
-            bus['qloss_sens'] = _qloss_sens
+            bus['qloss_sens'] = sum(branch['qldf'][bus_name] for bn,branch in branches.items())
 
         # voltage distribution factors are the same as in FDF
         if update_dense_q:
-            _row_vdf = {bus_attrs['names'][i]: vm_sensi[idx, i] for i in list(range(0, _len_bus))}
-            bus['vdf'] = _row_vdf
+            bus['vdf'] = _make_sensi_dict_from_dense(bus_name_list, vm_sensi[idx])
             bus['vdf_c'] = vm_const[idx]
+
 
 
 def create_dicts_of_ptdf_losses(md, base_point=BasePointType.SOLUTION):
@@ -432,22 +424,15 @@ def create_dicts_of_ptdf_losses(md, base_point=BasePointType.SOLUTION):
             branch['ptdf_c'] = ptdf_c[idx]
             branch['pldf_c'] = pldf_c[idx]
 
-    _len_branch = len(branch_attrs['names'])
-    _mapping_branch = {i: branch_attrs['names'][i] for i in list(range(0, _len_branch))}
-
-    _len_bus = len(bus_attrs['names'])
-    _mapping_bus = {i: bus_attrs['names'][i] for i in list(range(0, _len_bus))}
-
-    # condensed loss factors are pldf and qldf summed over the set of branches
+    # need to sum over branches.items() since pldf_c may not have been independently calculated
     if update_ploss_sens:
-        md.data['system']['ploss_const'] = sum(pldf_c[idx] for idx in list(range(0, _len_branch)))
+        md.data['system']['ploss_const'] = sum(branch['pldf_c'] for bn,branch in branches.items())
 
         for idx, bus_name in enumerate(bus_name_list):
             bus = buses[bus_name]
 
-            # condensed loss factors are pldf and qldf summed over the set of branches
-            _ploss_sens = sum(pldf[i, idx] for i in list(range(0, _len_branch)))
-            bus['ploss_sens'] = _ploss_sens
+            # condensed loss factors are pldf summed over the set of branches
+            bus['ploss_sens'] = sum(branch['pldf'][bus_name] for bn,branch in branches.items())
 
 
 def create_dicts_of_ptdf(md, base_point=BasePointType.FLATSTART):
