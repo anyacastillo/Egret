@@ -199,6 +199,10 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
     md_ac.data['system']['mult'] = mult
     record_results('acopf', mult, md_ac)
 
+    ## put the sensitivities into modeData so they don't need to be recalculated for each model
+    data_utils_deprecated.create_dicts_of_fdf_simplified(md_ac)
+    data_utils_deprecated.create_dicts_of_ptdf(md)
+
     for idx, val in test_model_dict.items():
 
         if val and idx == 'ccm':
@@ -207,7 +211,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             record_results(idx, mult, md_ccm)
 
         if val and idx == 'lccm':
-            md_lccm, m, results = solve_lccm(md, "gurobi", return_model=True, return_results=True, solver_tee=False)
+            md_lccm, m, results = solve_lccm(md_ac, "gurobi", return_model=True, return_results=True, solver_tee=False)
 
             record_results(idx, mult, md_lccm)
 
@@ -219,7 +223,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             ptdf_options['lazy'] = True
             ptdf_options['lazy_voltage'] = True
             kwargs['ptdf_options'] = ptdf_options
-            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+            md_fdf, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True, return_results=True,
                                            solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdf)
@@ -235,7 +239,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             ptdf_options['abs_qtdf_tol'] = 5e-2
             ptdf_options['rel_vdf_tol'] = 10e-2
             kwargs['ptdf_options'] = ptdf_options
-            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+            md_fdf, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True, return_results=True,
                                            solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdf)
@@ -251,7 +255,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             ptdf_options['abs_qtdf_tol'] = 5e-3
             ptdf_options['rel_vdf_tol'] = 10e-3
             kwargs['ptdf_options'] = ptdf_options
-            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+            md_fdf, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True, return_results=True,
                                            solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdf)
@@ -267,7 +271,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             ptdf_options['abs_qtdf_tol'] = 5e-4
             ptdf_options['rel_vdf_tol'] = 10e-4
             kwargs['ptdf_options'] = ptdf_options
-            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+            md_fdf, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True, return_results=True,
                                            solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdf)
@@ -280,7 +284,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             ptdf_options['lazy'] = True
             ptdf_options['lazy_voltage'] = True
             kwargs['ptdf_options'] = ptdf_options
-            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+            md_fdfs, m, results = solve_fdf_simplified(md_ac, "gurobi_persistent", return_model=True, return_results=True,
                                                        solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdfs)
@@ -296,7 +300,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             ptdf_options['abs_qtdf_tol'] = 5e-2
             ptdf_options['rel_vdf_tol'] = 10e-2
             kwargs['ptdf_options'] = ptdf_options
-            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+            md_fdfs, m, results = solve_fdf_simplified(md_ac, "gurobi_persistent", return_model=True, return_results=True,
                                                        solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdfs)
@@ -312,7 +316,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             ptdf_options['abs_qtdf_tol'] = 5e-3
             ptdf_options['rel_vdf_tol'] = 10e-3
             kwargs['ptdf_options'] = ptdf_options
-            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+            md_fdfs, m, results = solve_fdf_simplified(md_ac, "gurobi_persistent", return_model=True, return_results=True,
                                                        solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdfs)
@@ -328,13 +332,13 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             ptdf_options['abs_qtdf_tol'] = 5e-4
             ptdf_options['rel_vdf_tol'] = 10e-4
             kwargs['ptdf_options'] = ptdf_options
-            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+            md_fdfs, m, results = solve_fdf_simplified(md_ac, "gurobi_persistent", return_model=True, return_results=True,
                                                        solver_tee=False, options=options, **kwargs)
 
             record_results(idx, mult, md_fdfs)
 
         if val and idx == 'ptdf_losses':
-            md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent", dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
+            md_ptdfl, m, results = solve_dcopf_losses(md_ac, "gurobi_persistent", dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
                                                     return_model=True, return_results=True, solver_tee=False)
             record_results(idx, mult, md_ptdfl)
 
@@ -484,6 +488,9 @@ def solve_infeas_model(model_data):
 
     # build ACOPF model with fixed gen output, fixed voltage angle/mag, and relaxed power balance
     m, md = create_psv_acopf_model(model_data, include_feasibility_slack=True)
+    ptdf_options = dict()
+    ptdf_options['lazy'] = False
+    m._ptdf_options = ptdf_options
 
     tx_utils.scale_ModelData_to_pu(model_data, inplace=True)
 
@@ -514,8 +521,8 @@ def solve_infeas_model(model_data):
 
     m.pg.fix()
     m.qg.fix()
-    m.va.fix()
-    m.vm.fix()
+    #m.va.fix()     ## not sure if it is better to fix these or not
+    #m.vm.fix()     ## b/c fixing makes the model (essentially) LP, but leads to infeasibility in some cases
 
     # remove power flow variable bounds
     for b, pf in m.pf.items():
@@ -595,13 +602,18 @@ def solve_infeas_model(model_data):
         print('Solve failed... Increasing slack variable upper bounds.')
         for b, p_slack_pos in m.p_slack_pos.items():
             p_slack_pos.setub(9999)
+        for b, p_slack_neg in m.p_slack_neg.items():
+            p_slack_neg.setub(9999)
         for b, q_slack_pos in m.q_slack_pos.items():
             q_slack_pos.setub(9999)
+        for b, q_slack_neg in m.q_slack_neg.items():
+            q_slack_neg.setub(9999)
         for b, sf_branch_slack_pos in m.sf_branch_slack_pos.items():
             sf_branch_slack_pos.setub(9999)
         for b, st_branch_slack_pos in m.st_branch_slack_pos.items():
             st_branch_slack_pos.setub(9999)
 
+        #m.pprint()
         m, results = _solve_model(m, "ipopt", timelimit=None, solver_tee=False)
 
     show_me = results.Solver.status.key.__str__()
@@ -884,8 +896,10 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=total_c
 
 if __name__ == '__main__':
 
-    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
+    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
+    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
     #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
+    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
     #test_case = test_cases[5]
     #print(test_case)
 
@@ -893,25 +907,26 @@ if __name__ == '__main__':
         {'ccm' :              False,
          'lccm' :             False,
          'dlopf' :            True,
-         'dlopf1E2' :         True,
-         'dlopf1E3' :         True,
-         'dlopf1E4' :         True,
+#         'dlopf_1E2' :        True,
+#         'dlopf_1E3' :        True,
+#         'dlopf_1E4' :        True,
          'clopf' :            True,
-         'clopf1E2' :         True,
-         'clopf1E3' :         True,
-         'clopf1E4' :         True,
+#         'clopf_1E2' :        True,
+#         'clopf_1E3' :        True,
+#         'clopf_1E4' :        True,
          'ptdf_losses' :      True,
          'ptdf' :             True,
-         'btheta_losses' :    False,
-         'btheta' :           False
+         'btheta_losses' :    True,
+         'btheta' :           True
          }
 
     #for tc in test_cases0:
     #    print(tc)
     #    solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
+    print(test_case)
     solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas, show_plot=True)
+    generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas, show_plot=True)
     #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
     #generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas, show_plot=True)
     #generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas)
