@@ -141,7 +141,7 @@ def _solve_model(model,
 
     flag = True
     if results.solver.termination_condition not in safe_termination_conditions:
-        if model._ptdf_options["lazy"]:
+        if hasattr(model, '_ptdf_options') and model._ptdf_options["lazy"]:
             return model, results, solver
         raise Exception('Problem encountered during solve, termination_condition {}'.format(results.solver.termination_condition))
 
