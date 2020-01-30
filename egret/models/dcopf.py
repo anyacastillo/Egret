@@ -546,7 +546,8 @@ if __name__ == '__main__':
 
     path = os.path.dirname(__file__)
     print(path)
-    filename = 'pglib_opf_case30_ieee.m'
+    #filename = 'pglib_opf_case30_ieee.m'
+    filename = 'pglib_opf_case300_ieee.m'
     test_case = os.path.join(path, '../../download/pglib-opf-master/', filename)
     md_dict = create_ModelData(test_case)
 
@@ -555,8 +556,14 @@ if __name__ == '__main__':
     kwargs = {'ptdf_options': {'save_to': test_case + '.pickle'}}
     md_serialization, results = solve_dcopf(md_dict, "ipopt", dcopf_model_generator=dcopf_model, solver_tee=False,
                                             return_results=True, **kwargs)
+    print('serialization...')
+    print('DCOPF cost: $%3.2f' % md_serialization.data['system']['total_cost'])
+    print('DCOPF time: %3.5f' % md_serialization.data['results']['time'])
 
     kwargs = {'ptdf_options': {'load_from': test_case + '.pickle'}}
     md_deserialization, results = solve_dcopf(md_dict, "ipopt", dcopf_model_generator=dcopf_model, solver_tee=False,
                                               return_results=True, **kwargs)
+    print('deserialization...')
+    print('DCOPF cost: $%3.2f' % md_deserialization.data['system']['total_cost'])
+    print('DCOPF time: %3.5f' % md_deserialization.data['results']['time'])
 

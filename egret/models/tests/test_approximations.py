@@ -212,6 +212,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             record_results(idx, mult, md_lccm)
 
         if val and idx == 'dlopf':
+            kwargs = {}
             options = {}
             options['method'] = 1
             ptdf_options = {}
@@ -224,6 +225,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             record_results(idx, mult, md_fdf)
 
         if val and idx == 'dlopf_1E2':
+            kwargs = {}
             options = {}
             options['method'] = 1
             ptdf_options = {}
@@ -239,6 +241,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             record_results(idx, mult, md_fdf)
 
         if val and idx == 'dlopf_1E3':
+            kwargs = {}
             options = {}
             options['method'] = 1
             ptdf_options = {}
@@ -254,6 +257,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             record_results(idx, mult, md_fdf)
 
         if val and idx == 'dlopf_1E4':
+            kwargs = {}
             options = {}
             options['method'] = 1
             ptdf_options = {}
@@ -269,6 +273,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             record_results(idx, mult, md_fdf)
 
         if val and idx == 'clopf':
+            kwargs = {}
             options = {}
             options['method'] = 1
             ptdf_options = {}
@@ -281,6 +286,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             record_results(idx, mult, md_fdfs)
 
         if val and idx == 'clopf_1E2':
+            kwargs = {}
             options = {}
             options['method'] = 1
             ptdf_options = {}
@@ -296,6 +302,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             record_results(idx, mult, md_fdfs)
 
         if val and idx == 'clopf_1E3':
+            kwargs = {}
             options = {}
             options['method'] = 1
             ptdf_options = {}
@@ -311,6 +318,7 @@ def inner_loop_solves(md_basepoint, mult, test_model_dict):
             record_results(idx, mult, md_fdfs)
 
         if val and idx == 'clopf_1E4':
+            kwargs = {}
             options = {}
             options['method'] = 1
             ptdf_options = {}
@@ -876,12 +884,14 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=total_c
 
 if __name__ == '__main__':
 
+    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
+    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
     #test_case = test_cases[5]
     #print(test_case)
 
     test_model_dict = \
         {'ccm' :              False,
-         'lccm' :             True,
+         'lccm' :             False,
          'dlopf' :            True,
          'dlopf1E2' :         True,
          'dlopf1E3' :         True,
@@ -893,14 +903,14 @@ if __name__ == '__main__':
          'ptdf_losses' :      True,
          'ptdf' :             True,
          'btheta_losses' :    False,
-         'btheta' :           True
+         'btheta' :           False
          }
 
-    for tc in test_cases0:
-        print(tc)
-        solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    #for tc in test_cases0:
+    #    print(tc)
+    #    solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
-    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
     #generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas, show_plot=True)
     #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
     #generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas, show_plot=True)

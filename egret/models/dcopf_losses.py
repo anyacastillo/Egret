@@ -526,9 +526,10 @@ if __name__ == '__main__':
 
     path = os.path.dirname(__file__)
     print(path)
-    filename = 'pglib_opf_case3_lmbd.m'
+    #filename = 'pglib_opf_case3_lmbd.m'
     #filename = 'pglib_opf_case5_pjm.m'
     #filename = 'pglib_opf_case30_ieee.m'
+    filename = 'pglib_opf_case300_ieee.m'
     test_case = os.path.join(path, '../../download/pglib-opf-master/', filename)
     md_dict = create_ModelData(test_case)
     dcopf_losses_model = create_ptdf_losses_dcopf_model
@@ -550,3 +551,6 @@ if __name__ == '__main__':
     print(results.Solver)
     print('-Solution:')
     print(results.Solution)
+
+    print('DCOPF cost: $%3.2f' % md.data['system']['total_cost'])
+    print('DCOPF time: %3.5f' % md.data['results']['time'])
