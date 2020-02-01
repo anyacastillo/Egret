@@ -488,9 +488,6 @@ def solve_infeas_model(model_data):
 
     # build ACOPF model with fixed gen output, fixed voltage angle/mag, and relaxed power balance
     m, md = create_psv_acopf_model(model_data, include_feasibility_slack=True)
-    ptdf_options = dict()
-    ptdf_options['lazy'] = False
-    m._ptdf_options = ptdf_options
 
     tx_utils.scale_ModelData_to_pu(model_data, inplace=True)
 
@@ -770,22 +767,21 @@ def read_sensitivity_data(case_folder, test_model, data_generator=total_cost):
         mult = md.data['system']['mult']
         data[mult] = data_generator(md)
 
-    #data_is_vector = False
-    #print(file_list)
-    #print('data: {}'.format(pd.DataFrame(data, index=[test_model])))
-
+    data_is_vector = False
     for d in data:
-
         data_is_vector = hasattr(data[d], "__len__")
 
-        if data_is_vector:
-            df_data = pd.DataFrame(data)
-            return df_data
-            break
-
-    if not data_is_vector:
+    if data_is_vector:
+        df_data = pd.DataFrame(data)
+        df_data = df_data.sort_values(by=test_model, axis=1)
+        print('data: {}'.format(df_data))
+    else:
         df_data = pd.DataFrame(data, index=[test_model])
-        return df_data
+        #df_data = df_data.transpose()
+        df_data = df_data.sort_values(by=test_model, axis=1)
+        print('data: {}'.format(df_data))
+
+    return df_data
 
 
 def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20):
@@ -836,17 +832,15 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=total_c
     for test_model, val in test_model_dict.items():
         if val:
             df_approx = read_sensitivity_data(case_location, test_model, data_generator=data_generator)
-            df_diff = df_approx - df_acopf
 
             # calculate norm from df_diff columns
             data = {}
             avg_ac_data = sum(df_acopf[idx].values for idx in df_acopf) / len(df_acopf)
-            for col in df_diff:
-                colObj = df_diff[col]
+            for col in df_approx:
                 if data_is_vector is True:
-                    data[col] = np.linalg.norm(colObj.values, vector_norm)
+                    data[col] = np.linalg.norm(df_approx[col].values - df_acopf[col].values, vector_norm)
                 elif data_is_pct is True:
-                    data[col] = (colObj.values / df_acopf[col].values) * 100
+                    data[col] = ((df_approx[col].values - df_acopf[col].values) / df_acopf[col].values) * 100
                 else:
                     data[col] = df_approx[col].values
 
@@ -896,10 +890,10 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=total_c
 
 if __name__ == '__main__':
 
-    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
+    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
     #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
     #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
-    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
+    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
     #test_case = test_cases[5]
     #print(test_case)
 
@@ -914,10 +908,10 @@ if __name__ == '__main__':
 #         'clopf_1E2' :        True,
 #         'clopf_1E3' :        True,
 #         'clopf_1E4' :        True,
-         'ptdf_losses' :      True,
-         'ptdf' :             True,
-         'btheta_losses' :    True,
-         'btheta' :           True
+#         'ptdf_losses' :      True,
+#         'ptdf' :             True,
+#         'btheta_losses' :    True,
+#         'btheta' :           True
          }
 
     #for tc in test_cases0:
@@ -925,8 +919,8 @@ if __name__ == '__main__':
     #    solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
     print(test_case)
-    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
-    generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas, show_plot=True)
+    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    generate_sensitivity_plot(test_case, test_model_dict, data_generator=total_cost, show_plot=True)
     #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
     #generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas, show_plot=True)
     #generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas)
