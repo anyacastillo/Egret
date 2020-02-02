@@ -29,6 +29,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import math
 import unittest
+import egret.data.test_utils as tu
 from pyomo.opt import SolverFactory, TerminationCondition
 from egret.models.acopf import *
 from egret.models.ccm import *
@@ -366,6 +367,7 @@ def record_results(idx, mult, md):
 
     filename = md.data['system']['model_name'] + '_' + idx + '_{0:04.0f}'.format(mult*1000)
     md.data['system']['mult'] = mult
+    md.data['system']['filename'] = filename
 
     md.write_to_json(filename)
     print('...out: {}'.format(filename))
@@ -398,361 +400,8 @@ def create_testcase_directory(test_case):
 
     return destination
 
-def total_cost(md):
 
-    val = md.data['system']['total_cost']
-
-    return val
-
-def ploss(md):
-
-    val = md.data['system']['ploss']
-
-    return val
-
-def qloss(md):
-
-    val = md.data['system']['qloss']
-
-    return val
-
-def pgen(md):
-
-    gens = dict(md.elements(element_type='generator'))
-    dispatch = {}
-
-    for g,gen in gens.items():
-        dispatch[g] = gen['pg']
-
-    return dispatch
-
-def qgen(md):
-
-    gens = dict(md.elements(element_type='generator'))
-    dispatch = {}
-
-    for g,gen in gens.items():
-        dispatch[g] = gen['qg']
-
-    return dispatch
-
-def pflow(md):
-
-    branches = dict(md.elements(element_type='branch'))
-    flow = {}
-
-    for b,branch in branches.items():
-        flow[b] = branch['pf']
-
-    return flow
-
-def qflow(md):
-
-    branches = dict(md.elements(element_type='branch'))
-    flow = {}
-
-    for b,branch in branches.items():
-        flow[b] = branch['qf']
-
-    return flow
-
-def vmag(md):
-
-    buses = dict(md.elements(element_type='bus'))
-    vm = {}
-
-    for b,bus in buses.items():
-        vm[b] = bus['vm']
-
-    return vm
-
-def create_sum_infeas_model(model_data, acopf_model_generator=create_psv_acopf_model):
-
-    m, md = create_psv_acopf_model(model_data, include_feasibility_slack=True)
-
-    m.pf.setlb(None)
-    m.pf.setub(None)
-    m.pt.setlb(None)
-    m.pt.setub(None)
-    m.qf.setlb(None)
-    m.qf.setub(None)
-    m.pf.setlb(None)
-    m.pf.setub(None)
-    m.pf.setlb(None)
-    m.pf.setub(None)
-
-
-def solve_infeas_model(model_data):
-
-    from egret.common.solver_interface import _solve_model
-
-    # build ACOPF model with fixed gen output, fixed voltage angle/mag, and relaxed power balance
-    m, md = create_psv_acopf_model(model_data, include_feasibility_slack=True)
-
-    tx_utils.scale_ModelData_to_pu(model_data, inplace=True)
-
-    gens = dict(model_data.elements(element_type='generator'))
-    buses = dict(model_data.elements(element_type='bus'))
-    branches = dict(model_data.elements(element_type='branch'))
-    loads = dict(model_data.elements(element_type='load'))
-    shunts = dict(model_data.elements(element_type='shunt'))
-
-    gen_attrs = model_data.attributes(element_type='generator')
-    bus_attrs = model_data.attributes(element_type='bus')
-    branch_attrs = model_data.attributes(element_type='branch')
-    load_attrs = model_data.attributes(element_type='load')
-    shunt_attrs = model_data.attributes(element_type='shunt')
-
-    ### declare (and fix) the loads at the buses
-    bus_p_loads, bus_q_loads = tx_utils.dict_of_bus_loads(buses, loads)
-
-    # fix variables to the values in modeData object md
-    for g, pg in m.pg.items():
-        pg.value = gens[g]['pg']
-    for g, qg in m.qg.items():
-        qg.value = gens[g]['qg']
-    for b, va in m.va.items():
-        va.value = buses[b]['va']
-    for b, vm in m.vm.items():
-        vm.value = buses[b]['vm']
-
-    m.pg.fix()
-    m.qg.fix()
-    #m.va.fix()     ## not sure if it is better to fix these or not
-    #m.vm.fix()     ## b/c fixing makes the model (essentially) LP, but leads to infeasibility in some cases
-
-    # remove power flow variable bounds
-    for b, pf in m.pf.items():
-        pf.setlb(None)
-        pf.setub(None)
-    for b, pt in m.pt.items():
-        pt.setlb(None)
-        pt.setub(None)
-    for b, qf in m.qf.items():
-        qf.setlb(None)
-        qf.setub(None)
-    for b, qt in m.qt.items():
-        qt.setlb(None)
-        qt.setub(None)
-
-    # add slack variable to thermal limit constraints
-    m.del_component(m.ineq_sf_branch_thermal_limit)
-    m.del_component(m.ineq_st_branch_thermal_limit)
-    s_thermal_limits = {k: branches[k]['rating_long_term'] for k in branches.keys()}
-    slack_init = {k: 0 for k in branch_attrs['names']}
-    slack_bounds = {k: (0, s_thermal_limits[k]) for k in branches.keys()}
-
-    decl.declare_var('sf_branch_slack_pos', model=m, index_set=branch_attrs['names'],
-                     initialize=slack_init, bounds=slack_bounds
-                     )
-    decl.declare_var('st_branch_slack_pos', model=m, index_set=branch_attrs['names'],
-                     initialize=slack_init, bounds=slack_bounds
-                     )
-
-    try:
-        con_set = m._con_ineq_s_branch_thermal_limit
-    except:
-        con_set = decl.declare_set('_con_ineq_s_branch_thermal_limit', model=m, index_set=branch_attrs['names'])
-
-    m.ineq_sf_branch_thermal_limit = pe.Constraint(con_set)
-    m.ineq_st_branch_thermal_limit = pe.Constraint(con_set)
-
-    for branch_name in con_set:
-        if s_thermal_limits[branch_name] is None:
-            continue
-
-        m.ineq_sf_branch_thermal_limit[branch_name] = \
-            m.pf[branch_name] ** 2 + m.qf[branch_name] ** 2 \
-            <= s_thermal_limits[branch_name] ** 2 + m.sf_branch_slack_pos[branch_name]
-        m.ineq_st_branch_thermal_limit[branch_name] = \
-            m.pt[branch_name] ** 2 + m.qt[branch_name] ** 2 \
-            <= s_thermal_limits[branch_name] ** 2 + m.st_branch_slack_pos[branch_name]
-
-    # calculate infeasibilities
-    #decl.declare_var('kcl_p_infeas', model=m, index_set=None, initialize=0, bounds=(0, inf))
-    #decl.declare_var('kcl_q_infeas', model=m, index_set=None, initialize=0, bounds=(0, inf))
-    #decl.declare_var('thermal_infeas', model=m, index_set=None,
-    #                 initialize=0, bounds=(0,sum(s_thermal_limits[k] for k in branches.keys()))
-    #                 )
-    kcl_p_infeas_expr = sum(m.p_slack_pos[bus_name] + m.p_slack_neg[bus_name] for bus_name in bus_attrs['names'])
-    kcl_q_infeas_expr = sum(m.q_slack_pos[bus_name] + m.q_slack_neg[bus_name] for bus_name in bus_attrs['names'])
-
-    thermal_infeas_expr = sum(m.sf_branch_slack_pos[branch_name]
-                              + m.st_branch_slack_pos[branch_name]
-                              for branch_name in branch_attrs['names'])
-
-    sum_infeas_expr = kcl_p_infeas_expr + kcl_q_infeas_expr + thermal_infeas_expr
-
-    #m.eq_kcl_p_infeas = pe.Constraint(expr=m.kcl_p_infeas == kcl_p_infeas_expr)
-    #m.eq_kcl_q_infeas = pe.Constraint(expr=m.kcl_q_infeas == kcl_q_infeas_expr)
-    #m.eq_thermal_infeas = pe.Constraint(expr=m.thermal_infeas == thermal_infeas_expr)
-
-    # set objective to sum of infeasibilities (i.e. slacks)
-    m.del_component(m.obj)
-    m.obj = pe.Objective(expr=sum_infeas_expr)
-
-    # solve model
-    print('mult={}'.format(md.data['system']['mult']))
-    try:
-        m, results = _solve_model(m, "ipopt", timelimit=None, solver_tee=False)
-    except:
-        print('Solve failed... Increasing slack variable upper bounds.')
-        for b, p_slack_pos in m.p_slack_pos.items():
-            p_slack_pos.setub(9999)
-        for b, p_slack_neg in m.p_slack_neg.items():
-            p_slack_neg.setub(9999)
-        for b, q_slack_pos in m.q_slack_pos.items():
-            q_slack_pos.setub(9999)
-        for b, q_slack_neg in m.q_slack_neg.items():
-            q_slack_neg.setub(9999)
-        for b, sf_branch_slack_pos in m.sf_branch_slack_pos.items():
-            sf_branch_slack_pos.setub(9999)
-        for b, st_branch_slack_pos in m.st_branch_slack_pos.items():
-            st_branch_slack_pos.setub(9999)
-
-        #m.pprint()
-        m, results = _solve_model(m, "ipopt", timelimit=None, solver_tee=False)
-
-    show_me = results.Solver.status.key.__str__()
-    print('solver status: {}'.format(show_me))
-
-    tx_utils.unscale_ModelData_to_pu(md, inplace=True)
-
-    return m
-
-def kcl_p_infeas(md):
-    '''
-    Returns sum of real power balance infeasibilites (i.e., slack variables)
-    Note: returned value is in p.u.
-    '''
-    from pyomo.environ import value
-
-    bus_attrs = md.attributes(element_type='bus')
-
-    m_ac = solve_infeas_model(md)
-
-    kcl_p_list = [value(m_ac.p_slack_pos[bus_name]) + value(m_ac.p_slack_neg[bus_name])
-                  for bus_name in bus_attrs['names']]
-
-    kcl_p_infeas = sum(kcl_p_list)
-    #kcl_p_infeas = value(m_ac.kcl_p_infeas)
-
-    return kcl_p_infeas
-
-def kcl_q_infeas(md):
-    '''
-    Returns sum of reactive power balance infeasibilities (i.e., slack variables)
-    Note: returned value is in p.u.
-    '''
-    from pyomo.environ import value
-
-    bus_attrs = md.attributes(element_type='bus')
-
-    m_ac = solve_infeas_model(md)
-
-    kcl_q_list = [value(m_ac.q_slack_pos[bus_name]) + value(m_ac.q_slack_neg[bus_name])
-                  for bus_name in bus_attrs['names']]
-
-    kcl_q_infeas = sum(kcl_q_list)
-    #kcl_q_infeas = value(m_ac.kcl_q_infeas)
-
-    return kcl_q_infeas
-
-
-def thermal_infeas(md):
-    '''
-    Returns sum of thermal limit infeasibilities (i.e., slack variables)
-    Note: returned value is in p.u.
-    '''
-    from pyomo.environ import value
-
-    branch_attrs = md.attributes(element_type='branch')
-
-    m_ac = solve_infeas_model(md)
-
-    thermal_list = [value(m_ac.sf_branch_slack_pos[branch_name]) + value(m_ac.st_branch_slack_pos[branch_name])
-                    for branch_name in branch_attrs['names']]
-
-    thermal_infeas = sum(thermal_list)
-
-    return thermal_infeas
-
-
-def max_kcl_p_infeas(md):
-    '''
-    Returns the largest real power balance violation (i.e., slack variable)
-    Note: returned value is in p.u.
-    '''
-    from pyomo.environ import value
-
-    bus_attrs = md.attributes(element_type='bus')
-
-    m_ac = solve_infeas_model(md)
-
-    kcl_p_list = [value(m_ac.p_slack_pos[bus_name]) + value(m_ac.p_slack_neg[bus_name])
-                  for bus_name in bus_attrs['names']]
-
-    max_kcl_p_infeas = max(kcl_p_list)
-
-    return max_kcl_p_infeas
-
-
-def max_kcl_q_infeas(md):
-    '''
-    Returns the largest reactive power balance violation (i.e., slack variable)
-    Note: returned value is in p.u.
-    '''
-    from pyomo.environ import value
-
-    bus_attrs = md.attributes(element_type='bus')
-
-    m_ac = solve_infeas_model(md)
-
-    kcl_q_list = [value(m_ac.q_slack_pos[bus_name]) + value(m_ac.q_slack_neg[bus_name])
-                  for bus_name in bus_attrs['names']]
-
-    max_kcl_q_infeas = max(kcl_q_list)
-
-    return max_kcl_q_infeas
-
-
-def max_thermal_infeas(md):
-    '''
-    Returns slargest thermal limit violation (i.e., slack variable)
-    Note: returned value is in p.u.
-    '''
-    from pyomo.environ import value
-
-    branch_attrs = md.attributes(element_type='branch')
-
-    m_ac = solve_infeas_model(md)
-
-    thermal_list = [value(m_ac.sf_branch_slack_pos[branch_name]) + value(m_ac.st_branch_slack_pos[branch_name])
-                    for branch_name in branch_attrs['names']]
-
-    max_thermal_infeas = max(thermal_list)
-
-    return max_thermal_infeas
-
-def sum_infeas(md):
-    '''
-    Returns sum of all infeasibilites (i.e., power balance and thermal limit slacks)
-    Note: returned value is in p.u.
-    '''
-    from pyomo.environ import value
-
-    m_ac = solve_infeas_model(md)
-
-    sum_infeas = value(m_ac.obj)
-
-    tx_utils.unscale_ModelData_to_pu(md, inplace=True)
-
-    #print('infeas={}'.format(sum_infeas))
-
-    return sum_infeas
-
-
-def read_sensitivity_data(case_folder, test_model, data_generator=total_cost):
+def read_sensitivity_data(case_folder, test_model, data_generator=tu.total_cost):
 
     parent, case = os.path.split(case_folder)
     filename = case + "_" + test_model + "_*.json"
@@ -805,7 +454,7 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
 
     create_testcase_directory(test_case)
 
-def generate_sensitivity_plot(test_case, test_model_dict, data_generator=total_cost, vector_norm=2, show_plot=False):
+def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.total_cost, vector_norm=2, show_plot=False):
 
     case_location = create_testcase_directory(test_case)
     src_folder, case_name = os.path.split(test_case)
@@ -891,9 +540,9 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=total_c
 if __name__ == '__main__':
 
     #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
-    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
+    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
     #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
-    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
+    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
     #test_case = test_cases[5]
     #print(test_case)
 
@@ -901,17 +550,17 @@ if __name__ == '__main__':
         {'ccm' :              False,
          'lccm' :             False,
          'dlopf' :            True,
-#         'dlopf_1E2' :        True,
-#         'dlopf_1E3' :        True,
-#         'dlopf_1E4' :        True,
+         'dlopf_1E2' :        True,
+         'dlopf_1E3' :        True,
+         'dlopf_1E4' :        True,
          'clopf' :            True,
-#         'clopf_1E2' :        True,
-#         'clopf_1E3' :        True,
-#         'clopf_1E4' :        True,
-#         'ptdf_losses' :      True,
-#         'ptdf' :             True,
-#         'btheta_losses' :    True,
-#         'btheta' :           True
+         'clopf_1E2' :        True,
+         'clopf_1E3' :        True,
+         'clopf_1E4' :        True,
+         'ptdf_losses' :      True,
+         'ptdf' :             True,
+         'btheta_losses' :    True,
+         'btheta' :           True
          }
 
     #for tc in test_cases0:
@@ -920,19 +569,18 @@ if __name__ == '__main__':
 
     print(test_case)
     #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
-    generate_sensitivity_plot(test_case, test_model_dict, data_generator=total_cost, show_plot=True)
-    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas, show_plot=True)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=sum_infeas)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=kcl_p_infeas)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=kcl_q_infeas)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=thermal_infeas)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=max_kcl_p_infeas)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=max_kcl_q_infeas)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=max_thermal_infeas)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=total_cost)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=ploss)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=pgen, vector_norm=2)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=pflow, vector_norm=2)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=vmag, vector_norm=2)
+    generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.kcl_p_infeas)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.kcl_q_infeas)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.thermal_infeas)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.max_kcl_p_infeas)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.max_kcl_q_infeas)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.max_thermal_infeas)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.total_cost)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.ploss)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.pgen, vector_norm=2)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.pflow, vector_norm=2)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.vmag, vector_norm=2)
 

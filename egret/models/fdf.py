@@ -919,14 +919,14 @@ if __name__ == '__main__':
     # set case and filepath
     path = os.path.dirname(__file__)
     #filename = 'pglib_opf_case3_lmbd.m'
-    #filename = 'pglib_opf_case5_pjm.m'
+    filename = 'pglib_opf_case5_pjm.m'
     #filename = 'pglib_opf_case14_ieee.m'
     #filename = 'pglib_opf_case30_ieee.m'
     #filename = 'pglib_opf_case57_ieee.m'
     #filename = 'pglib_opf_case118_ieee.m'
     #filename = 'pglib_opf_case162_ieee_dtc.m'
     #filename = 'pglib_opf_case179_goc.m'
-    filename = 'pglib_opf_case300_ieee.m'
+    #filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
     #filename = 'pglib_opf_case2000_tamu.m'
     #filename = 'pglib_opf_case1951_rte.m'
@@ -942,6 +942,7 @@ if __name__ == '__main__':
     print('begin ACOPF...')
     from egret.models.acopf import solve_acopf
     md_ac, m_ac, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
+    m_ac.pprint()
     print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
     print('ACOPF time: %3.5f' % md_ac.data['results']['time'])
     print(results.Solver)
@@ -963,6 +964,7 @@ if __name__ == '__main__':
     kwargs['ptdf_options'] = ptdf_options
     md, m, results = solve_fdf(md_ac, "gurobi_persistent", fdf_model_generator=create_fdf_model, return_model=True,
                                return_results=True, solver_tee=False, options=options, **kwargs)
+    m.pprint()
 
     print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
     print('ACOPF time: %3.5f' % md_ac.data['results']['time'])

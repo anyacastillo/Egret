@@ -155,16 +155,17 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
     rel_flow_tol = m._ptdf_options['rel_flow_tol']
 
     ## find thermal violations
-    branch_limits = np.fromiter((enforced_branch_limits[k] for k in index_set_branch), float, count=len(index_set_branch))
-    ## add some wiggle for tolerance 
-    branch_limits += np.maximum(branch_limits*rel_flow_tol, abs_flow_tol)
-    thermal_idx_monitored = mb._thermal_idx_monitored
-    t_viol_num, t_monitored_viol_num, t_viol_lazy = \
-        _find_violation_set(mb, md, index_set_branch, SV, -branch_limits, branch_limits, thermal_idx_monitored,
-                            max_viol_add, warning_generator=_generate_flow_viol_warning)
+    if m._ptdf_options['lazy']:
+        branch_limits = np.fromiter((enforced_branch_limits[k] for k in index_set_branch), float, count=len(index_set_branch))
+        ## add some wiggle for tolerance
+        branch_limits += np.maximum(branch_limits*rel_flow_tol, abs_flow_tol)
+        thermal_idx_monitored = mb._thermal_idx_monitored
+        t_viol_num, t_monitored_viol_num, t_viol_lazy = \
+            _find_violation_set(mb, md, index_set_branch, SV, -branch_limits, branch_limits, thermal_idx_monitored,
+                                max_viol_add, warning_generator=_generate_flow_viol_warning)
 
     ## find vmag violations
-    if hasattr(mb, "qg"):
+    if m._ptdf_options['lazy_voltage']:
         v_min = bus_attrs['v_min']
         v_max = bus_attrs['v_max']
         pu_vm_tol = m._ptdf_options['pu_vm_tol']
