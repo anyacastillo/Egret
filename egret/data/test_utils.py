@@ -15,6 +15,7 @@ import os, shutil, glob, json
 import egret.model_library.transmission.tx_utils as tx_utils
 import egret.model_library.decl as decl
 import pyomo.environ as pe
+import pandas as pd
 from egret.models.acopf import create_psv_acopf_model
 from egret.common.solver_interface import _solve_model
 from pyomo.environ import value
@@ -106,6 +107,8 @@ def solve_infeas_model(model_data):
     branch_attrs = model_data.attributes(element_type='branch')
     load_attrs = model_data.attributes(element_type='load')
     shunt_attrs = model_data.attributes(element_type='shunt')
+
+    #baseMVA = float(md.data['system']['baseMVA'])
 
     ### declare (and fix) the loads at the buses
     bus_p_loads, bus_q_loads = tx_utils.dict_of_bus_loads(buses, loads)
@@ -215,17 +218,33 @@ def solve_infeas_model(model_data):
 
     return m
 
-def get_infeas_from_model_data(md, infeas_name='sum_infeas', save_to_md=True):
+def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=True):
 
     system_data = md.data['system']
 
-    # return data if it is already in the ModelData
-    if hasattr(system_data, infeas_name):
+    # return data if it is already in the ModelData and an ovewrite is not desired
+    if infeas_name in system_data.keys() and not overwrite_existing:
 
         return system_data[infeas_name]
 
+    ## printing some status updates
+    if 'filename' in system_data:
+        name = system_data['filename']
+    elif 'mult' in system_data:
+        name = 'mult={}'.format(system_data['mult'])
+    else:
+        name = 'file'
+
+    if not infeas_name in system_data.keys():
+        print('...did not find ' + infeas_name + ' in '+ name)
+        print(system_data.keys())
+    else:
+        show_me = pd.DataFrame(system_data,index=[name])
+        print('...existing system data: {}'.format(show_me.T))
+
     # otherwise, solve the sum_infeas model and save solution to md
     m_ac = solve_infeas_model(md)
+    #m_ac.pprint()
 
     bus_attrs = md.attributes(element_type='bus')
     branch_attrs = md.attributes(element_type='branch')
@@ -257,12 +276,16 @@ def get_infeas_from_model_data(md, infeas_name='sum_infeas', save_to_md=True):
 
     system_data['sum_infeas'] = kcl_p_infeas + kcl_q_infeas + thermal_infeas
 
-    if save_to_md and 'filename' in system_data.keys():
+    show_me = pd.DataFrame(system_data,index=[name])
+    print('...overwriting system data: {}'.format(show_me.T))
+
+    if 'filename' in system_data.keys():
         filename = system_data['filename']
         model_name = system_data['model_name']
         md.write_to_json(filename)
         save_to_solution_directory(filename,model_name)
     else:
+        print(system_data.keys())
         print('Failed to write modelData to json.')
 
     if infeas_name in system_data.keys():
@@ -279,7 +302,7 @@ def save_to_solution_directory(filename, model_name):
 
     # move to case directory
     source = os.path.join(cwd, filename + '.json')
-    destination = os.path.join(current_dir,'transmission_test_instances','approximation_solution_files',model_name)
+    destination = os.path.join('..','models','tests','transmission_test_instances','approximation_solution_files',model_name)
 
     if not os.path.exists(destination):
         os.makedirs(destination)
@@ -287,10 +310,10 @@ def save_to_solution_directory(filename, model_name):
     if not glob.glob(source):
         print('No files to move.')
     else:
-        print('dest: {}'.format(destination))
+        print('saving to dest: {}'.format(destination))
 
         for src in glob.glob(source):
-            print('src:  {}'.format(src))
+            #print('src:  {}'.format(src))
             folder, file = os.path.split(src)
             dest = os.path.join(destination, file) # full destination path will overwrite existing files
             shutil.move(src, dest)

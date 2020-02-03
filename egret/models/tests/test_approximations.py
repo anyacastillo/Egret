@@ -435,12 +435,12 @@ def read_sensitivity_data(case_folder, test_model, data_generator=tu.total_cost)
 
     if data_is_vector:
         df_data = pd.DataFrame(data)
-        df_data = df_data.sort_index(by=test_model, axis=1)
+        df_data = df_data.sort_index(axis=1)
         #print('data: {}'.format(df_data))
     else:
         df_data = pd.DataFrame(data, index=[test_model])
         #df_data = df_data.transpose()
-        df_data = df_data.sort_index(by=test_model, axis=1)
+        df_data = df_data.sort_index(axis=1)
         #print('data: {}'.format(df_data))
 
     return df_data
@@ -485,12 +485,21 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
     data_is_pct = False
     data_is_nominal = False
 
+    ## calculates specified L-norm of difference with acopf (e.g., generator dispatch, branch flows, voltage profile...)
     if len(df_acopf.values) > 1:
         data_is_vector = True
+        print('data is vector of length {}'.format(len(df_acopf.values)))
+
+    ## calcuates relative difference from acopf (e.g., objective value, solution time...)
     elif sum(df_acopf[idx].values for idx in df_acopf) / len(df_acopf) > 1.0:
         data_is_pct = True
+        acopf_avg = sum(df_acopf[idx].values for idx in df_acopf) / len(df_acopf)
+        print('data is pct with acopf values averaging {}'.format(acopf_avg))
     else:
         data_is_nominal = True
+        acopf_avg = sum(df_acopf[idx].values for idx in df_acopf) / len(df_acopf)
+        print('data is nominal with acopf values averaging {}'.format(acopf_avg))
+
 
     # empty dataframe to add data into
     df_data = pd.DataFrame(data=None)
@@ -572,17 +581,17 @@ if __name__ == '__main__':
         {'ccm' :              False,
          'lccm' :             False,
          'dlopf' :            True,
-         'dlopf_e2' :        True,
-         'dlopf_e3' :        True,
-         'dlopf_e4' :        True,
-         'clopf' :            True,
-         'clopf_e2' :        True,
-         'clopf_e3' :        True,
-         'clopf_e4' :        True,
-         'ptdf_losses' :      True,
-         'ptdf' :             True,
-         'btheta_losses' :    True,
-         'btheta' :           True
+         'dlopf_e2' :         False,
+         'dlopf_e3' :         False,
+         'dlopf_e4' :         False,
+         'clopf' :            False,
+         'clopf_e2' :         False,
+         'clopf_e3' :         False,
+         'clopf_e4' :         False,
+         'ptdf_losses' :      False,
+         'ptdf' :             False,
+         'btheta_losses' :    False,
+         'btheta' :           False
          }
 
     #for tc in test_cases[0:1]:
@@ -591,7 +600,7 @@ if __name__ == '__main__':
     #    generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
 
     print(test_case)
-    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=2)
     generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
     #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
     #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas)

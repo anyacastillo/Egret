@@ -790,11 +790,13 @@ if __name__ == '__main__':
     from egret.parsers.matpower_parser import create_ModelData
 
     path = os.path.dirname(__file__)
-    filename = 'pglib_opf_case14_ieee.m'
-    matpower_file = os.path.join(path, '../../download/pglib-opf/', filename)
+    filename = 'pglib_opf_case3_lmbd.m'
+    #filename = 'pglib_opf_case14_ieee.m'
+    matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
     model_data = create_ModelData(matpower_file)
     kwargs = {'include_feasibility_slack':False}
     md,m,results = solve_acopf(model_data, "ipopt",acopf_model_generator=create_psv_acopf_model,return_model=True, return_results=True,**kwargs)
-    md,m,results = solve_acopf(model_data, "ipopt",acopf_model_generator=create_rsv_acopf_model,return_model=True, return_results=True,**kwargs)
-    md,m,results = solve_acopf(model_data, "ipopt",acopf_model_generator=create_riv_acopf_model,return_model=True, return_results=True,**kwargs)
+    m.pprint()
+    #md,m,results = solve_acopf(model_data, "ipopt",acopf_model_generator=create_rsv_acopf_model,return_model=True, return_results=True,**kwargs)
+    #md,m,results = solve_acopf(model_data, "ipopt",acopf_model_generator=create_riv_acopf_model,return_model=True, return_results=True,**kwargs)
 
