@@ -825,7 +825,7 @@ if __name__ == '__main__':
     options['method'] = 1
     ptdf_options = {}
     ptdf_options['lazy'] = True
-    ptdf_options['lazy_voltage'] = False
+    ptdf_options['lazy_voltage'] = True
     ptdf_options['abs_ptdf_tol'] = 1e-2
     ptdf_options['abs_qtdf_tol'] = 5e-2
     ptdf_options['rel_vdf_tol'] = 10e-2
