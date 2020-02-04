@@ -956,8 +956,8 @@ if __name__ == '__main__':
     options={}
     options['method'] = 1
     ptdf_options = {}
-    ptdf_options['lazy'] = True
-    ptdf_options['lazy_voltage'] = True
+    ptdf_options['lazy'] = False
+    ptdf_options['lazy_voltage'] = False
     ptdf_options['abs_ptdf_tol'] = 1e-2
     ptdf_options['abs_qtdf_tol'] = 5e-2
     ptdf_options['rel_vdf_tol'] = 10e-2
@@ -970,7 +970,7 @@ if __name__ == '__main__':
     kwargs = {}
     print('begin S-LOPF...')
     from egret.models.lccm import solve_lccm
-    md_sl, m_sl, results_sl = solve_lccm(md_ac, "gurobi_persistent", return_model=True,
+    md_sl, m_sl, results_sl = solve_lccm(md_ac, "gurobi", return_model=True,
                                return_results=True, solver_tee=False, options=options, **kwargs)
 
     print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
@@ -981,6 +981,10 @@ if __name__ == '__main__':
 
     print('S-LOPF cost: $%3.2f' % md_sl.data['system']['total_cost'])
     print('S-LOPF time: %3.5f' % md_sl.data['results']['time'])
+
+    m_ac.pf.pprint()
+    m.pf.pprint()
+    m_sl.pf.pprint()
 
 # not solving pglib_opf_case57_ieee
 # pglib_opf_case500_tamu

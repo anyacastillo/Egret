@@ -413,7 +413,8 @@ def solve_lccm(model_data,
 
     if not hasattr(md,'results'):
         md.data['results'] = dict()
-    print(results.Solver.items())
+    print(results.Solver)
+    print(results.Solver.keys())
     md.data['results']['time'] = results.Solver.Time
     md.data['results']['#_cons'] = results.Problem[0]['Number of constraints']
     md.data['results']['#_vars'] = results.Problem[0]['Number of variables']
@@ -516,7 +517,7 @@ if __name__ == '__main__':
     #kwargs = {'include_v_feasibility_slack':True,'include_feasibility_slack':True}
 
     # solve S-LOPF
-    md, m, results = solve_lccm(md_ac, "gurobi", lccm_model_generator=create_fixed_lccm_model, return_model=True,return_results=True,solver_tee=False, **kwargs)
+    md, m, results = solve_lccm(md_ac, "gurobi", lccm_model_generator=create_lccm_model, return_model=True,return_results=True,solver_tee=False, **kwargs)
     print('S-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
     print(results.Solver)
 
