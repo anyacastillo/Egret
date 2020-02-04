@@ -46,7 +46,7 @@ from os import listdir
 from os.path import isfile, join
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-#test_cases = [join('../../../download/pglib-opf-master/', f) for f in listdir('../../../download/pglib-opf-master/') if isfile(join('../../../download/pglib-opf-master/', f)) and f.endswith('.m')]
+# test_cases = [join('../../../download/pglib-opf-master/', f) for f in listdir('../../../download/pglib-opf-master/') if isfile(join('../../../download/pglib-opf-master/', f)) and f.endswith('.m')]
 case_names = ['pglib_opf_case3_lmbd',
               'pglib_opf_case5_pjm',
               'pglib_opf_case14_ieee',
@@ -93,28 +93,30 @@ case_names = ['pglib_opf_case3_lmbd',
               'pglib_opf_case13659_pegase',
               ]
 test_cases = [join('../../download/pglib-opf-master/', f + '.m') for f in case_names]
-#test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
+# test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
 
-test_cases0 = test_cases[0:18]      ## < 1000 buses
-test_cases1 = test_cases[19:23]     ## 1354 - 2316 buses
-test_cases2 = test_cases[24:35]     ## 2383 - 4661 buses
-test_cases3 = test_cases[36:42]     ## 6468 - 10000 buses
-test_cases4 = test_cases[43]        ## 13659 buses
+test_cases0 = test_cases[0:18]  ## < 1000 buses
+test_cases1 = test_cases[19:23]  ## 1354 - 2316 buses
+test_cases2 = test_cases[24:35]  ## 2383 - 4661 buses
+test_cases3 = test_cases[36:42]  ## 6468 - 10000 buses
+test_cases4 = test_cases[43]  ## 13659 buses
+
 
 def set_acopf_basepoint_min_max(md_dict, init_min=0.9, init_max=1.1, **kwargs):
-    '''
+    """
     returns AC basepoint solution and feasible min/max range
      - new min/max range b/c test case may not be feasible in [init_min to init_max]
-    '''
+    """
     md = md_dict.clone_in_service()
     loads = dict(md.elements(element_type='load'))
 
     acopf_model = create_psv_acopf_model
 
-    md_basept, m, results = solve_acopf(md, "ipopt", acopf_model_generator=acopf_model, return_model=True, return_results=True, solver_tee=False)
+    md_basept, m, results = solve_acopf(md, "ipopt", acopf_model_generator=acopf_model, return_model=True,
+                                        return_results=True, solver_tee=False)
 
     # exit if base point does not return optimal
-    if not results.solver.termination_condition==TerminationCondition.optimal:
+    if not results.solver.termination_condition == TerminationCondition.optimal:
         raise Exception('Base case acopf did not return optimal solution')
 
     # find feasible min and max demand multipliers
@@ -145,7 +147,7 @@ def multiplier_loop(model_data, init=0.9, steps=10, acopf_model=create_psv_acopf
 
     # loop
     final_mult = None
-    for step in range(0,steps):
+    for step in range(0, steps):
 
         # for finding minimum
         if init < 1:
@@ -161,7 +163,8 @@ def multiplier_loop(model_data, init=0.9, steps=10, acopf_model=create_psv_acopf
             loads[k]['q_load'] = init_q_loads[k] * mult
 
         try:
-            md_, results = solve_acopf(md, "ipopt", acopf_model_generator=acopf_model, return_model=False, return_results=True, solver_tee=False)
+            md_, results = solve_acopf(md, "ipopt", acopf_model_generator=acopf_model, return_model=False,
+                                       return_results=True, solver_tee=False)
             final_mult = mult
             print('mult={} has an acceptable solution.'.format(mult))
             break
@@ -172,14 +175,13 @@ def multiplier_loop(model_data, init=0.9, steps=10, acopf_model=create_psv_acopf
     if final_mult is None:
         print('Found no acceptable solutions with mult != 1. Try init between 1 and {}.'.format(mult))
 
-
     return final_mult
 
-def create_new_model_data(model_data,mult):
 
+def create_new_model_data(model_data, mult):
     md = model_data.clone_in_service()
 
-    loads = dict(model_data.elements(element_type='load'))
+    loads = dict(md.elements(element_type='load'))
 
     # initial loads
     init_p_loads = {k: loads[k]['p_load'] for k in loads.keys()}
@@ -191,6 +193,7 @@ def create_new_model_data(model_data,mult):
         loads[k]['q_load'] = init_q_loads[k] * mult
 
     return md
+
 
 def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
     '''
@@ -349,27 +352,30 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
 
     if tm['ptdf_losses']:
         md = create_new_model_data(md_basepoint, mult)
-        md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent", dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
-                                                return_model=True, return_results=True, solver_tee=False)
+        md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent",
+                                                  dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
+                                                  return_model=True, return_results=True, solver_tee=False)
         record_results('ptdf_losses', mult, md_ptdfl)
 
     if tm['btheta_losses']:
         md = create_new_model_data(md_flat, mult)
-        md_bthetal, m, results = solve_dcopf_losses(md, "gurobi", dcopf_losses_model_generator=create_btheta_losses_dcopf_model,
-                                                return_model=True, return_results=True, solver_tee=False)
+        md_bthetal, m, results = solve_dcopf_losses(md, "gurobi",
+                                                    dcopf_losses_model_generator=create_btheta_losses_dcopf_model,
+                                                    return_model=True, return_results=True, solver_tee=False)
         record_results('btheta_losses', mult, md_bthetal)
 
     if tm['ptdf']:
         md = create_new_model_data(md_flat, mult)
         md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
-                                        return_model=True, return_results=True, solver_tee=False)
+                                          return_model=True, return_results=True, solver_tee=False)
         record_results('ptdf', mult, md_ptdf)
 
     if tm['btheta']:
         md = create_new_model_data(md_flat, mult)
         md_btheta, m, results = solve_dcopf(md, "gurobi", dcopf_model_generator=create_btheta_dcopf_model,
-                                        return_model=True, return_results=True, solver_tee=False)
+                                            return_model=True, return_results=True, solver_tee=False)
         record_results('btheta', mult, md_btheta)
+
 
 def record_results(idx, mult, md):
     '''
@@ -378,15 +384,15 @@ def record_results(idx, mult, md):
 
     data_utils_deprecated.destroy_dicts_of_fdf(md)
 
-    filename = md.data['system']['model_name'] + '_' + idx + '_{0:04.0f}'.format(mult*1000)
+    filename = md.data['system']['model_name'] + '_' + idx + '_{0:04.0f}'.format(mult * 1000)
     md.data['system']['mult'] = mult
     md.data['system']['filename'] = filename
 
     md.write_to_json(filename)
     print('...out: {}'.format(filename))
 
-def create_testcase_directory(test_case):
 
+def create_testcase_directory(test_case):
     # directory locations
     cwd = os.getcwd()
     case_folder, case = os.path.split(test_case)
@@ -395,7 +401,7 @@ def create_testcase_directory(test_case):
 
     # move to case directory
     source = os.path.join(cwd, case + '_*.json')
-    destination = os.path.join(current_dir,'transmission_test_instances','approximation_solution_files',case)
+    destination = os.path.join(current_dir, 'transmission_test_instances', 'approximation_solution_files', case)
 
     if not os.path.exists(destination):
         os.makedirs(destination)
@@ -408,14 +414,13 @@ def create_testcase_directory(test_case):
         for src in glob.glob(source):
             print('src:  {}'.format(src))
             folder, file = os.path.split(src)
-            dest = os.path.join(destination, file) # full destination path will overwrite existing files
+            dest = os.path.join(destination, file)  # full destination path will overwrite existing files
             shutil.move(src, dest)
 
     return destination
 
 
 def read_sensitivity_data(case_folder, test_model, data_generator=tu.total_cost):
-
     parent, case = os.path.split(case_folder)
     filename = case + "_" + test_model + "_*.json"
     file_list = glob.glob(os.path.join(case_folder, filename))
@@ -436,12 +441,12 @@ def read_sensitivity_data(case_folder, test_model, data_generator=tu.total_cost)
     if data_is_vector:
         df_data = pd.DataFrame(data)
         df_data = df_data.sort_index(axis=1)
-        #print('data: {}'.format(df_data))
+        # print('data: {}'.format(df_data))
     else:
         df_data = pd.DataFrame(data, index=[test_model])
-        #df_data = df_data.transpose()
+        # df_data = df_data.transpose()
         df_data = df_data.sort_index(axis=1)
-        #print('data: {}'.format(df_data))
+        # print('data: {}'.format(df_data))
 
     return df_data
 
@@ -464,16 +469,15 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
 
     inc = (max_mult - min_mult) / steps
 
-    for step in range(0,steps + 1):
-
+    for step in range(0, steps + 1):
         mult = round(min_mult + step * inc, 4)
 
         inner_loop_solves(md_basept, md_flat, mult, test_model_dict)
 
     create_testcase_directory(test_case)
 
-def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.total_cost, vector_norm=2, show_plot=False):
 
+def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.total_cost, vector_norm=2, show_plot=False):
     case_location = create_testcase_directory(test_case)
     src_folder, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
@@ -500,11 +504,11 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
         acopf_avg = sum(df_acopf[idx].values for idx in df_acopf) / len(df_acopf)
         print('data is nominal with acopf values averaging {}'.format(acopf_avg))
 
-
     # empty dataframe to add data into
     df_data = pd.DataFrame(data=None)
 
     # iterate over test_model's
+    test_model_dict['acopf'] = True
     for test_model, val in test_model_dict.items():
         if val:
             df_approx = read_sensitivity_data(case_location, test_model, data_generator=data_generator)
@@ -525,8 +529,10 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
             df_data = pd.concat([df_data, df_col])
 
     # include acopf column for nominal data
-    if data_is_nominal:
-        df_data = pd.concat([df_data, df_acopf])
+    #if data_is_nominal:
+    #    print('df_data: \n {} \n'.format(df_data))
+    #    print('df_acopf: \n {}'.format(df_acopf))
+    #    df_data = pd.concat([df_data, df_acopf])
 
     # show data in table
     y_axis_data = data_generator.__name__
@@ -537,12 +543,12 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
     # show data in graph
     output = df_data.plot.line()
     output.set_title(y_axis_data + " (" + case_name + ")")
-    #output.set_ylim(top=0)
+    # output.set_ylim(top=0)
     output.set_xlabel("Demand Multiplier")
 
     box = output.get_position()
     output.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
-    output.legend(loc='center left', bbox_to_anchor=(1,0.5))
+    output.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
     if data_is_vector:
         filename = "sensitivityplot_" + case_name + "_" + y_axis_data + "_L{}_norm.png".format(vector_norm)
@@ -555,7 +561,7 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
         filename = "sensitivityplot_" + case_name + "_" + y_axis_data + "_nominal.png"
         output.set_ylabel('Nominal value (p.u.)')
 
-    #save to destination folder
+    # save to destination folder
     destination = os.path.join(case_location, 'plots')
 
     if not os.path.exists(destination):
@@ -569,50 +575,48 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
 
 
 if __name__ == '__main__':
-
-    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
-    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
-    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
-    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
-    #test_case = test_cases[5]
-    #print(test_case)
+    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
+    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
+    # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
+    # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
+    # test_case = test_cases[5]
+    # print(test_case)
 
     test_model_dict = \
-        {'ccm' :              False,
-         'lccm' :             False,
-         'dlopf' :            True,
-         'dlopf_e2' :         False,
-         'dlopf_e3' :         False,
-         'dlopf_e4' :         False,
-         'clopf' :            False,
-         'clopf_e2' :         False,
-         'clopf_e3' :         False,
-         'clopf_e4' :         False,
-         'ptdf_losses' :      False,
-         'ptdf' :             False,
-         'btheta_losses' :    False,
-         'btheta' :           False
+        {'ccm': False,
+         'lccm': True,
+         'dlopf': False,
+         'dlopf_e2': True,
+         'dlopf_e3': True,
+         'dlopf_e4': True,
+         'clopf': False,
+         'clopf_e2': True,
+         'clopf_e3': True,
+         'clopf_e4': True,
+         'ptdf_losses': False,
+         'ptdf': False,
+         'btheta_losses': False,
+         'btheta': False
          }
 
-    #for tc in test_cases[0:1]:
+    # for tc in test_cases[0:1]:
     #    print(tc)
     #    solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
     #    generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
 
     print(test_case)
-    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=2)
+    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=10)
     generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.kcl_p_infeas)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.kcl_q_infeas)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.thermal_infeas)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.max_kcl_p_infeas)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.max_kcl_q_infeas)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.max_thermal_infeas)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.total_cost)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.ploss)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.pgen, vector_norm=2)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.pflow, vector_norm=2)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.vmag, vector_norm=2)
-
+    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
+    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas)
+    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.kcl_p_infeas)
+    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.kcl_q_infeas)
+    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.thermal_infeas)
+    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.max_kcl_p_infeas)
+    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.max_kcl_q_infeas)
+    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.max_thermal_infeas)
+    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.total_cost)
+    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.ploss)
+    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.pgen, vector_norm=2)
+    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.pflow, vector_norm=2)
+    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.vmag, vector_norm=2)

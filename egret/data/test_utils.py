@@ -94,19 +94,17 @@ def solve_infeas_model(model_data):
     # build ACOPF model with fixed gen output, fixed voltage angle/mag, and relaxed power balance
     m, md = create_psv_acopf_model(model_data, include_feasibility_slack=True)
 
-    tx_utils.scale_ModelData_to_pu(model_data, inplace=True)
+    gens = dict(md.elements(element_type='generator'))
+    buses = dict(md.elements(element_type='bus'))
+    branches = dict(md.elements(element_type='branch'))
+    loads = dict(md.elements(element_type='load'))
+    shunts = dict(md.elements(element_type='shunt'))
 
-    gens = dict(model_data.elements(element_type='generator'))
-    buses = dict(model_data.elements(element_type='bus'))
-    branches = dict(model_data.elements(element_type='branch'))
-    loads = dict(model_data.elements(element_type='load'))
-    shunts = dict(model_data.elements(element_type='shunt'))
-
-    gen_attrs = model_data.attributes(element_type='generator')
-    bus_attrs = model_data.attributes(element_type='bus')
-    branch_attrs = model_data.attributes(element_type='branch')
-    load_attrs = model_data.attributes(element_type='load')
-    shunt_attrs = model_data.attributes(element_type='shunt')
+    gen_attrs = md.attributes(element_type='generator')
+    bus_attrs = md.attributes(element_type='bus')
+    branch_attrs = md.attributes(element_type='branch')
+    load_attrs = md.attributes(element_type='load')
+    shunt_attrs = md.attributes(element_type='shunt')
 
     #baseMVA = float(md.data['system']['baseMVA'])
 
@@ -214,11 +212,9 @@ def solve_infeas_model(model_data):
     show_me = results.Solver.status.key.__str__()
     print('solver status: {}'.format(show_me))
 
-    tx_utils.unscale_ModelData_to_pu(md, inplace=True)
-
     return m
 
-def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=True):
+def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=False):
 
     system_data = md.data['system']
 
@@ -240,7 +236,7 @@ def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=
         print(system_data.keys())
     else:
         show_me = pd.DataFrame(system_data,index=[name])
-        print('...existing system data: {}'.format(show_me.T))
+        #print('...existing system data: {}'.format(show_me.T))
 
     # otherwise, solve the sum_infeas model and save solution to md
     m_ac = solve_infeas_model(md)
@@ -277,7 +273,7 @@ def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=
     system_data['sum_infeas'] = kcl_p_infeas + kcl_q_infeas + thermal_infeas
 
     show_me = pd.DataFrame(system_data,index=[name])
-    print('...overwriting system data: {}'.format(show_me.T))
+    #print('...overwriting system data: {}'.format(show_me.T))
 
     if 'filename' in system_data.keys():
         filename = system_data['filename']
