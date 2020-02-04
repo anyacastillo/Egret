@@ -207,6 +207,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
     if tm['acopf']:
         md = create_new_model_data(md_flat, mult)
         md_ac, m, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
+        print('ACOPF {}: \n {}'.format(mult, m.pprint()))
         md_ac.data['system']['mult'] = mult
         record_results('acopf', mult, md_ac)
 
@@ -218,6 +219,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
     if tm['lccm']:
         md = create_new_model_data(md_basepoint, mult)
         md_lccm, m, results = solve_lccm(md, "gurobi", return_model=True, return_results=True, solver_tee=False)
+        print('SLOPF {}: \n {}'.format(mult,m.pprint()))
         record_results('lccm', mult, md_lccm)
 
     if tm['dlopf']:
@@ -227,10 +229,11 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         options['method'] = 1
         ptdf_options = {}
         ptdf_options['lazy'] = True
-        ptdf_options['lazy_voltage'] = True
+        ptdf_options['lazy_voltage'] = False
         kwargs['ptdf_options'] = ptdf_options
         md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
                                        solver_tee=False, options=options, **kwargs)
+        print('DLOPF {}: \n {}'.format(mult, m.pprint()))
 
         record_results('dlopf', mult, md_fdf)
 
@@ -585,14 +588,14 @@ if __name__ == '__main__':
     test_model_dict = \
         {'ccm': False,
          'lccm': True,
-         'dlopf': False,
-         'dlopf_e2': True,
-         'dlopf_e3': True,
-         'dlopf_e4': True,
+         'dlopf': True,
+         'dlopf_e2': False,
+         'dlopf_e3': False,
+         'dlopf_e4': False,
          'clopf': False,
-         'clopf_e2': True,
-         'clopf_e3': True,
-         'clopf_e4': True,
+         'clopf_e2': False,
+         'clopf_e3': False,
+         'clopf_e4': False,
          'ptdf_losses': False,
          'ptdf': False,
          'btheta_losses': False,
@@ -605,7 +608,7 @@ if __name__ == '__main__':
     #    generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
 
     print(test_case)
-    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=10)
+    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=2)
     generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas)
