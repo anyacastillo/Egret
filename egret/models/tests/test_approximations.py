@@ -554,15 +554,15 @@ def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_inf
     ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
-    if show_plot:
-        plt.show()
-
     filename = "paretoplot_" + case_name + "_" + y_axis_name + "_v_" + x_axis_name + ".png"
     destination = os.path.join(case_location, 'plots')
     if not os.path.exists(destination):
         os.makedirs(destination)
 
     plt.savefig(os.path.join(destination, filename))
+
+    if show_plot:
+        plt.show()
 
 
 def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.total_cost, vector_norm=2, show_plot=False):
@@ -687,15 +687,16 @@ if __name__ == '__main__':
          'dcopf_btheta': True
          }
 
-    # for tc in test_cases[0:1]:
-    #    print(tc)
-    #    solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
-    #    generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
+    for tc in test_cases0:
+        print(tc)
+        solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+        generate_sensitivity_plot(tc, test_model_dict, data_generator=tu.sum_infeas, show_plot=False)
+        generate_pareto_plot(tc, test_model_dict, show_plot=True)
 
-    print(test_case)
-    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=10)
-    generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
-    generate_pareto_plot(test_case, test_model_dict, show_plot=True)
+    #print(test_case)
+    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=10)
+    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
+    #generate_pareto_plot(test_case, test_model_dict, show_plot=True)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.kcl_p_infeas)
