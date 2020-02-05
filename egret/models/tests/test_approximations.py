@@ -486,7 +486,7 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
 
 
 def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_infeas, x_axis_generator=tu.solve_time,
-                         size_generator=tu.num_constraints, color_generator=None, show_plot=False):
+                         size_generator=tu.num_constraints, color_generator=None, max_size=500, min_size=5, show_plot=False):
 
     case_location = get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
@@ -527,6 +527,8 @@ def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_inf
     df_s_data = df_s_raw.mean(axis=1)
     df_c_data = df_c_raw.mean(axis=1)
 
+    max_size_raw = max(df_s_data.values)
+
     models = list(df_x_data.index.values)
 
     fig, ax = plt.subplots()
@@ -536,7 +538,8 @@ def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_inf
         if color_generator is not None:
             color = df_c_data[m]
         if size_generator is not None:
-            size = df_s_data[m]
+            size = df_s_data[m] * (max_size / max_size_raw)
+            size = max(min_size, size)
         ax.scatter(x, y, c=color, s=size, label=m)
         #ax.annotate(m, (x,y))
 
@@ -662,8 +665,8 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
 if __name__ == '__main__':
     #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
     #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
-    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
-    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
+    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
+    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
     # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
     # test_case = test_cases[5]
     # print(test_case)
@@ -690,7 +693,7 @@ if __name__ == '__main__':
     #    generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
 
     print(test_case)
-    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=10)
+    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=10)
     generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
     generate_pareto_plot(test_case, test_model_dict, show_plot=True)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
