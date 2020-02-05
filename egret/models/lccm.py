@@ -413,8 +413,6 @@ def solve_lccm(model_data,
 
     if not hasattr(md,'results'):
         md.data['results'] = dict()
-    print(results.Solver)
-    print(results.Solver.keys())
     md.data['results']['time'] = results.Solver.Time
     md.data['results']['#_cons'] = results.Problem[0]['Number of constraints']
     md.data['results']['#_vars'] = results.Problem[0]['Number of variables']

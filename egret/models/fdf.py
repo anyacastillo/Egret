@@ -245,8 +245,23 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
         thermal_idx_monitored = model._thermal_idx_monitored
 
         ## construct constraints of branches near limit
+        ba_ptdf = branch_attrs['ptdf']
+        ba_ptdf_c = branch_attrs['ptdf_c']
+        ba_qtdf = branch_attrs['qtdf']
+        ba_qtdf_c = branch_attrs['qtdf_c']
         for i,bn in enumerate(branch_attrs['names']):
             if bn in monitor_init:
+                ## add pf definition
+                expr = libbranch.get_expr_branch_pf_fdf_approx(model, bn, ba_ptdf[bn], ba_ptdf_c[bn],
+                                                               rel_tol=ptdf_options['rel_ptdf_tol'],
+                                                               abs_tol=ptdf_options['abs_ptdf_tol'])
+                model.eq_pf_branch[bn] = model.pf[bn] == expr
+                ## add qf definition
+                expr = libbranch.get_expr_branch_qf_fdf_approx(model, bn, ba_qtdf[bn], ba_qtdf_c[bn],
+                                                               rel_tol=ptdf_options['rel_qtdf_tol'],
+                                                               abs_tol=ptdf_options['abs_qtdf_tol'])
+                model.eq_qf_branch[bn] = model.qf[bn] == expr
+                ## add thermal limit
                 thermal_limit = s_max[bn]
                 libbranch.add_constr_branch_thermal_limit(model, bn, thermal_limit)
                 thermal_idx_monitored.append(i)
@@ -956,8 +971,8 @@ if __name__ == '__main__':
     options={}
     options['method'] = 1
     ptdf_options = {}
-    ptdf_options['lazy'] = False
-    ptdf_options['lazy_voltage'] = False
+    ptdf_options['lazy'] = True
+    ptdf_options['lazy_voltage'] = True
     ptdf_options['abs_ptdf_tol'] = 1e-2
     ptdf_options['abs_qtdf_tol'] = 5e-2
     ptdf_options['rel_vdf_tol'] = 10e-2
@@ -968,6 +983,7 @@ if __name__ == '__main__':
 
     # solve S-LOPF
     kwargs = {}
+    options={}
     print('begin S-LOPF...')
     from egret.models.lccm import solve_lccm
     md_sl, m_sl, results_sl = solve_lccm(md_ac, "gurobi", return_model=True,
@@ -982,9 +998,6 @@ if __name__ == '__main__':
     print('S-LOPF cost: $%3.2f' % md_sl.data['system']['total_cost'])
     print('S-LOPF time: %3.5f' % md_sl.data['results']['time'])
 
-    m_ac.pf.pprint()
-    m.pf.pprint()
-    m_sl.pf.pprint()
 
 # not solving pglib_opf_case57_ieee
 # pglib_opf_case500_tamu
