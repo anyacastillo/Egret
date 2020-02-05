@@ -768,17 +768,17 @@ def solve_acopf(model_data,
         return md, results
     return md
 
-if __name__ == '__main__':
-    import os
-    from egret.parsers.matpower_parser import create_ModelData
-
-    path = os.path.dirname(__file__)
-    filename = 'pglib_opf_case14_ieee.m'
-    matpower_file = os.path.join(path, '../../download/pglib-opf/', filename)
-    model_data = create_ModelData(matpower_file)
-    kwargs = {'include_feasibility_slack':False}
-    md,m,results = solve_acopf(model_data, "ipopt",acopf_model_generator=create_psv_acopf_model,return_model=True, return_results=True,**kwargs)
-    md,m,results = solve_acopf(model_data, "ipopt",acopf_model_generator=create_rsv_acopf_model,return_model=True, return_results=True,**kwargs)
-    md,m,results = solve_acopf(model_data, "ipopt",acopf_model_generator=create_riv_acopf_model,return_model=True, return_results=True,**kwargs)
-
-
+# if __name__ == '__main__':
+#     import os
+#     from egret.parsers.matpower_parser import create_ModelData
+#
+#     path = os.path.dirname(__file__)
+#     filename = 'pglib_opf_case14_ieee.m'
+#     matpower_file = os.path.join(path, '../../download/pglib-opf/', filename)
+#     model_data = create_ModelData(matpower_file)
+#     kwargs = {'include_feasibility_slack':False}
+#     md,m,results = solve_acopf(model_data, "ipopt",acopf_model_generator=create_psv_acopf_model,return_model=True, return_results=True,**kwargs)
+#     md,m,results = solve_acopf(model_data, "ipopt",acopf_model_generator=create_rsv_acopf_model,return_model=True, return_results=True,**kwargs)
+#     md,m,results = solve_acopf(model_data, "ipopt",acopf_model_generator=create_riv_acopf_model,return_model=True, return_results=True,**kwargs)
+#
+#

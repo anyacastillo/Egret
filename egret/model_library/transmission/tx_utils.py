@@ -174,6 +174,17 @@ def gens_by_bus(buses, gens):
 
     return gens_by_bus
 
+def buses_with_gens(gens):
+    """
+    Return a list of buses with generators
+    """
+    buses_with_gens = list()
+    for gen_name, gen in gens.items():
+        if not gen['bus'] in buses_with_gens:
+            buses_with_gens.append(gen['bus'])
+
+    return buses_with_gens
+
 ## attributes which are scaled for power flow models
 ancillary_service_stack = [
                             'reserve_requirement',
