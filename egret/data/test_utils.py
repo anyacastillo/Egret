@@ -20,6 +20,51 @@ from egret.models.acopf import create_psv_acopf_model
 from egret.common.solver_interface import _solve_model
 from pyomo.environ import value
 
+def solve_time(md):
+
+    val = md.data['results']['time']
+
+    return val
+
+
+def num_constraints(md):
+
+    val = md.data['results']['#_cons']
+
+    return val
+
+
+def num_variables(md):
+
+    val = md.data['results']['#_vars']
+
+    return val
+
+
+def num_nonzeros(md):
+
+    results = md.data['results']
+
+    if hasattr(results, '#_nz'):
+        val = results['#_nz']
+        return val
+
+    return None
+
+def model_sparsity(md):
+
+    results = md.data['results']
+
+    if hasattr(results, '#_nz'):
+        nc = results['#_cons']
+        nv = results['#_vars']
+        nz = results['#_nz']
+        val = nz / ( nc * nv )
+        return val
+
+    return None
+
+
 def total_cost(md):
 
     val = md.data['system']['total_cost']

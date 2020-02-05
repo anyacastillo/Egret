@@ -210,15 +210,15 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         md_ac.data['system']['mult'] = mult
         record_results('acopf', mult, md_ac)
 
-    if tm['ccm']:
-        md = create_new_model_data(md_flat, mult)
-        md_ccm, m, results = solve_ccm(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
-        record_results('ccm', mult, md_ccm)
+    #if tm['ccm']:
+    #    md = create_new_model_data(md_flat, mult)
+    #    md_ccm, m, results = solve_ccm(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
+    #    record_results('ccm', mult, md_ccm)
 
-    if tm['lccm']:
+    if tm['slopf']:
         md = create_new_model_data(md_basepoint, mult)
         md_lccm, m, results = solve_lccm(md, "gurobi", return_model=True, return_results=True, solver_tee=False)
-        record_results('lccm', mult, md_lccm)
+        record_results('slopf', mult, md_lccm)
 
     if tm['dlopf_default']:
         md = create_new_model_data(md_basepoint, mult)
@@ -391,6 +391,14 @@ def record_results(idx, mult, md):
     md.write_to_json(filename)
     print('...out: {}'.format(filename))
 
+def get_solution_file_location(test_case):
+    _, case = os.path.split(test_case)
+    case, _ = os.path.splitext(case)
+    current_dir, current_file = os.path.split(os.path.realpath(__file__))
+    solution_location = os.path.join(current_dir, 'transmission_test_instances', 'approximation_solution_files', case)
+
+    return solution_location
+
 
 def create_testcase_directory(test_case):
     # directory locations
@@ -401,7 +409,7 @@ def create_testcase_directory(test_case):
 
     # move to case directory
     source = os.path.join(cwd, case + '_*.json')
-    destination = os.path.join(current_dir, 'transmission_test_instances', 'approximation_solution_files', case)
+    destination = get_solution_file_location(test_case)
 
     if not os.path.exists(destination):
         os.makedirs(destination)
@@ -477,8 +485,85 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
     create_testcase_directory(test_case)
 
 
+def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_infeas, x_axis_generator=tu.solve_time,
+                         size_generator=tu.num_constraints, color_generator=None, show_plot=False):
+
+    case_location = get_solution_file_location(test_case)
+    src_folder, case_name = os.path.split(test_case)
+    case_name, ext = os.path.splitext(case_name)
+
+    if size_generator is None:
+        size=None
+    if color_generator is None:
+        color=None
+
+    ## empty dataframe to add data into
+    df_y_raw = pd.DataFrame(data=None)
+    df_x_raw = pd.DataFrame(data=None)
+    df_s_raw = pd.DataFrame(data=None)
+    df_c_raw = pd.DataFrame(data=None)
+
+    ## iterate over test_model_dict
+    test_model_dict['acopf'] = True
+    for test_model, val in test_model_dict.items():
+        if val:
+            ## read_sensitivity_data returns a dataFrame
+            df_y = read_sensitivity_data(case_location, test_model, data_generator=y_axis_generator)
+            df_x = read_sensitivity_data(case_location, test_model, data_generator=x_axis_generator)
+            df_y_raw = pd.concat([df_y_raw, df_y])
+            df_x_raw = pd.concat([df_x_raw, df_x])
+
+            if size_generator is not None:
+                df_s = read_sensitivity_data(case_location, test_model, data_generator=size_generator)
+                df_s_raw = pd.concat([df_s_raw, df_s])
+            if color_generator is not None:
+                df_c = read_sensitivity_data(case_location, test_model, data_generator=color_generator)
+                df_c_raw = pd.concat([df_c_raw, df_c])
+
+
+    ## but what we want is the average across the sensitivity multipliers
+    df_y_data = df_y_raw.mean(axis=1)
+    df_x_data = df_x_raw.mean(axis=1)
+    df_s_data = df_s_raw.mean(axis=1)
+    df_c_data = df_c_raw.mean(axis=1)
+
+    models = list(df_x_data.index.values)
+
+    fig, ax = plt.subplots()
+    for m in models:
+        x = df_x_data[m]
+        y = df_y_data[m]
+        if color_generator is not None:
+            color = df_c_data[m]
+        if size_generator is not None:
+            size = df_s_data[m]
+        ax.scatter(x, y, c=color, s=size, label=m)
+        #ax.annotate(m, (x,y))
+
+    y_axis_name = y_axis_generator.__name__
+    x_axis_name = x_axis_generator.__name__
+
+    ax.set_title(y_axis_name + " vs. " + x_axis_name + "\n(" + case_name + ")")
+    ax.set_ylabel(y_axis_name)
+    ax.set_xlabel(x_axis_name)
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+    if show_plot:
+        plt.show()
+
+    filename = "paretoplot_" + case_name + "_" + y_axis_name + "_v_" + x_axis_name + ".png"
+    destination = os.path.join(case_location, 'plots')
+    if not os.path.exists(destination):
+        os.makedirs(destination)
+
+    plt.savefig(os.path.join(destination, filename))
+
+
 def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.total_cost, vector_norm=2, show_plot=False):
-    case_location = create_testcase_directory(test_case)
+    case_location = get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
 
@@ -577,20 +662,19 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
 if __name__ == '__main__':
     #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
     #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
-    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
-    # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
+    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
+    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
     # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
     # test_case = test_cases[5]
     # print(test_case)
 
     test_model_dict = \
-        {'ccm': False,
-         'lccm': True,
-         'dlopf_default': False,
+        {'slopf': True,
+         'dlopf_default': True,
          'dlopf_e2': True,
          'dlopf_e3': True,
          'dlopf_e4': True,
-         'clopf_default': False,
+         'clopf_default': True,
          'clopf_e2': True,
          'clopf_e3': True,
          'clopf_e4': True,
@@ -606,8 +690,9 @@ if __name__ == '__main__':
     #    generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
 
     print(test_case)
-    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=10)
+    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=10)
     generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
+    generate_pareto_plot(test_case, test_model_dict, show_plot=True)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.kcl_p_infeas)
