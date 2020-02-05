@@ -137,9 +137,6 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
     ft_c = md.data['system']['ft_c']
     PFV = Ft.dot(THETA) + ft_c
 
-    print('initial power flows:')
-    mb.pf.pprint()
-    print('recalculated: {}'.format(PFV))
 
     ## Back-solve for vmag then calculate reactive power flows with sparse sensitivity matrix
     if hasattr(mb, "qg"):

@@ -207,7 +207,6 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
     if tm['acopf']:
         md = create_new_model_data(md_flat, mult)
         md_ac, m, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
-        print('ACOPF {}: \n {}'.format(mult, m.pprint()))
         md_ac.data['system']['mult'] = mult
         record_results('acopf', mult, md_ac)
 
@@ -219,10 +218,9 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
     if tm['lccm']:
         md = create_new_model_data(md_basepoint, mult)
         md_lccm, m, results = solve_lccm(md, "gurobi", return_model=True, return_results=True, solver_tee=False)
-        print('SLOPF {}: \n {}'.format(mult,m.pprint()))
         record_results('lccm', mult, md_lccm)
 
-    if tm['dlopf']:
+    if tm['dlopf_default']:
         md = create_new_model_data(md_basepoint, mult)
         kwargs = {}
         options = {}
@@ -233,9 +231,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         kwargs['ptdf_options'] = ptdf_options
         md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
                                        solver_tee=False, options=options, **kwargs)
-        print('DLOPF {}: \n {}'.format(mult, m.pprint()))
 
-        record_results('dlopf', mult, md_fdf)
+        record_results('dlopf_default', mult, md_fdf)
 
     if tm['dlopf_e2']:
         md = create_new_model_data(md_basepoint, mult)
@@ -288,7 +285,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
 
         record_results('dlopf_e4', mult, md_fdf)
 
-    if tm['clopf']:
+    if tm['clopf_default']:
         md = create_new_model_data(md_basepoint, mult)
         kwargs = {}
         options = {}
@@ -300,7 +297,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
                                                    solver_tee=False, options=options, **kwargs)
 
-        record_results('clopf', mult, md_fdfs)
+        record_results('clopf_default', mult, md_fdfs)
 
     if tm['clopf_e2']:
         md = create_new_model_data(md_basepoint, mult)
@@ -353,31 +350,31 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
 
         record_results('clopf_e4', mult, md_fdfs)
 
-    if tm['ptdf_losses']:
+    if tm['clopf_ptdf']:
         md = create_new_model_data(md_basepoint, mult)
         md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent",
                                                   dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
                                                   return_model=True, return_results=True, solver_tee=False)
-        record_results('ptdf_losses', mult, md_ptdfl)
+        record_results('clopf_ptdf', mult, md_ptdfl)
 
-    if tm['btheta_losses']:
+    if tm['qcopf_btheta']:
         md = create_new_model_data(md_flat, mult)
         md_bthetal, m, results = solve_dcopf_losses(md, "gurobi",
                                                     dcopf_losses_model_generator=create_btheta_losses_dcopf_model,
                                                     return_model=True, return_results=True, solver_tee=False)
-        record_results('btheta_losses', mult, md_bthetal)
+        record_results('qcopf_btheta', mult, md_bthetal)
 
-    if tm['ptdf']:
+    if tm['dcopf_ptdf']:
         md = create_new_model_data(md_flat, mult)
         md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
                                           return_model=True, return_results=True, solver_tee=False)
-        record_results('ptdf', mult, md_ptdf)
+        record_results('dcopf_ptdf', mult, md_ptdf)
 
-    if tm['btheta']:
+    if tm['dcopf_btheta']:
         md = create_new_model_data(md_flat, mult)
         md_btheta, m, results = solve_dcopf(md, "gurobi", dcopf_model_generator=create_btheta_dcopf_model,
                                             return_model=True, return_results=True, solver_tee=False)
-        record_results('btheta', mult, md_btheta)
+        record_results('dcopf_btheta', mult, md_btheta)
 
 
 def record_results(idx, mult, md):
@@ -579,7 +576,8 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
 
 if __name__ == '__main__':
     #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
-    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
+    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
+    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
     # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
     # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
     # test_case = test_cases[5]
@@ -588,18 +586,18 @@ if __name__ == '__main__':
     test_model_dict = \
         {'ccm': False,
          'lccm': True,
-         'dlopf': True,
-         'dlopf_e2': False,
-         'dlopf_e3': False,
-         'dlopf_e4': False,
-         'clopf': False,
-         'clopf_e2': False,
-         'clopf_e3': False,
-         'clopf_e4': False,
-         'ptdf_losses': False,
-         'ptdf': False,
-         'btheta_losses': False,
-         'btheta': False
+         'dlopf_default': False,
+         'dlopf_e2': True,
+         'dlopf_e3': True,
+         'dlopf_e4': True,
+         'clopf_default': False,
+         'clopf_e2': True,
+         'clopf_e3': True,
+         'clopf_e4': True,
+         'clopf_ptdf': True,
+         'qcopf_btheta': True,
+         'dcopf_ptdf': True,
+         'dcopf_btheta': True
          }
 
     # for tc in test_cases[0:1]:
@@ -608,7 +606,7 @@ if __name__ == '__main__':
     #    generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
 
     print(test_case)
-    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=2)
+    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=10)
     generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas)
