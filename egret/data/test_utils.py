@@ -397,6 +397,38 @@ def thermal_infeas(md):
     return thermal_infeas
 
 
+def avg_kcl_p_infeas(md):
+    '''
+    Returns sum of real power balance infeasibilites (i.e., slack variables)
+    Note: returned value is in p.u.
+    '''
+
+    kcl_p_infeas = get_infeas_from_model_data(md, infeas_name='avg_kcl_p_infeas')
+
+    return kcl_p_infeas
+
+def avg_kcl_q_infeas(md):
+    '''
+    Returns sum of reactive power balance infeasibilities (i.e., slack variables)
+    Note: returned value is in p.u.
+    '''
+
+    kcl_q_infeas = get_infeas_from_model_data(md, infeas_name='avg_kcl_q_infeas')
+
+    return kcl_q_infeas
+
+
+def avg_thermal_infeas(md):
+    '''
+    Returns sum of thermal limit infeasibilities (i.e., slack variables)
+    Note: returned value is in p.u.
+    '''
+
+    thermal_infeas = get_infeas_from_model_data(md, infeas_name='avg_thermal_infeas')
+
+    return thermal_infeas
+
+
 def max_kcl_p_infeas(md):
     '''
     Returns the largest real power balance violation (i.e., slack variable)

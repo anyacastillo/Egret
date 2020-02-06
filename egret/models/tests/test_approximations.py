@@ -8,21 +8,58 @@
 #  ___________________________________________________________________________
 
 '''
-fdf tester vs acopf
-    Select case from test_cases
-    Set demand = 1.0 * demand
-    Solve acopf.py --> base case 'md_basecase'
-    Set demand = (0.9 to 1.1) * demand
-    Solve acopf.py --> true solution 'md_ac'
-    Solve fdf(md_basecase) --> approx solution 'md_fdf'
-    ...additional solves: dcopf & dcopf_losses
-    Record data: solve time, infeasibility, case attributes --> 'caseSummary'
-    Delete md_ac and md_fdf, then back to (4)
-    Plot caseSummary: infeasibility vs. demand of case
-    Record averages in 'caseSummary' to 'totalSummary'
-    Delete 'caseSummary' and repeat from (1)
-    Plot totalSummary: infeasbility vs. solve time of all cases
+ Tests linear OPF models against the ACOPF
+
+ Output functions:
+    -solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=10)
+        test_case: str, name of input data matpower file in pglib-opf-master
+        test_model_dict: dict, list of models (key) and True/False (value) for which formulations/settings to
+            run in the inner_loop_solves() method
+        init_min: float (scalar), smallest demand multiplier to test approximation model. May be increased if
+            ACOPF is infeasible
+        init_max: float (scalar), largest demand multiplier to test approximation model. May be decreased if
+            ACOPF is infeasible
+        steps: integer, number of steps taken between init_min and init_max. Total of steps+1 model solves.
+    -generate_sensitivity_plot(test_case,test_model_dict, data_generator=X)
+        test_case: str, plots data from a test_case*.json wildcard search
+        test_model_dict: dict, list of models (key) and True/False (value) for which formulations/settings to plot
+        data_generator: function (perhaps from tx_utils.py) to pull data from JSON files
+    -generate_pareto_plot(test_case, test_model_dict, y_axis_generator=Y, x_axis_generator=X, size_generator=None)
+        test_case: str, plots data from a test_case*.json wildcard search
+        test_model_dict: dict, list of models (key) and True/False (value) for which formulations/settings to plot
+        y_axis_generator: function (perhaps from test_utils.py) to pull y-axis data from JSON files
+        x_axis_generator: function (perhaps from test_utils.py) to pull x-axis data from JSON files
+        size_generator: function (perhaps from test_utils.py) to pull dot size data from JSON files
+
+
+ test_utils (tu) generator functions:
+    *solve_time*
+    *num_constraints*
+    num_variables
+    num_nonzeros
+    model_sparsity
+    total_cost
+    ploss
+    qloss
+    pgen
+    qgen
+    pflow
+    qflow
+    vmag
+    *sum_infeas*
+    kcl_p_infeas
+    kcl_q_infeas
+    thermal_infeas
+    avg_kcl_p_infeas
+    avg_kcl_q_infeas
+    avg_thermal_infeas
+    max_kcl_p_infeas
+    max_kcl_q_infeas
+    max_thermal_infeas
+
+
 '''
+
 import os, shutil, glob, json
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -92,14 +129,23 @@ case_names = ['pglib_opf_case3_lmbd',
               'pglib_opf_case10000_tamu',
               'pglib_opf_case13659_pegase',
               ]
-test_cases = [join('../../../download/pglib-opf-master/', f + '.m') for f in case_names]
-# test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
+#test_cases = [join('../../../download/pglib-opf-master/', f + '.m') for f in case_names]
+test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
 
 test_cases0 = test_cases[0:18]  ## < 1000 buses
 test_cases1 = test_cases[19:23]  ## 1354 - 2316 buses
 test_cases2 = test_cases[24:35]  ## 2383 - 4661 buses
 test_cases3 = test_cases[36:42]  ## 6468 - 10000 buses
 test_cases4 = test_cases[43]  ## 13659 buses
+
+test_case = test_cases[0]
+#test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
+#test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
+#test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
+#test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
+#test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case118_ieee.m')
+#test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
+#test_case = test_cases[5]
 
 
 def set_acopf_basepoint_min_max(md_dict, init_min=0.9, init_max=1.1, **kwargs):
@@ -499,6 +545,7 @@ def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_inf
         color = None
 
     ## empty dataframe to add data into
+    df_data = pd.DataFrame(data=None)
     df_y_raw = pd.DataFrame(data=None)
     df_x_raw = pd.DataFrame(data=None)
     df_s_raw = pd.DataFrame(data=None)
@@ -527,6 +574,17 @@ def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_inf
     df_s_data = df_s_raw.mean(axis=1)
     df_c_data = df_c_raw.mean(axis=1)
 
+
+    ## put data in single dataframe
+    y_axis_name = y_axis_generator.__name__
+    x_axis_name = x_axis_generator.__name__
+    df_data = pd.DataFrame(data=df_y_data.values, index=df_y_data.index, columns=[y_axis_name])
+    df_data[x_axis_name] = df_x_data.values
+    if size_generator is not None:
+        size_name = size_generator.__name__
+        df_data[size_name] = df_s_data
+
+
     max_size_raw = max(df_s_data.values)
 
     models = list(df_x_data.index.values)
@@ -543,9 +601,6 @@ def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_inf
         ax.scatter(x, y, c=color, s=size, label=m)
         # ax.annotate(m, (x,y))
 
-    y_axis_name = y_axis_generator.__name__
-    x_axis_name = x_axis_generator.__name__
-
     ax.set_title(y_axis_name + " vs. " + x_axis_name + "\n(" + case_name + ")")
     ax.set_ylabel(y_axis_name)
     ax.set_xlabel(x_axis_name)
@@ -554,12 +609,17 @@ def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_inf
     ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
+    ## save figure
     filename = "paretoplot_" + case_name + "_" + y_axis_name + "_v_" + x_axis_name + ".png"
     destination = os.path.join(case_location, 'plots')
     if not os.path.exists(destination):
         os.makedirs(destination)
-
     plt.savefig(os.path.join(destination, filename))
+
+    ## save data to csv
+    filename, ext = os.path.splitext(filename)
+    csv_path = os.path.join(destination, filename + '.csv')
+    df_data.to_csv(csv_path)
 
     if show_plot:
         plt.show()
@@ -655,19 +715,22 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
     if not os.path.exists(destination):
         os.makedirs(destination)
 
+    ## save figure
     plt.savefig(os.path.join(destination, filename))
+
+    ## save data to csv
+    filename, ext = os.path.splitext(filename)
+    csv_path = os.path.join(destination, filename+'.csv')
+    df_data.to_csv(csv_path)
 
     # display
     if show_plot is True:
         plt.show()
 
 
-def main(test_cases):
-    # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
-    # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
-    # tc = join('../../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
-    # test_case = test_cases[5]
-    # print(test_case)
+def main(test_cases=test_case):
+
+    print(test_cases)
 
     test_model_dict = \
         {'slopf': True,
@@ -686,27 +749,13 @@ def main(test_cases):
          }
 
     for tc in eval(test_cases):
-        solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
-        generate_sensitivity_plot(tc, test_model_dict, data_generator=tu.sum_infeas, show_plot=False)
-        generate_pareto_plot(tc, test_model_dict, show_plot=True)
 
-    # print(test_case)
-    # solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=10)
-    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
-    # generate_pareto_plot(test_case, test_model_dict, show_plot=True)
-    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
-    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas)
-    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.kcl_p_infeas)
-    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.kcl_q_infeas)
-    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.thermal_infeas)
-    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.max_kcl_p_infeas)
-    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.max_kcl_q_infeas)
-    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.max_thermal_infeas)
-    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.total_cost)
-    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.ploss)
-    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.pgen, vector_norm=2)
-    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.pflow, vector_norm=2)
-    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.vmag, vector_norm=2)
+        solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+
+        generate_sensitivity_plot(tc, test_model_dict, data_generator=tu.sum_infeas, show_plot=False)
+
+        generate_pareto_plot(tc, test_model_dict, y_axis_generator=tu.sum_infeas, x_axis_generator=tu.solve_time,
+                             size_generator=tu.num_constraints, show_plot=False)
 
 
 if __name__ == '__main__':
@@ -719,5 +768,7 @@ if __name__ == '__main__':
                 sys.argv[1] == "test_cases3" or \
                 sys.argv[1] == "test_cases4":
             main(sys.argv[1])
+    else:
+        main()
 
     raise SyntaxError("Expecting a single string argument: test_cases0, test_cases1, test_cases2, test_cases3, or test_cases4")
