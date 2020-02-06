@@ -41,27 +41,30 @@ def create_scopf_model(model_data, contingency_dict, model_generator=create_psv_
     loads = dict(md.elements(element_type='load'))
 
     bus_attrs = md.attributes(element_type='bus')
+    gen_attrs = md.attributes(element_type='bus')
     buses_with_gens = tx_utils.buses_with_gens(gens)
+    gens_by_bus = tx_utils.gens_by_bus(buses, gens)
 
     bus_p_loads, bus_q_loads = tx_utils.dict_of_bus_loads(buses, loads)
 
     #
-    # Create the pre-contingency (root) model
+    # Create model and contingency lists
     #
     model = pe.ConcreteModel()
-    model.pre_contingency_problem = model_generator(model_data, include_feasiblity_slack)
+    model.contingency_branch_list = [('branch',i) for i in contingency_dict['branches']]
+    model.contingency_gen_list = [('gen',i) for i in contingency_dict['generators']]
+    model.contingency_list = model.contingency_branch_list + model.contingency_gen_list
+    _idx0 = model.contingency_list[0]
 
     #
-    # Create indexed block of contingency subproblems for branch outages
+    # Create the pre-contingency (root) model
     #
-    model.contingency_branch_list = contingency_dict['branches']
-    model.contingency_branch_subproblem = pe.Block(model.contingency_branch_list)
+    model.pre_contingency_problem = pe.Block(model.contingency_list)
 
     #
-    # Create indexed block of contingency subproblems for generator outages
+    # Create indexed block of contingency subproblems for branch and generator outages
     #
-    model.contingency_gen_list = contingency_dict['generators']
-    model.contingency_gen_subproblem = pe.Block(model.contingency_gen_list)
+    model.post_contingency_problem = pe.Block(model.contingency_list)
 
     #
     # Only defined for acopf formulations with vm (voltage magnitude) variable
@@ -72,32 +75,43 @@ def create_scopf_model(model_data, contingency_dict, model_generator=create_psv_
     #
     # Generate operating model for each subproblem
     #
-    for key, val in model.contingency_branch_dict:
-        model.contingency_branch_subproblem[key] = model_generator(model_data, include_feasiblity_slack)
+    for con in model.contingency_list:
+        model.pre_contingency_problem[con] = model_generator(model_data, include_feasiblity_slack)
+        model.post_contingency_problem[con] = model_generator(model_data, include_feasiblity_slack)
+
 
     #
     # Linking voltage constraints for root model to each subproblem
     #
-    if hasattr(model.pre_contingency_problem,'vm'): # need to check whether this is a dcopf approximation or not
-        con_set_voltage = decl.declare_set('_con_eq_gen_voltage', model, model.contingency_branch_list,
+    if hasattr(model.pre_contingency_problem[_idx0],'vm'): # need to check whether this is a dcopf approximation or not
+        con_set_voltage = decl.declare_set('_con_eq_gen_voltage', model, model.contingency_list,
                                            bus_attrs['names'])
         model.eq_gen_voltage = pe.Constraint(con_set_voltage)
+        model.eq_gen_voltage_nonanticipative = pe.Constraint(con_set_voltage)
 
-        for key, bus_name in con_set_voltage:
+        for con, bus_name in con_set_voltage:
             if bus_p_loads[bus_name] != 0.0 or bus_q_loads[bus_name] != 0.0:
-                model.eq_gen_voltage[key, bus_name] = \
-                    model.pre_contingency_problem.vm[bus_name] == model.contingency_branch_subproblem[key].vm[bus_name]
+                model.eq_gen_voltage[con, bus_name] = \
+                    model.pre_contingency_problem[con].vm[bus_name] == model.post_contingency_problem[con].vm[bus_name]
+                if con != _idx0:
+                    model.eq_gen_voltage_nonanticipative[con, bus_name] = \
+                        model.pre_contingency_problem[_idx0].vm[bus_name] == model.pre_contingency_problem[con].vm[bus_name]
 
     #
     # Linking real power generation constraints for root model to each subproblem
     #
-    con_set_power = decl.declare_set('_con_eq_gen_power', model, model.contingency_branch_list, bus_attrs['names'])
+    con_set_power = decl.declare_set('_con_eq_gen_power', model, model.contingency_list, gen_attrs['names'])
     model.eq_gen_power = pe.Constraint(con_set_power)
+    model.eq_gen_power_nonanticipative = pe.Constraint(con_set_power)
 
-    for key, bus_name in con_set_power:
+    for con, bus_name in con_set_power:
         if bus_name in buses_with_gens and bus_name != ref_bus:
-            model.eq_gen_power[key, bus_name] = \
-                model.pre_contingency_problem.pg[bus_name] == model.contingency_branch_subproblem[key].pg[bus_name]
+            for gen_name in gens_by_bus[bus_name]:
+                model.eq_gen_power[con, bus_name] = \
+                    model.pre_contingency_problem[con].pg[gen_name] == model.post_contingency_problem[con].pg[gen_name]
+                if con != _idx0:
+                    model.eq_gen_voltage_nonanticipative[con, bus_name] = \
+                        model.pre_contingency_problem[_idx0].pg[gen_name] == model.pre_contingency_problem[con].pg[gen_name]
 
     return model
 
