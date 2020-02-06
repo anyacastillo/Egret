@@ -77,6 +77,9 @@ def create_scopf_model(model_data, contingency_dict, model_generator=create_psv_
     #
     for con in model.contingency_list:
         model.pre_contingency_problem[con] = model_generator(model_data, include_feasiblity_slack)
+        (_type, _idx) = con
+        if _type == "branch": pass
+        if _type == "gen": pass
         model.post_contingency_problem[con] = model_generator(model_data, include_feasiblity_slack)
 
 
