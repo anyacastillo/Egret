@@ -92,7 +92,7 @@ case_names = ['pglib_opf_case3_lmbd',
               'pglib_opf_case10000_tamu',
               'pglib_opf_case13659_pegase',
               ]
-test_cases = [join('../../download/pglib-opf-master/', f + '.m') for f in case_names]
+test_cases = [join('../../../download/pglib-opf-master/', f + '.m') for f in case_names]
 # test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
 
 test_cases0 = test_cases[0:18]  ## < 1000 buses
@@ -210,7 +210,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         md_ac.data['system']['mult'] = mult
         record_results('acopf', mult, md_ac)
 
-    #if tm['ccm']:
+    # if tm['ccm']:
     #    md = create_new_model_data(md_flat, mult)
     #    md_ccm, m, results = solve_ccm(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
     #    record_results('ccm', mult, md_ccm)
@@ -227,7 +227,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         options['method'] = 1
         ptdf_options = {}
         ptdf_options['lazy'] = True
-        ptdf_options['lazy_voltage'] = False
+        ptdf_options['lazy_voltage'] = True
         kwargs['ptdf_options'] = ptdf_options
         md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
                                        solver_tee=False, options=options, **kwargs)
@@ -391,6 +391,7 @@ def record_results(idx, mult, md):
     md.write_to_json(filename)
     print('...out: {}'.format(filename))
 
+
 def get_solution_file_location(test_case):
     _, case = os.path.split(test_case)
     case, _ = os.path.splitext(case)
@@ -486,16 +487,16 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
 
 
 def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_infeas, x_axis_generator=tu.solve_time,
-                         size_generator=tu.num_constraints, color_generator=None, max_size=500, min_size=5, show_plot=False):
-
+                         size_generator=tu.num_constraints, color_generator=None, max_size=500, min_size=5,
+                         show_plot=False):
     case_location = get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
 
     if size_generator is None:
-        size=None
+        size = None
     if color_generator is None:
-        color=None
+        color = None
 
     ## empty dataframe to add data into
     df_y_raw = pd.DataFrame(data=None)
@@ -520,7 +521,6 @@ def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_inf
                 df_c = read_sensitivity_data(case_location, test_model, data_generator=color_generator)
                 df_c_raw = pd.concat([df_c_raw, df_c])
 
-
     ## but what we want is the average across the sensitivity multipliers
     df_y_data = df_y_raw.mean(axis=1)
     df_x_data = df_x_raw.mean(axis=1)
@@ -541,7 +541,7 @@ def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_inf
             size = df_s_data[m] * (max_size / max_size_raw)
             size = max(min_size, size)
         ax.scatter(x, y, c=color, s=size, label=m)
-        #ax.annotate(m, (x,y))
+        # ax.annotate(m, (x,y))
 
     y_axis_name = y_axis_generator.__name__
     x_axis_name = x_axis_generator.__name__
@@ -617,7 +617,7 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
             df_data = pd.concat([df_data, df_col])
 
     # include acopf column for nominal data
-    #if data_is_nominal:
+    # if data_is_nominal:
     #    print('df_data: \n {} \n'.format(df_data))
     #    print('df_acopf: \n {}'.format(df_acopf))
     #    df_data = pd.concat([df_data, df_acopf])
@@ -662,48 +662,38 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
         plt.show()
 
 
-if __name__ == '__main__':
-    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
-<<<<<<< HEAD
-    # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
-    # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
-=======
-    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
-    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
-    #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
->>>>>>> 371b30603f1f4c877a65439bd66835d6a82fbbb2
+def main(test_cases):
+    # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
     # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
-    test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case162_ieee_dtc.m')
+    # tc = join('../../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
     # test_case = test_cases[5]
     # print(test_case)
 
     test_model_dict = \
-        {'ccm': True,
-         'lccm': True,
-         'dlopf': True,
+        {'slopf': True,
+         'dlopf_default': True,
          'dlopf_e2': True,
          'dlopf_e3': True,
          'dlopf_e4': True,
-         'clopf': True,
+         'clopf_default': True,
          'clopf_e2': True,
          'clopf_e3': True,
          'clopf_e4': True,
-         'ptdf_losses': True,
-         'ptdf': True,
-         'btheta_losses': True,
-         'btheta': True
+         'clopf_ptdf': True,
+         'qcopf_btheta': True,
+         'dcopf_ptdf': True,
+         'dcopf_btheta': True
          }
 
-    for tc in test_cases0:
-        print(tc)
+    for tc in eval(test_cases):
         solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
         generate_sensitivity_plot(tc, test_model_dict, data_generator=tu.sum_infeas, show_plot=False)
         generate_pareto_plot(tc, test_model_dict, show_plot=True)
 
-    #print(test_case)
-    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=10)
-    #generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
-    #generate_pareto_plot(test_case, test_model_dict, show_plot=True)
+    # print(test_case)
+    # solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=10)
+    # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
+    # generate_pareto_plot(test_case, test_model_dict, show_plot=True)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=True)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.kcl_p_infeas)
@@ -717,3 +707,17 @@ if __name__ == '__main__':
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.pgen, vector_norm=2)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.pflow, vector_norm=2)
     # generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.vmag, vector_norm=2)
+
+
+if __name__ == '__main__':
+    import sys
+
+    if len(sys.argv[1:]) == 1:
+        if sys.argv[1] == "test_cases0" or \
+                sys.argv[1] == "test_cases1" or \
+                sys.argv[1] == "test_cases2" or \
+                sys.argv[1] == "test_cases3" or \
+                sys.argv[1] == "test_cases4":
+            main(sys.argv[1])
+
+    raise SyntaxError("Expecting a single string argument: test_cases0, test_cases1, test_cases2, test_cases3, or test_cases4")
