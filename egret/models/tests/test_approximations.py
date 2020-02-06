@@ -246,11 +246,6 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         md_ac.data['system']['mult'] = mult
         record_results('acopf', mult, md_ac)
 
-    # if tm['ccm']:
-    #    md = create_new_model_data(md_flat, mult)
-    #    md_ccm, m, results = solve_ccm(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
-    #    record_results('ccm', mult, md_ccm)
-
     if tm['slopf']:
         md = create_new_model_data(md_basepoint, mult)
         md_lccm, m, results = solve_lccm(md, "gurobi", return_model=True, return_results=True, solver_tee=False)
@@ -259,18 +254,16 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
     if tm['dlopf_default']:
         md = create_new_model_data(md_basepoint, mult)
         kwargs = {}
-        options = {}
-        options['method'] = 1
         ptdf_options = {}
-        ptdf_options['lazy'] = True
-        ptdf_options['lazy_voltage'] = True
+        ptdf_options['lazy'] = False
+        ptdf_options['lazy_voltage'] = False
         kwargs['ptdf_options'] = ptdf_options
-        md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
-                                       solver_tee=False, options=options, **kwargs)
+        md_fdf, m, results = solve_fdf(md, "gurobi", return_model=True, return_results=True,
+                                       solver_tee=False, **kwargs)
 
         record_results('dlopf_default', mult, md_fdf)
 
-    if tm['dlopf_e2']:
+    if tm['dlopf_lazy']:
         md = create_new_model_data(md_basepoint, mult)
         kwargs = {}
         options = {}
@@ -278,31 +271,11 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options = {}
         ptdf_options['lazy'] = True
         ptdf_options['lazy_voltage'] = True
-        ptdf_options['abs_ptdf_tol'] = 1e-2
-        ptdf_options['abs_qtdf_tol'] = 5e-2
-        ptdf_options['rel_vdf_tol'] = 10e-2
         kwargs['ptdf_options'] = ptdf_options
         md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
                                        solver_tee=False, options=options, **kwargs)
 
-        record_results('dlopf_e2', mult, md_fdf)
-
-    if tm['dlopf_e3']:
-        md = create_new_model_data(md_basepoint, mult)
-        kwargs = {}
-        options = {}
-        options['method'] = 1
-        ptdf_options = {}
-        ptdf_options['lazy'] = True
-        ptdf_options['lazy_voltage'] = True
-        ptdf_options['abs_ptdf_tol'] = 1e-3
-        ptdf_options['abs_qtdf_tol'] = 5e-3
-        ptdf_options['rel_vdf_tol'] = 10e-3
-        kwargs['ptdf_options'] = ptdf_options
-        md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
-                                       solver_tee=False, options=options, **kwargs)
-
-        record_results('dlopf_e3', mult, md_fdf)
+        record_results('dlopf_lazy', mult, md_fdf)
 
     if tm['dlopf_e4']:
         md = create_new_model_data(md_basepoint, mult)
@@ -321,38 +294,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
 
         record_results('dlopf_e4', mult, md_fdf)
 
-    if tm['clopf_default']:
-        md = create_new_model_data(md_basepoint, mult)
-        kwargs = {}
-        options = {}
-        options['method'] = 1
-        ptdf_options = {}
-        ptdf_options['lazy'] = True
-        ptdf_options['lazy_voltage'] = True
-        kwargs['ptdf_options'] = ptdf_options
-        md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
-                                                   solver_tee=False, options=options, **kwargs)
-
-        record_results('clopf_default', mult, md_fdfs)
-
-    if tm['clopf_e2']:
-        md = create_new_model_data(md_basepoint, mult)
-        kwargs = {}
-        options = {}
-        options['method'] = 1
-        ptdf_options = {}
-        ptdf_options['lazy'] = True
-        ptdf_options['lazy_voltage'] = True
-        ptdf_options['abs_ptdf_tol'] = 1e-2
-        ptdf_options['abs_qtdf_tol'] = 5e-2
-        ptdf_options['rel_vdf_tol'] = 10e-2
-        kwargs['ptdf_options'] = ptdf_options
-        md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
-                                                   solver_tee=False, options=options, **kwargs)
-
-        record_results('clopf_e2', mult, md_fdfs)
-
-    if tm['clopf_e3']:
+    if tm['dlopf_e3']:
         md = create_new_model_data(md_basepoint, mult)
         kwargs = {}
         options = {}
@@ -364,10 +306,53 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['abs_qtdf_tol'] = 5e-3
         ptdf_options['rel_vdf_tol'] = 10e-3
         kwargs['ptdf_options'] = ptdf_options
+        md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+                                       solver_tee=False, options=options, **kwargs)
+
+        record_results('dlopf_e3', mult, md_fdf)
+
+    if tm['dlopf_e2']:
+        md = create_new_model_data(md_basepoint, mult)
+        kwargs = {}
+        options = {}
+        options['method'] = 1
+        ptdf_options = {}
+        ptdf_options['lazy'] = True
+        ptdf_options['lazy_voltage'] = True
+        ptdf_options['abs_ptdf_tol'] = 1e-2
+        ptdf_options['abs_qtdf_tol'] = 5e-2
+        ptdf_options['rel_vdf_tol'] = 10e-2
+        kwargs['ptdf_options'] = ptdf_options
+        md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+                                       solver_tee=False, options=options, **kwargs)
+
+        record_results('dlopf_e2', mult, md_fdf)
+
+    if tm['clopf_default']:
+        md = create_new_model_data(md_basepoint, mult)
+        kwargs = {}
+        ptdf_options = {}
+        ptdf_options['lazy'] = False
+        ptdf_options['lazy_voltage'] = False
+        kwargs['ptdf_options'] = ptdf_options
+        md_fdfs, m, results = solve_fdf_simplified(md, "gurobi", return_model=True, return_results=True,
+                                                   solver_tee=False, **kwargs)
+
+        record_results('clopf_default', mult, md_fdfs)
+
+    if tm['clopf_lazy']:
+        md = create_new_model_data(md_basepoint, mult)
+        kwargs = {}
+        options = {}
+        options['method'] = 1
+        ptdf_options = {}
+        ptdf_options['lazy'] = True
+        ptdf_options['lazy_voltage'] = True
+        kwargs['ptdf_options'] = ptdf_options
         md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
                                                    solver_tee=False, options=options, **kwargs)
 
-        record_results('clopf_e3', mult, md_fdfs)
+        record_results('clopf_lazy', mult, md_fdfs)
 
     if tm['clopf_e4']:
         md = create_new_model_data(md_basepoint, mult)
@@ -386,12 +371,174 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
 
         record_results('clopf_e4', mult, md_fdfs)
 
-    if tm['clopf_ptdf']:
+    if tm['clopf_e3']:
+        md = create_new_model_data(md_basepoint, mult)
+        kwargs = {}
+        options = {}
+        options['method'] = 1
+        ptdf_options = {}
+        ptdf_options['lazy'] = True
+        ptdf_options['lazy_voltage'] = True
+        ptdf_options['abs_ptdf_tol'] = 1e-3
+        ptdf_options['abs_qtdf_tol'] = 5e-3
+        ptdf_options['rel_vdf_tol'] = 10e-3
+        kwargs['ptdf_options'] = ptdf_options
+        md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+                                                   solver_tee=False, options=options, **kwargs)
+
+        record_results('clopf_e3', mult, md_fdfs)
+
+    if tm['clopf_e2']:
+        md = create_new_model_data(md_basepoint, mult)
+        kwargs = {}
+        options = {}
+        options['method'] = 1
+        ptdf_options = {}
+        ptdf_options['lazy'] = True
+        ptdf_options['lazy_voltage'] = True
+        ptdf_options['abs_ptdf_tol'] = 1e-2
+        ptdf_options['abs_qtdf_tol'] = 5e-2
+        ptdf_options['rel_vdf_tol'] = 10e-2
+        kwargs['ptdf_options'] = ptdf_options
+        md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+                                                   solver_tee=False, options=options, **kwargs)
+
+        record_results('clopf_e2', mult, md_fdfs)
+
+    if tm['clopf_p_default']:
+        kwargs = {}
+        ptdf_options = {}
+        ptdf_options['lazy'] = False
+        kwargs['ptdf_options'] = ptdf_options
+        md = create_new_model_data(md_basepoint, mult)
+        md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi",
+                                                  dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
+                                                  return_model=True, return_results=True, solver_tee=False, **kwargs)
+        record_results('clopf_p_default', mult, md_ptdfl)
+
+    if tm['clopf_p_lazy']:
+        kwargs = {}
+        ptdf_options = {}
+        options = {}
+        options['method'] = 1
+        ptdf_options['lazy'] = True
+        kwargs['ptdf_options'] = ptdf_options
         md = create_new_model_data(md_basepoint, mult)
         md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent",
                                                   dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
-                                                  return_model=True, return_results=True, solver_tee=False)
-        record_results('clopf_ptdf', mult, md_ptdfl)
+                                                  return_model=True, return_results=True, solver_tee=False,
+                                                  options=options, **kwargs)
+        record_results('clopf_p_lazy', mult, md_ptdfl)
+
+    if tm['clopf_p_e4']:
+        kwargs = {}
+        ptdf_options = {}
+        options = {}
+        options['method'] = 1
+        ptdf_options['lazy'] = True
+        ptdf_options['abs_ptdf_tol'] = 1e-4
+        kwargs['ptdf_options'] = ptdf_options
+        md = create_new_model_data(md_basepoint, mult)
+        md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent",
+                                                  dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
+                                                  return_model=True, return_results=True, solver_tee=False,
+                                                  options=options, **kwargs)
+        record_results('clopf_p_e4', mult, md_ptdfl)
+
+    if tm['clopf_p_e3']:
+        kwargs = {}
+        ptdf_options = {}
+        options = {}
+        options['method'] = 1
+        ptdf_options['lazy'] = True
+        ptdf_options['abs_ptdf_tol'] = 1e-3
+        kwargs['ptdf_options'] = ptdf_options
+        md = create_new_model_data(md_basepoint, mult)
+        md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent",
+                                                  dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
+                                                  return_model=True, return_results=True, solver_tee=False,
+                                                  options=options, **kwargs)
+        record_results('clopf_p_e3', mult, md_ptdfl)
+
+    if tm['clopf_p_e2']:
+        kwargs = {}
+        ptdf_options = {}
+        options = {}
+        options['method'] = 1
+        ptdf_options['lazy'] = True
+        ptdf_options['abs_ptdf_tol'] = 1e-2
+        kwargs['ptdf_options'] = ptdf_options
+        md = create_new_model_data(md_basepoint, mult)
+        md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent",
+                                                  dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
+                                                  return_model=True, return_results=True, solver_tee=False,
+                                                  options=options, **kwargs)
+        record_results('clopf_p_e2', mult, md_ptdfl)
+
+    if tm['dcopf_ptdf_default']:
+        kwargs = {}
+        ptdf_options = {}
+        ptdf_options['lazy'] = False
+        kwargs['ptdf_options'] = ptdf_options
+        md = create_new_model_data(md_flat, mult)
+        md_ptdf, m, results = solve_dcopf(md, "gurobi", dcopf_model_generator=create_ptdf_dcopf_model,
+                                          return_model=True, return_results=True, solver_tee=False, **kwargs)
+        record_results('dcopf_ptdf_default', mult, md_ptdf)
+
+    if tm['dcopf_ptdf_lazy']:
+        kwargs = {}
+        ptdf_options = {}
+        options = {}
+        options['method'] = 1
+        ptdf_options['lazy'] = True
+        kwargs['ptdf_options'] = ptdf_options
+        md = create_new_model_data(md_flat, mult)
+        md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
+                                          return_model=True, return_results=True, solver_tee=False,
+                                          options=options, **kwargs)
+        record_results('dcopf_ptdf_lazy', mult, md_ptdf)
+
+    if tm['dcopf_ptdf_e4']:
+        kwargs = {}
+        ptdf_options = {}
+        options = {}
+        options['method'] = 1
+        ptdf_options['lazy'] = True
+        ptdf_options['abs_ptdf_tol'] = 1e-4
+        kwargs['ptdf_options'] = ptdf_options
+        md = create_new_model_data(md_flat, mult)
+        md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
+                                          return_model=True, return_results=True, solver_tee=False,
+                                          options=options, **kwargs)
+        record_results('dcopf_ptdf_e4', mult, md_ptdf)
+
+    if tm['dcopf_ptdf_e3']:
+        kwargs = {}
+        ptdf_options = {}
+        options = {}
+        options['method'] = 1
+        ptdf_options['lazy'] = True
+        ptdf_options['abs_ptdf_tol'] = 1e-3
+        kwargs['ptdf_options'] = ptdf_options
+        md = create_new_model_data(md_flat, mult)
+        md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
+                                          return_model=True, return_results=True, solver_tee=False,
+                                          options=options, **kwargs)
+        record_results('dcopf_ptdf_e3', mult, md_ptdf)
+
+    if tm['dcopf_ptdf_e2']:
+        kwargs = {}
+        ptdf_options = {}
+        options = {}
+        options['method'] = 1
+        ptdf_options['lazy'] = True
+        ptdf_options['abs_ptdf_tol'] = 1e-2
+        kwargs['ptdf_options'] = ptdf_options
+        md = create_new_model_data(md_flat, mult)
+        md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
+                                          return_model=True, return_results=True, solver_tee=False,
+                                          options=options, **kwargs)
+        record_results('dcopf_ptdf_e2', mult, md_ptdf)
 
     if tm['qcopf_btheta']:
         md = create_new_model_data(md_flat, mult)
@@ -399,12 +546,6 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                                     dcopf_losses_model_generator=create_btheta_losses_dcopf_model,
                                                     return_model=True, return_results=True, solver_tee=False)
         record_results('qcopf_btheta', mult, md_bthetal)
-
-    if tm['dcopf_ptdf']:
-        md = create_new_model_data(md_flat, mult)
-        md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
-                                          return_model=True, return_results=True, solver_tee=False)
-        record_results('dcopf_ptdf', mult, md_ptdf)
 
     if tm['dcopf_btheta']:
         md = create_new_model_data(md_flat, mult)
@@ -753,16 +894,26 @@ def submain(idx=None, show_plot=True):
     test_model_dict = \
         {'slopf': True,
          'dlopf_default': True,
-         'dlopf_e2': True,
-         'dlopf_e3': True,
-         'dlopf_e4': True,
+         'dlopf_lazy' : True,
+         'dlopf_e4': False,
+         'dlopf_e3': False,
+         'dlopf_e2': False,
          'clopf_default': True,
-         'clopf_e2': True,
-         'clopf_e3': True,
-         'clopf_e4': True,
-         'clopf_ptdf': True,
+         'clopf_lazy': True,
+         'clopf_e4': False,
+         'clopf_e3': False,
+         'clopf_e2': False,
+         'clopf_p_default': True,
+         'clopf_p_lazy': True,
+         'clopf_p_e4': False,
+         'clopf_p_e3': False,
+         'clopf_p_e2': False,
          'qcopf_btheta': True,
-         'dcopf_ptdf': True,
+         'dcopf_ptdf_default': True,
+         'dcopf_ptdf_lazy': True,
+         'dcopf_ptdf_e4': False,
+         'dcopf_ptdf_e3': False,
+         'dcopf_ptdf_e2': False,
          'dcopf_btheta': True
          }
 
