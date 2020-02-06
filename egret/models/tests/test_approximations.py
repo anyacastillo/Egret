@@ -9,6 +9,9 @@
 
 '''
  Tests linear OPF models against the ACOPF
+ Usage:
+    -python test_approximations --test_casesX
+        Runs main() method
 
  Output functions:
     -solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=10)
@@ -129,23 +132,10 @@ case_names = ['pglib_opf_case3_lmbd',
               'pglib_opf_case10000_tamu',
               'pglib_opf_case13659_pegase',
               ]
-#test_cases = [join('../../../download/pglib-opf-master/', f + '.m') for f in case_names]
-test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
+test_cases = [join('../../download/pglib-opf-master/', f + '.m') for f in case_names]
+#test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
 
-test_cases0 = test_cases[0:18]  ## < 1000 buses
-test_cases1 = test_cases[19:23]  ## 1354 - 2316 buses
-test_cases2 = test_cases[24:35]  ## 2383 - 4661 buses
-test_cases3 = test_cases[36:42]  ## 6468 - 10000 buses
-test_cases4 = test_cases[43]  ## 13659 buses
 
-test_case = test_cases[0]
-#test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
-#test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
-#test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
-#test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
-#test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case118_ieee.m')
-#test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
-#test_case = test_cases[5]
 
 
 def set_acopf_basepoint_min_max(md_dict, init_min=0.9, init_max=1.1, **kwargs):
@@ -728,9 +718,37 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
         plt.show()
 
 
-def main(test_cases=test_case):
+def main(arg):
 
-    print(test_cases)
+    if arg == 'A':
+        idx_list = list(range(0,19))    ## < 1000 buses
+    elif arg == 'B':
+        idx_list = list(range(19,24))   ## 1354 - 2316 buses
+    elif arg == 'C':
+        idx_list = list(range(24,36))   ## 2383 - 4661 buses
+    elif arg == 'D':
+        idx_list = list(range(36,43))   ## 6468 - 10000 buses
+    elif arg == 'E':
+        idx_list = [43]                 ## 13659 buses
+
+    for idx in idx_list:
+        submain(idx, show_plot=False)
+
+
+def submain(idx=None, show_plot=True):
+    """
+    solves models and generates plots for test case at test_cases[idx] or a default case
+    """
+    if idx is None:
+        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
+#        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
+#        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
+#        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
+#        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case118_ieee.m')
+#        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
+    else:
+        idx=int(idx)
+        test_case=test_cases[idx]
 
     test_model_dict = \
         {'slopf': True,
@@ -748,15 +766,10 @@ def main(test_cases=test_case):
          'dcopf_btheta': True
          }
 
-    for tc in eval(test_cases):
-
-        solve_approximation_models(tc, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
-
-        generate_sensitivity_plot(tc, test_model_dict, data_generator=tu.sum_infeas, show_plot=False)
-
-        generate_pareto_plot(tc, test_model_dict, y_axis_generator=tu.sum_infeas, x_axis_generator=tu.solve_time,
-                             size_generator=tu.num_constraints, show_plot=False)
-
+    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=show_plot)
+    generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_infeas, x_axis_generator=tu.solve_time,
+                             size_generator=tu.num_constraints, show_plot=show_plot)
 
 if __name__ == '__main__':
     import sys
@@ -768,7 +781,9 @@ if __name__ == '__main__':
                 sys.argv[1] == "test_cases3" or \
                 sys.argv[1] == "test_cases4":
             main(sys.argv[1])
+        else:
+            submain(sys.argv[1])
     else:
-        main()
+        submain()
 
-    raise SyntaxError("Expecting a single string argument: test_cases0, test_cases1, test_cases2, test_cases3, or test_cases4")
+#    raise SyntaxError("Expecting a single string argument: test_cases0, test_cases1, test_cases2, test_cases3, or test_cases4")
