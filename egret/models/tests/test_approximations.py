@@ -576,27 +576,28 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
 
 if __name__ == '__main__':
     #test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
-    test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
+    # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
     # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
     # test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
+    test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case162_ieee_dtc.m')
     # test_case = test_cases[5]
     # print(test_case)
 
     test_model_dict = \
-        {'ccm': False,
+        {'ccm': True,
          'lccm': True,
-         'dlopf': False,
+         'dlopf': True,
          'dlopf_e2': True,
          'dlopf_e3': True,
          'dlopf_e4': True,
-         'clopf': False,
+         'clopf': True,
          'clopf_e2': True,
          'clopf_e3': True,
          'clopf_e4': True,
-         'ptdf_losses': False,
-         'ptdf': False,
-         'btheta_losses': False,
-         'btheta': False
+         'ptdf_losses': True,
+         'ptdf': True,
+         'btheta_losses': True,
+         'btheta': True
          }
 
     # for tc in test_cases[0:1]:
