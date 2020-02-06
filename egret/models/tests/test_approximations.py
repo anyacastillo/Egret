@@ -926,11 +926,11 @@ if __name__ == '__main__':
     import sys
 
     if len(sys.argv[1:]) == 1:
-        if sys.argv[1] == "test_cases0" or \
-                sys.argv[1] == "test_cases1" or \
-                sys.argv[1] == "test_cases2" or \
-                sys.argv[1] == "test_cases3" or \
-                sys.argv[1] == "test_cases4":
+        if sys.argv[1] == "A" or \
+                sys.argv[1] == "B" or \
+                sys.argv[1] == "C" or \
+                sys.argv[1] == "D" or \
+                sys.argv[1] == "E":
             main(sys.argv[1])
         else:
             submain(sys.argv[1])
