@@ -20,6 +20,51 @@ from egret.models.acopf import create_psv_acopf_model
 from egret.common.solver_interface import _solve_model
 from pyomo.environ import value
 
+def solve_time(md):
+
+    val = md.data['results']['time']
+
+    return val
+
+
+def num_constraints(md):
+
+    val = md.data['results']['#_cons']
+
+    return val
+
+
+def num_variables(md):
+
+    val = md.data['results']['#_vars']
+
+    return val
+
+
+def num_nonzeros(md):
+
+    results = md.data['results']
+
+    if hasattr(results, '#_nz'):
+        val = results['#_nz']
+        return val
+
+    return None
+
+def model_sparsity(md):
+
+    results = md.data['results']
+
+    if hasattr(results, '#_nz'):
+        nc = results['#_cons']
+        nv = results['#_vars']
+        nz = results['#_nz']
+        val = nz / ( nc * nv )
+        return val
+
+    return None
+
+
 def total_cost(md):
 
     val = md.data['system']['total_cost']
@@ -188,11 +233,11 @@ def solve_infeas_model(model_data):
     m.obj = pe.Objective(expr=sum_infeas_expr)
 
     # solve model
-    print('mult={}'.format(md.data['system']['mult']))
+    #print('mult={}'.format(md.data['system']['mult']))
     try:
         m, results = _solve_model(m, "ipopt", timelimit=None, solver_tee=False)
     except:
-        print('Solve failed... Increasing slack variable upper bounds.')
+        #print('Solve failed... Increasing slack variable upper bounds.')
         for b, p_slack_pos in m.p_slack_pos.items():
             p_slack_pos.setub(9999)
         for b, p_slack_neg in m.p_slack_neg.items():
@@ -209,10 +254,10 @@ def solve_infeas_model(model_data):
         #m.pprint()
         m, results = _solve_model(m, "ipopt", timelimit=None, solver_tee=False)
 
-    show_me = results.Solver.status.key.__str__()
-    print('solver status: {}'.format(show_me))
+    #show_me = results.Solver.status.key.__str__()
+    #print('solver status: {}'.format(show_me))
 
-    return m
+    return m, results
 
 def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=False):
 
@@ -231,15 +276,18 @@ def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=
     else:
         name = 'file'
 
+    message = '...'
     if not infeas_name in system_data.keys():
-        print('...did not find ' + infeas_name + ' in '+ name)
-        print(system_data.keys())
+        message += 'Did not find ' + infeas_name + ' in '+ name+ '. '
     else:
         show_me = pd.DataFrame(system_data,index=[name])
         #print('...existing system data: {}'.format(show_me.T))
 
     # otherwise, solve the sum_infeas model and save solution to md
-    m_ac = solve_infeas_model(md)
+    m_ac, results = solve_infeas_model(md)
+    termination = results.solver.termination_condition.__str__()
+    message += 'Infeasibility model returned ' + termination + '.'
+    print(message)
     #m_ac.pprint()
 
     bus_attrs = md.attributes(element_type='bus')
@@ -306,7 +354,7 @@ def save_to_solution_directory(filename, model_name):
     if not glob.glob(source):
         print('No files to move.')
     else:
-        print('saving to dest: {}'.format(destination))
+        #print('saving to dest: {}'.format(destination))
 
         for src in glob.glob(source):
             #print('src:  {}'.format(src))

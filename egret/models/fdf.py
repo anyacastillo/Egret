@@ -245,8 +245,23 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
         thermal_idx_monitored = model._thermal_idx_monitored
 
         ## construct constraints of branches near limit
+        ba_ptdf = branch_attrs['ptdf']
+        ba_ptdf_c = branch_attrs['ptdf_c']
+        ba_qtdf = branch_attrs['qtdf']
+        ba_qtdf_c = branch_attrs['qtdf_c']
         for i,bn in enumerate(branch_attrs['names']):
             if bn in monitor_init:
+                ## add pf definition
+                expr = libbranch.get_expr_branch_pf_fdf_approx(model, bn, ba_ptdf[bn], ba_ptdf_c[bn],
+                                                               rel_tol=ptdf_options['rel_ptdf_tol'],
+                                                               abs_tol=ptdf_options['abs_ptdf_tol'])
+                model.eq_pf_branch[bn] = model.pf[bn] == expr
+                ## add qf definition
+                expr = libbranch.get_expr_branch_qf_fdf_approx(model, bn, ba_qtdf[bn], ba_qtdf_c[bn],
+                                                               rel_tol=ptdf_options['rel_qtdf_tol'],
+                                                               abs_tol=ptdf_options['abs_qtdf_tol'])
+                model.eq_qf_branch[bn] = model.qf[bn] == expr
+                ## add thermal limit
                 thermal_limit = s_max[bn]
                 libbranch.add_constr_branch_thermal_limit(model, bn, thermal_limit)
                 thermal_idx_monitored.append(i)
@@ -942,7 +957,7 @@ if __name__ == '__main__':
     print('begin ACOPF...')
     from egret.models.acopf import solve_acopf
     md_ac, m_ac, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
-    m_ac.pprint()
+
     print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
     print('ACOPF time: %3.5f' % md_ac.data['results']['time'])
     print(results.Solver)
@@ -951,8 +966,8 @@ if __name__ == '__main__':
     kwargs = {}
     # kwargs = {'include_v_feasibility_slack':True,'include_feasibility_slack':True}
 
-    # solve FDF
-    print('begin FDF...')
+    # solve D-LOPF
+    print('begin D-LOPF...')
     options={}
     options['method'] = 1
     ptdf_options = {}
@@ -964,13 +979,25 @@ if __name__ == '__main__':
     kwargs['ptdf_options'] = ptdf_options
     md, m, results = solve_fdf(md_ac, "gurobi_persistent", fdf_model_generator=create_fdf_model, return_model=True,
                                return_results=True, solver_tee=False, options=options, **kwargs)
-    m.pprint()
+
+
+    # solve S-LOPF
+    kwargs = {}
+    options={}
+    print('begin S-LOPF...')
+    from egret.models.lccm import solve_lccm
+    md_sl, m_sl, results_sl = solve_lccm(md_ac, "gurobi", return_model=True,
+                               return_results=True, solver_tee=False, options=options, **kwargs)
 
     print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
     print('ACOPF time: %3.5f' % md_ac.data['results']['time'])
 
-    print('FDF cost: $%3.2f' % md.data['system']['total_cost'])
-    print('FDF time: %3.5f' % md.data['results']['time'])
+    print('D-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
+    print('D-LOPF time: %3.5f' % md.data['results']['time'])
+
+    print('S-LOPF cost: $%3.2f' % md_sl.data['system']['total_cost'])
+    print('S-LOPF time: %3.5f' % md_sl.data['results']['time'])
+
 
 # not solving pglib_opf_case57_ieee
 # pglib_opf_case500_tamu

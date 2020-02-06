@@ -444,13 +444,13 @@ if __name__ == '__main__':
     # set case and filepath
     path = os.path.dirname(__file__)
     #filename = 'pglib_opf_case3_lmbd.m'
-    #filename = 'pglib_opf_case5_pjm.m'
+    filename = 'pglib_opf_case5_pjm.m'
     #filename = 'pglib_opf_case14_ieee.m'
     #filename = 'pglib_opf_case30_ieee.m'
     #filename = 'pglib_opf_case57_ieee.m'
     #filename = 'pglib_opf_case118_ieee.m'
     #filename = 'pglib_opf_case162_ieee_dtc.m'
-    filename = 'pglib_opf_case179_goc.m'
+    #filename = 'pglib_opf_case179_goc.m'
     #filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
@@ -478,90 +478,89 @@ if __name__ == '__main__':
     va_dict = {'acopf' : bus['va']}
     vm_dict = {'acopf' : bus['vm']}
 
-    # solve CCM
-    kwargs={'solved_model':m_ac}
-    import ccm as ccm
-    #ccm_model_generator=create_fixed_ccm_model to fix generator variables
-    md_ccm, m_ccm, results_ccm = ccm.solve_ccm(md_ac, "ipopt",ccm_model_generator=ccm.create_fixed_ccm_model, return_model=True,return_results=True,solver_tee=False, **kwargs)
-#    model,md = ccm.create_ccm_model(md_ac)
-#    from egret.common.solver_interface import _solve_model
-#    m, results = _solve_model(model,"ipopt",solver_tee=False)
-#    ccm._load_solution_to_model_data(m, md)
-    print('CCM cost: $%3.2f' % m_ccm.obj.expr())
-    print(results_ccm.Solver)
-    bus_attrs = md_ccm.attributes(element_type='bus')
-    if sum(value(m_ccm.p_slack_pos[b] + m_ccm.p_slack_neg[b]) for b in bus_attrs['names']) > 1e-6:
-        print('REAL POWER IMBALANCE')
-    if sum(value(m_ccm.q_slack_pos[b] + m_ccm.q_slack_neg[b]) for b in bus_attrs['names']) > 1e-6:
-        print('REACTIVE POWER IMBALANCE')
-    gen = md_ccm.attributes(element_type='generator')
-    bus = md_ccm.attributes(element_type='bus')
-    branch = md_ccm.attributes(element_type='branch')
-    pg_dict.update({'ccm': gen['pg']})
-    qg_dict.update({'ccm': gen['qg']})
-    pt_dict.update({'ccm': branch['pt']})
-    pf_dict.update({'ccm': branch['pf']})
-    pfl_dict.update({'ccm': branch['pfl']})
-    qt_dict.update({'ccm': branch['qt']})
-    qf_dict.update({'ccm': branch['qf']})
-    qfl_dict.update({'ccm': branch['qfl']})
-    va_dict.update({'ccm': bus['va']})
-    vm_dict.update({'ccm': bus['vm']})
+    # solve D-LOPF
+    kwargs={}
+    options={}
+    options['method'] = 1
+    ptdf_options = {}
+    ptdf_options['lazy'] = True
+    ptdf_options['lazy_voltage'] = True
+    ptdf_options['abs_ptdf_tol'] = 1e-6
+    ptdf_options['abs_qtdf_tol'] = 5e-6
+    ptdf_options['rel_vdf_tol'] = 10e-6
+    kwargs['ptdf_options'] = ptdf_options
+    from egret.models.fdf import solve_fdf
+    md_dl, m_dl, results_dl = solve_fdf(md_ac, "gurobi_persistent", return_model=True,
+                               return_results=True, solver_tee=False, options=options, **kwargs)
+
+    print('DL-OPF cost: $%3.2f' % m_dl.obj.expr())
+    print(results_dl.Solver)
+
+    gen = md_dl.attributes(element_type='generator')
+    bus = md_dl.attributes(element_type='bus')
+    branch = md_dl.attributes(element_type='branch')
+    pg_dict.update({'dlopf': gen['pg']})
+    qg_dict.update({'dlopf': gen['qg']})
+    pt_dict.update({'dlopf': branch['pt']})
+    pf_dict.update({'dlopf': branch['pf']})
+    pfl_dict.update({'dlopf': branch['pfl']})
+    qt_dict.update({'dlopf': branch['qt']})
+    qf_dict.update({'dlopf': branch['qf']})
+    qfl_dict.update({'dlopf': branch['qfl']})
+    va_dict.update({'dlopf': bus['va']})
+    vm_dict.update({'dlopf': bus['vm']})
 
     # keyword arguments
     kwargs = {}
     #kwargs = {'include_v_feasibility_slack':True,'include_feasibility_slack':True}
 
-    # solve LCCM
-    md, m, results = solve_lccm(md_ac, "gurobi", lccm_model_generator=create_fixed_lccm_model, return_model=True,return_results=True,solver_tee=False, **kwargs)
-    print('LCCM cost: $%3.2f' % md.data['system']['total_cost'])
+    # solve S-LOPF
+    md, m, results = solve_lccm(md_ac, "gurobi", lccm_model_generator=create_lccm_model, return_model=True,return_results=True,solver_tee=False, **kwargs)
+    print('S-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
     print(results.Solver)
-    if sum(value(m.p_slack_pos[b] + m.p_slack_neg[b]) for b in bus_attrs['names']) > 1e-6:
-        print('REAL POWER IMBALANCE')
-    if sum(value(m.q_slack_pos[b] + m.q_slack_neg[b]) for b in bus_attrs['names']) > 1e-6:
-        print('REACTIVE POWER IMBALANCE')
+
     gen = md.attributes(element_type='generator')
     bus = md.attributes(element_type='bus')
     branch = md.attributes(element_type='branch')
-    pg_dict.update({'lccm' : gen['pg']})
-    qg_dict.update({'lccm' : gen['qg']})
-    pt_dict.update({'lccm' : branch['pt']})
-    pf_dict.update({'lccm' : branch['pf']})
-    pfl_dict.update({'lccm' : branch['pfl']})
-    qt_dict.update({'lccm' : branch['qt']})
-    qf_dict.update({'lccm' : branch['qf']})
-    qfl_dict.update({'lccm' : branch['qfl']})
-    va_dict.update({'lccm' : bus['va']})
-    vm_dict.update({'lccm' : bus['vm']})
+    pg_dict.update({'slopf' : gen['pg']})
+    qg_dict.update({'slopf' : gen['qg']})
+    pt_dict.update({'slopf' : branch['pt']})
+    pf_dict.update({'slopf' : branch['pf']})
+    pfl_dict.update({'slopf' : branch['pfl']})
+    qt_dict.update({'slopf' : branch['qt']})
+    qf_dict.update({'slopf' : branch['qf']})
+    qfl_dict.update({'slopf' : branch['qfl']})
+    va_dict.update({'slopf' : bus['va']})
+    vm_dict.update({'slopf' : bus['vm']})
 
     # display results in dataframes
-    from fdf import compare_results
+    from egret.models.fdf import compare_results
     print('-pg:')
-    compare_results(pg_dict,'lccm','ccm')
+    compare_results(pg_dict,'slopf','dlopf')
 #    print(pd.DataFrame(pg_dict))
     print('-qg:')
-    compare_results(qg_dict,'lccm','ccm')
+    compare_results(qg_dict,'slopf','dlopf')
 #    print(pd.DataFrame(qg_dict))
 #    print('-pt:')
 #    print(pd.DataFrame(pt_dict))
     print('-pf:')
-    compare_results(pf_dict,'lccm','ccm')
+    compare_results(pf_dict,'slopf','dlopf')
 #    print(pd.DataFrame(pf_dict))
     print('-pfl:')
-    compare_results(pfl_dict,'lccm','ccm')
+    compare_results(pfl_dict,'slopf','dlopf')
 #    print(pd.DataFrame(pfl_dict))
 #    print('-qt:')
 #    print(pd.DataFrame(qt_dict))
     print('-qf:')
-    compare_results(qf_dict,'lccm','ccm')
+    compare_results(qf_dict,'slopf','dlopf')
 #    print(pd.DataFrame(qf_dict))
     print('-qfl:')
-    compare_results(qfl_dict,'lccm','ccm')
+    compare_results(qfl_dict,'slopf','dlopf')
 #    print(pd.DataFrame(qfl_dict))
 #    print('-va:')
 #    print(pd.DataFrame(va_dict))
     print('-vm:')
-    compare_results(vm_dict,'lccm','ccm')
+    compare_results(vm_dict,'slopf','dlopf')
 #    print(pd.DataFrame(vm_dict))
 
 
