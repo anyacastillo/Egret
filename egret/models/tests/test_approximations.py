@@ -65,8 +65,11 @@
 
 import os, shutil, glob, json
 import pandas as pd
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
+import matplotlib.cm as cmap
+from cycler import cycler
 import math
 import unittest
 import egret.data.test_utils as tu
@@ -725,23 +728,20 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
 
 
 def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_infeas, x_axis_generator=tu.solve_time,
-                         size_generator=tu.num_constraints, color_generator=None, max_size=500, min_size=5,
-                         show_plot=False):
+                         size_generator=tu.num_constraints, max_size=500, min_size=5,
+                         colors=cmap.viridis, show_plot=False):
     case_location = get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
 
     if size_generator is None:
         size = None
-    if color_generator is None:
-        color = None
 
     ## empty dataframe to add data into
     df_data = pd.DataFrame(data=None)
     df_y_raw = pd.DataFrame(data=None)
     df_x_raw = pd.DataFrame(data=None)
     df_s_raw = pd.DataFrame(data=None)
-    df_c_raw = pd.DataFrame(data=None)
 
     ## iterate over test_model_dict
     test_model_dict['acopf'] = True
@@ -756,15 +756,11 @@ def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_inf
             if size_generator is not None:
                 df_s = read_sensitivity_data(case_location, test_model, data_generator=size_generator)
                 df_s_raw = pd.concat([df_s_raw, df_s])
-            if color_generator is not None:
-                df_c = read_sensitivity_data(case_location, test_model, data_generator=color_generator)
-                df_c_raw = pd.concat([df_c_raw, df_c])
 
     ## but what we want is the average across the sensitivity multipliers
     df_y_data = df_y_raw.mean(axis=1)
     df_x_data = df_x_raw.mean(axis=1)
     df_s_data = df_s_raw.mean(axis=1)
-    df_c_data = df_c_raw.mean(axis=1)
 
 
     ## put data in single dataframe
@@ -777,6 +773,13 @@ def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_inf
         df_data[size_name] = df_s_data
 
 
+    ## assign color values
+    num_entries = len(df_data)
+    color = colors(np.linspace(0, 1, num_entries))
+    custom_cycler = (cycler(color=color))
+    plt.rc('axes', prop_cycle=custom_cycler)
+
+
     max_size_raw = max(df_s_data.values)
 
     models = list(df_x_data.index.values)
@@ -785,12 +788,10 @@ def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_inf
     for m in models:
         x = df_x_data[m]
         y = df_y_data[m]
-        if color_generator is not None:
-            color = df_c_data[m]
         if size_generator is not None:
             size = df_s_data[m] * (max_size / max_size_raw)
             size = max(min_size, size)
-        ax.scatter(x, y, c=color, s=size, label=m)
+        ax.scatter(x, y, s=size, label=m)
         # ax.annotate(m, (x,y))
 
     ax.set_title(y_axis_name + " vs. " + x_axis_name + "\n(" + case_name + ")")
@@ -817,7 +818,9 @@ def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_inf
         plt.show()
 
 
-def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.total_cost, vector_norm=2, show_plot=False):
+def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.total_cost, vector_norm=2,
+                              colors=cmap.viridis, show_plot=False):
+
     case_location = get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
@@ -880,26 +883,32 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
     df_data = df_data.T
     print(df_data)
 
-    # show data in graph
-    output = df_data.plot.line()
-    output.set_title(y_axis_data + " (" + case_name + ")")
-    # output.set_ylim(top=0)
-    output.set_xlabel("Demand Multiplier")
+    ## assign color values
+    num_entries = len(df_data.columns)
+    color = colors(np.linspace(0, 1, num_entries))
+    custom_cycler = (cycler(color=color))
+    plt.rc('axes', prop_cycle=custom_cycler)
 
-    box = output.get_position()
-    output.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
-    output.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    # show data in graph
+    ax = df_data.plot.line()
+    ax.set_title(y_axis_data + " (" + case_name + ")")
+    # output.set_ylim(top=0)
+    ax.set_xlabel("Demand Multiplier")
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
     if data_is_vector:
         filename = "sensitivityplot_" + case_name + "_" + y_axis_data + "_L{}_norm.png".format(vector_norm)
-        output.set_ylabel('L-{} norm'.format(vector_norm))
+        ax.set_ylabel('L-{} norm'.format(vector_norm))
     elif data_is_pct:
         filename = "sensitivityplot_" + case_name + "_" + y_axis_data + "_pctDiff.png"
-        output.set_ylabel('Relative difference (%)')
-        output.yaxis.set_major_formatter(mtick.PercentFormatter())
+        ax.set_ylabel('Relative difference (%)')
+        ax.yaxis.set_major_formatter(mtick.PercentFormatter())
     elif data_is_nominal:
         filename = "sensitivityplot_" + case_name + "_" + y_axis_data + "_nominal.png"
-        output.set_ylabel('Nominal value (p.u.)')
+        ax.set_ylabel('Nominal value (p.u.)')
 
     # save to destination folder
     destination = os.path.join(case_location, 'plots')
@@ -947,6 +956,9 @@ def submain(idx=None, show_plot=True):
     """
     solves models and generates plots for test case at test_cases[idx] or a default case
     """
+
+    colors = cmap.viridis
+
     if idx is None:
         test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
@@ -989,14 +1001,14 @@ def submain(idx=None, show_plot=True):
     for key, val in test_model_dict.items():
         if 'lazy' in key or '_e' in key:
             test_model_dict[key] = False
-    generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=show_plot)
+    generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, colors=colors, show_plot=show_plot)
 
     ## add lazy models to pareto plots
     for key, val in test_model_dict.items():
         if 'lazy' in key:
             test_model_dict[key] = True
     generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_infeas, x_axis_generator=tu.solve_time,
-                             size_generator=tu.num_constraints, show_plot=show_plot)
+                             size_generator=tu.num_constraints, colors=colors, show_plot=show_plot)
 
 
 def idx_to_test_case(s):
