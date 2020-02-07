@@ -786,12 +786,16 @@ def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_inf
 
     fig, ax = plt.subplots()
     for m in models:
+        if 'lazy' in m:
+            mark = 'D'
+        else:
+            mark = 'o'
         x = df_x_data[m]
         y = df_y_data[m]
         if size_generator is not None:
             size = df_s_data[m] * (max_size / max_size_raw)
             size = max(min_size, size)
-        ax.scatter(x, y, s=size, label=m)
+        ax.scatter(x, y, s=size, label=m, marker=mark)
         # ax.annotate(m, (x,y))
 
     ax.set_title(y_axis_name + " vs. " + x_axis_name + "\n(" + case_name + ")")
@@ -883,6 +887,8 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
     df_data = df_data.T
     print(df_data)
 
+    models = list(df_data.columns.values)
+
     ## assign color values
     num_entries = len(df_data.columns)
     color = colors(np.linspace(0, 1, num_entries))
@@ -890,7 +896,16 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
     plt.rc('axes', prop_cycle=custom_cycler)
 
     # show data in graph
-    ax = df_data.plot.line()
+    fig, ax = plt.subplots()
+    for m in models:
+        if m =='clopf_default':
+            mark = 'x'
+        else:
+            mark = '.'
+        y = df_data[m]
+        ax.plot(y, label=m, marker=mark)
+        # ax.annotate(m, (x,y))
+
     ax.set_title(y_axis_data + " (" + case_name + ")")
     # output.set_ylim(top=0)
     ax.set_xlabel("Demand Multiplier")
@@ -957,7 +972,29 @@ def submain(idx=None, show_plot=True):
     solves models and generates plots for test case at test_cases[idx] or a default case
     """
 
-    colors = cmap.viridis
+    ## Sequential colors: lightness value increases monotonically
+    #colors = cmap.viridis
+    #colors = cmap.cividis
+    #colors = cmap.magma
+    #colors = cmap.plasma
+    ## Diverging/cyclic colors: monotonically increasing lightness followed by monotonically decreasing lightness
+    #colors = cmap.Spectral
+    colors = cmap.coolwarm #*****#
+    #colors = cmap.twilight
+    #colors = cmap.twilight_shifted
+    #colors = cmap.hsv
+    ## Qualitative colors: not perceptual
+    #colors = cmap.Paired
+    #colors = cmap.Accent
+    #colors = cmap.Set3
+    ## Miscellaneous colors:
+    #colors = cmap.gnuplot #*****#
+    #colors = cmap.gnuplot2
+    #colors = cmap.CMRmap
+    #colors = cmap.jet
+    #colors = cmap.nipy_spectral
+
+
 
     if idx is None:
         test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
