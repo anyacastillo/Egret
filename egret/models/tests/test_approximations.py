@@ -242,14 +242,19 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
 
     if tm['acopf']:
         md = create_new_model_data(md_flat, mult)
-        md_ac, m, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
-        md_ac.data['system']['mult'] = mult
-        record_results('acopf', mult, md_ac)
+        try:
+            md_ac, m, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
+            record_results('acopf', mult, md_ac)
+        except:
+            pass
 
     if tm['slopf']:
         md = create_new_model_data(md_basepoint, mult)
-        md_lccm, m, results = solve_lccm(md, "gurobi", return_model=True, return_results=True, solver_tee=False)
-        record_results('slopf', mult, md_lccm)
+        try:
+            md_lccm, m, results = solve_lccm(md, "gurobi", return_model=True, return_results=True, solver_tee=False)
+            record_results('slopf', mult, md_lccm)
+        except:
+            pass
 
     if tm['dlopf_default']:
         md = create_new_model_data(md_basepoint, mult)
@@ -258,10 +263,12 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['lazy'] = False
         ptdf_options['lazy_voltage'] = False
         kwargs['ptdf_options'] = ptdf_options
-        md_fdf, m, results = solve_fdf(md, "gurobi", return_model=True, return_results=True,
-                                       solver_tee=False, **kwargs)
-
-        record_results('dlopf_default', mult, md_fdf)
+        try:
+            md_fdf, m, results = solve_fdf(md, "gurobi", return_model=True, return_results=True,
+                                           solver_tee=False, **kwargs)
+            record_results('dlopf_default', mult, md_fdf)
+        except:
+            pass
 
     if tm['dlopf_lazy']:
         md = create_new_model_data(md_basepoint, mult)
@@ -272,10 +279,12 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['lazy'] = True
         ptdf_options['lazy_voltage'] = True
         kwargs['ptdf_options'] = ptdf_options
-        md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
-                                       solver_tee=False, options=options, **kwargs)
-
-        record_results('dlopf_lazy', mult, md_fdf)
+        try:
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+                                           solver_tee=False, options=options, **kwargs)
+            record_results('dlopf_lazy', mult, md_fdf)
+        except:
+            pass
 
     if tm['dlopf_e4']:
         md = create_new_model_data(md_basepoint, mult)
@@ -289,10 +298,12 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['abs_qtdf_tol'] = 5e-4
         ptdf_options['rel_vdf_tol'] = 10e-4
         kwargs['ptdf_options'] = ptdf_options
-        md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
-                                       solver_tee=False, options=options, **kwargs)
-
-        record_results('dlopf_e4', mult, md_fdf)
+        try:
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+                                           solver_tee=False, options=options, **kwargs)
+            record_results('dlopf_e4', mult, md_fdf)
+        except:
+            pass
 
     if tm['dlopf_e3']:
         md = create_new_model_data(md_basepoint, mult)
@@ -306,10 +317,12 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['abs_qtdf_tol'] = 5e-3
         ptdf_options['rel_vdf_tol'] = 10e-3
         kwargs['ptdf_options'] = ptdf_options
-        md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
-                                       solver_tee=False, options=options, **kwargs)
-
-        record_results('dlopf_e3', mult, md_fdf)
+        try:
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+                                           solver_tee=False, options=options, **kwargs)
+            record_results('dlopf_e3', mult, md_fdf)
+        except:
+            pass
 
     if tm['dlopf_e2']:
         md = create_new_model_data(md_basepoint, mult)
@@ -323,10 +336,12 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['abs_qtdf_tol'] = 5e-2
         ptdf_options['rel_vdf_tol'] = 10e-2
         kwargs['ptdf_options'] = ptdf_options
-        md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
-                                       solver_tee=False, options=options, **kwargs)
-
-        record_results('dlopf_e2', mult, md_fdf)
+        try:
+            md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
+                                           solver_tee=False, options=options, **kwargs)
+            record_results('dlopf_e2', mult, md_fdf)
+        except:
+            pass
 
     if tm['clopf_default']:
         md = create_new_model_data(md_basepoint, mult)
@@ -335,10 +350,12 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['lazy'] = False
         ptdf_options['lazy_voltage'] = False
         kwargs['ptdf_options'] = ptdf_options
-        md_fdfs, m, results = solve_fdf_simplified(md, "gurobi", return_model=True, return_results=True,
-                                                   solver_tee=False, **kwargs)
-
-        record_results('clopf_default', mult, md_fdfs)
+        try:
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi", return_model=True, return_results=True,
+                                                       solver_tee=False, **kwargs)
+            record_results('clopf_default', mult, md_fdfs)
+        except:
+            pass
 
     if tm['clopf_lazy']:
         md = create_new_model_data(md_basepoint, mult)
@@ -349,10 +366,12 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['lazy'] = True
         ptdf_options['lazy_voltage'] = True
         kwargs['ptdf_options'] = ptdf_options
-        md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
-                                                   solver_tee=False, options=options, **kwargs)
-
-        record_results('clopf_lazy', mult, md_fdfs)
+        try:
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+                                                       solver_tee=False, options=options, **kwargs)
+            record_results('clopf_lazy', mult, md_fdfs)
+        except:
+            pass
 
     if tm['clopf_e4']:
         md = create_new_model_data(md_basepoint, mult)
@@ -366,10 +385,12 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['abs_qtdf_tol'] = 5e-4
         ptdf_options['rel_vdf_tol'] = 10e-4
         kwargs['ptdf_options'] = ptdf_options
-        md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
-                                                   solver_tee=False, options=options, **kwargs)
-
-        record_results('clopf_e4', mult, md_fdfs)
+        try:
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+                                                       solver_tee=False, options=options, **kwargs)
+            record_results('clopf_e4', mult, md_fdfs)
+        except:
+            pass
 
     if tm['clopf_e3']:
         md = create_new_model_data(md_basepoint, mult)
@@ -383,10 +404,12 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['abs_qtdf_tol'] = 5e-3
         ptdf_options['rel_vdf_tol'] = 10e-3
         kwargs['ptdf_options'] = ptdf_options
-        md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
-                                                   solver_tee=False, options=options, **kwargs)
-
-        record_results('clopf_e3', mult, md_fdfs)
+        try:
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+                                                       solver_tee=False, options=options, **kwargs)
+            record_results('clopf_e3', mult, md_fdfs)
+        except:
+            pass
 
     if tm['clopf_e2']:
         md = create_new_model_data(md_basepoint, mult)
@@ -400,10 +423,12 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['abs_qtdf_tol'] = 5e-2
         ptdf_options['rel_vdf_tol'] = 10e-2
         kwargs['ptdf_options'] = ptdf_options
-        md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
-                                                   solver_tee=False, options=options, **kwargs)
-
-        record_results('clopf_e2', mult, md_fdfs)
+        try:
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
+                                                       solver_tee=False, options=options, **kwargs)
+            record_results('clopf_e2', mult, md_fdfs)
+        except:
+            pass
 
     if tm['clopf_p_default']:
         kwargs = {}
@@ -411,10 +436,13 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['lazy'] = False
         kwargs['ptdf_options'] = ptdf_options
         md = create_new_model_data(md_basepoint, mult)
-        md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi",
-                                                  dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
-                                                  return_model=True, return_results=True, solver_tee=False, **kwargs)
-        record_results('clopf_p_default', mult, md_ptdfl)
+        try:
+            md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi",
+                                                      dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
+                                                      return_model=True, return_results=True, solver_tee=False, **kwargs)
+            record_results('clopf_p_default', mult, md_ptdfl)
+        except:
+            pass
 
     if tm['clopf_p_lazy']:
         kwargs = {}
@@ -424,11 +452,14 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['lazy'] = True
         kwargs['ptdf_options'] = ptdf_options
         md = create_new_model_data(md_basepoint, mult)
-        md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent",
-                                                  dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
-                                                  return_model=True, return_results=True, solver_tee=False,
-                                                  options=options, **kwargs)
-        record_results('clopf_p_lazy', mult, md_ptdfl)
+        try:
+            md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent",
+                                                      dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
+                                                      return_model=True, return_results=True, solver_tee=False,
+                                                      options=options, **kwargs)
+            record_results('clopf_p_lazy', mult, md_ptdfl)
+        except:
+            pass
 
     if tm['clopf_p_e4']:
         kwargs = {}
@@ -439,11 +470,14 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['abs_ptdf_tol'] = 1e-4
         kwargs['ptdf_options'] = ptdf_options
         md = create_new_model_data(md_basepoint, mult)
-        md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent",
-                                                  dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
-                                                  return_model=True, return_results=True, solver_tee=False,
-                                                  options=options, **kwargs)
-        record_results('clopf_p_e4', mult, md_ptdfl)
+        try:
+            md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent",
+                                                      dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
+                                                      return_model=True, return_results=True, solver_tee=False,
+                                                      options=options, **kwargs)
+            record_results('clopf_p_e4', mult, md_ptdfl)
+        except:
+            pass
 
     if tm['clopf_p_e3']:
         kwargs = {}
@@ -454,11 +488,14 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['abs_ptdf_tol'] = 1e-3
         kwargs['ptdf_options'] = ptdf_options
         md = create_new_model_data(md_basepoint, mult)
-        md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent",
-                                                  dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
-                                                  return_model=True, return_results=True, solver_tee=False,
-                                                  options=options, **kwargs)
-        record_results('clopf_p_e3', mult, md_ptdfl)
+        try:
+            md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent",
+                                                      dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
+                                                      return_model=True, return_results=True, solver_tee=False,
+                                                      options=options, **kwargs)
+            record_results('clopf_p_e3', mult, md_ptdfl)
+        except:
+            pass
 
     if tm['clopf_p_e2']:
         kwargs = {}
@@ -469,11 +506,14 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['abs_ptdf_tol'] = 1e-2
         kwargs['ptdf_options'] = ptdf_options
         md = create_new_model_data(md_basepoint, mult)
-        md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent",
-                                                  dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
-                                                  return_model=True, return_results=True, solver_tee=False,
-                                                  options=options, **kwargs)
-        record_results('clopf_p_e2', mult, md_ptdfl)
+        try:
+            md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_persistent",
+                                                      dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
+                                                      return_model=True, return_results=True, solver_tee=False,
+                                                      options=options, **kwargs)
+            record_results('clopf_p_e2', mult, md_ptdfl)
+        except:
+            pass
 
     if tm['dcopf_ptdf_default']:
         kwargs = {}
@@ -481,9 +521,12 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['lazy'] = False
         kwargs['ptdf_options'] = ptdf_options
         md = create_new_model_data(md_flat, mult)
-        md_ptdf, m, results = solve_dcopf(md, "gurobi", dcopf_model_generator=create_ptdf_dcopf_model,
-                                          return_model=True, return_results=True, solver_tee=False, **kwargs)
-        record_results('dcopf_ptdf_default', mult, md_ptdf)
+        try:
+            md_ptdf, m, results = solve_dcopf(md, "gurobi", dcopf_model_generator=create_ptdf_dcopf_model,
+                                              return_model=True, return_results=True, solver_tee=False, **kwargs)
+            record_results('dcopf_ptdf_default', mult, md_ptdf)
+        except:
+            pass
 
     if tm['dcopf_ptdf_lazy']:
         kwargs = {}
@@ -493,10 +536,13 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['lazy'] = True
         kwargs['ptdf_options'] = ptdf_options
         md = create_new_model_data(md_flat, mult)
-        md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
-                                          return_model=True, return_results=True, solver_tee=False,
-                                          options=options, **kwargs)
-        record_results('dcopf_ptdf_lazy', mult, md_ptdf)
+        try:
+            md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
+                                              return_model=True, return_results=True, solver_tee=False,
+                                              options=options, **kwargs)
+            record_results('dcopf_ptdf_lazy', mult, md_ptdf)
+        except:
+            pass
 
     if tm['dcopf_ptdf_e4']:
         kwargs = {}
@@ -507,10 +553,13 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['abs_ptdf_tol'] = 1e-4
         kwargs['ptdf_options'] = ptdf_options
         md = create_new_model_data(md_flat, mult)
-        md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
-                                          return_model=True, return_results=True, solver_tee=False,
-                                          options=options, **kwargs)
-        record_results('dcopf_ptdf_e4', mult, md_ptdf)
+        try:
+            md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
+                                              return_model=True, return_results=True, solver_tee=False,
+                                              options=options, **kwargs)
+            record_results('dcopf_ptdf_e4', mult, md_ptdf)
+        except:
+            pass
 
     if tm['dcopf_ptdf_e3']:
         kwargs = {}
@@ -521,10 +570,13 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['abs_ptdf_tol'] = 1e-3
         kwargs['ptdf_options'] = ptdf_options
         md = create_new_model_data(md_flat, mult)
-        md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
-                                          return_model=True, return_results=True, solver_tee=False,
-                                          options=options, **kwargs)
-        record_results('dcopf_ptdf_e3', mult, md_ptdf)
+        try:
+            md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
+                                              return_model=True, return_results=True, solver_tee=False,
+                                              options=options, **kwargs)
+            record_results('dcopf_ptdf_e3', mult, md_ptdf)
+        except:
+            pass
 
     if tm['dcopf_ptdf_e2']:
         kwargs = {}
@@ -535,23 +587,32 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['abs_ptdf_tol'] = 1e-2
         kwargs['ptdf_options'] = ptdf_options
         md = create_new_model_data(md_flat, mult)
-        md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
-                                          return_model=True, return_results=True, solver_tee=False,
-                                          options=options, **kwargs)
-        record_results('dcopf_ptdf_e2', mult, md_ptdf)
+        try:
+            md_ptdf, m, results = solve_dcopf(md, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
+                                              return_model=True, return_results=True, solver_tee=False,
+                                              options=options, **kwargs)
+            record_results('dcopf_ptdf_e2', mult, md_ptdf)
+        except:
+            pass
 
     if tm['qcopf_btheta']:
         md = create_new_model_data(md_flat, mult)
-        md_bthetal, m, results = solve_dcopf_losses(md, "gurobi",
-                                                    dcopf_losses_model_generator=create_btheta_losses_dcopf_model,
-                                                    return_model=True, return_results=True, solver_tee=False)
-        record_results('qcopf_btheta', mult, md_bthetal)
+        try:
+            md_bthetal, m, results = solve_dcopf_losses(md, "gurobi",
+                                                        dcopf_losses_model_generator=create_btheta_losses_dcopf_model,
+                                                        return_model=True, return_results=True, solver_tee=False)
+            record_results('qcopf_btheta', mult, md_bthetal)
+        except:
+            pass
 
     if tm['dcopf_btheta']:
         md = create_new_model_data(md_flat, mult)
-        md_btheta, m, results = solve_dcopf(md, "gurobi", dcopf_model_generator=create_btheta_dcopf_model,
-                                            return_model=True, return_results=True, solver_tee=False)
-        record_results('dcopf_btheta', mult, md_btheta)
+        try:
+            md_btheta, m, results = solve_dcopf(md, "gurobi", dcopf_model_generator=create_btheta_dcopf_model,
+                                                return_model=True, return_results=True, solver_tee=False)
+            record_results('dcopf_btheta', mult, md_btheta)
+        except:
+            pass
 
 
 def record_results(idx, mult, md):
@@ -861,16 +922,22 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
 
 def main(arg):
 
+    idxA = case_names.index('pglib_opf_case1354_pegase')  ## < 1000 buses
+    idxB = case_names.index('pglib_opf_case2383wp_k')  ## 1354 - 2316 buses
+    idxC = case_names.index('pglib_opf_case6468_rte')  ## 2383 - 4661 buses
+    idxD = case_names.index('pglib_opf_case13659_pegase')  ## 6468 - 10000 buses
+    idxE = case_names.index('pglib_opf_case13659_pegase') + 1  ## 13659 buses
+
     if arg == 'A':
-        idx_list = list(range(0,19))    ## < 1000 buses
+        idx_list = list(range(0,idxA))
     elif arg == 'B':
-        idx_list = list(range(19,24))   ## 1354 - 2316 buses
+        idx_list = list(range(idxA,idxB))
     elif arg == 'C':
-        idx_list = list(range(24,36))   ## 2383 - 4661 buses
+        idx_list = list(range(idxB,idxC))
     elif arg == 'D':
-        idx_list = list(range(36,43))   ## 6468 - 10000 buses
+        idx_list = list(range(idxC,idxD))
     elif arg == 'E':
-        idx_list = [43]                 ## 13659 buses
+        idx_list = list(range(idxD,idxE))
 
     for idx in idx_list:
         submain(idx, show_plot=False)
@@ -888,39 +955,65 @@ def submain(idx=None, show_plot=True):
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case118_ieee.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
     else:
-        idx=int(idx)
-        test_case=test_cases[idx]
+        test_case=idx_to_test_case(idx)
 
     test_model_dict = \
         {'slopf': True,
          'dlopf_default': True,
          'dlopf_lazy' : True,
-         'dlopf_e4': False,
-         'dlopf_e3': False,
-         'dlopf_e2': False,
+         'dlopf_e4': True,
+         'dlopf_e3': True,
+         'dlopf_e2': True,
          'clopf_default': True,
          'clopf_lazy': True,
-         'clopf_e4': False,
-         'clopf_e3': False,
-         'clopf_e2': False,
+         'clopf_e4': True,
+         'clopf_e3': True,
+         'clopf_e2': True,
          'clopf_p_default': True,
          'clopf_p_lazy': True,
-         'clopf_p_e4': False,
-         'clopf_p_e3': False,
-         'clopf_p_e2': False,
+         'clopf_p_e4': True,
+         'clopf_p_e3': True,
+         'clopf_p_e2': True,
          'qcopf_btheta': True,
          'dcopf_ptdf_default': True,
          'dcopf_ptdf_lazy': True,
-         'dcopf_ptdf_e4': False,
-         'dcopf_ptdf_e3': False,
-         'dcopf_ptdf_e2': False,
+         'dcopf_ptdf_e4': True,
+         'dcopf_ptdf_e3': True,
+         'dcopf_ptdf_e2': True,
          'dcopf_btheta': True
          }
 
-    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+
+    ## remove lazy and tolerance models from sensitivity plots
+    for key, val in test_model_dict.items():
+        if 'lazy' in key or '_e' in key:
+            test_model_dict[key] = False
     generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, show_plot=show_plot)
+
+    ## add lazy models to pareto plots
+    for key, val in test_model_dict.items():
+        if 'lazy' in key:
+            test_model_dict[key] = True
     generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_infeas, x_axis_generator=tu.solve_time,
                              size_generator=tu.num_constraints, show_plot=show_plot)
+
+
+def idx_to_test_case(s):
+    try:
+        idx = int(s)
+        tc = test_cases[idx]
+        return tc
+    except IndexError:
+        raise SyntaxError("Index out of range of test_cases.")
+    except ValueError:
+        try:
+            idx = case_names.index(s)
+            tc = test_cases[idx]
+            return tc
+        except ValueError:
+            raise SyntaxError(
+                "Expecting argument of either A, B, C, D, E, or an index or case name from the test_cases list.")
 
 if __name__ == '__main__':
     import sys
