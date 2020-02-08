@@ -642,6 +642,16 @@ def get_solution_file_location(test_case):
     return solution_location
 
 
+def get_summary_file_location(folder):
+    current_dir, current_file = os.path.split(os.path.realpath(__file__))
+    location = os.path.join(current_dir, 'transmission_test_instances','approximation_summary_files', folder)
+
+    if not os.path.exists(location):
+        os.makedirs(location)
+
+    return location
+
+
 def create_testcase_directory(test_case):
     # directory locations
     cwd = os.getcwd()
@@ -727,103 +737,42 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
     create_testcase_directory(test_case)
 
 
-def generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_infeas, x_axis_generator=tu.solve_time,
-                         size_generator=tu.num_constraints, max_size=500, min_size=5,
-                         colors=cmap.viridis, show_plot=False):
+def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,tu.num_constraints,tu.sum_infeas,tu.solve_time]):
+
     case_location = get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
 
-    if size_generator is None:
-        size = None
-
-    ## empty dataframe to add data into
-    df_data = pd.DataFrame(data=None)
-    df_y_raw = pd.DataFrame(data=None)
-    df_x_raw = pd.DataFrame(data=None)
-    df_s_raw = pd.DataFrame(data=None)
-
-    ## iterate over test_model_dict
+    ## include acopf results
     test_model_dict['acopf'] = True
-    for test_model, val in test_model_dict.items():
-        if val:
-            ## read_sensitivity_data returns a dataFrame
-            df_y = read_sensitivity_data(case_location, test_model, data_generator=y_axis_generator)
-            df_x = read_sensitivity_data(case_location, test_model, data_generator=x_axis_generator)
-            df_y_raw = pd.concat([df_y_raw, df_y])
-            df_x_raw = pd.concat([df_x_raw, df_x])
 
-            if size_generator is not None:
-                df_s = read_sensitivity_data(case_location, test_model, data_generator=size_generator)
-                df_s_raw = pd.concat([df_s_raw, df_s])
+    df_data = pd.DataFrame(data=None, index=test_model_dict.keys())
 
-    ## but what we want is the average across the sensitivity multipliers
-    df_y_data = df_y_raw.mean(axis=1)
-    df_x_data = df_x_raw.mean(axis=1)
-    df_s_data = df_s_raw.mean(axis=1)
+    for func in function_list:
+        ## put data into blank DataFrame
+        df_func = pd.DataFrame(data=None)
 
+        for test_model, val in test_model_dict.items():
+            # read data and place in df_func
+            df_raw = read_sensitivity_data(case_location, test_model, data_generator=func)
+            df_func = pd.concat([df_func , df_raw], sort=True)
 
-    ## put data in single dataframe
-    y_axis_name = y_axis_generator.__name__
-    x_axis_name = x_axis_generator.__name__
-    df_data = pd.DataFrame(data=df_y_data.values, index=df_y_data.index, columns=[y_axis_name])
-    df_data[x_axis_name] = df_x_data.values
-    if size_generator is not None:
-        size_name = size_generator.__name__
-        df_data[size_name] = df_s_data
+        func_name = func.__name__
+        df_func = df_func.mean(axis=1)
+        df_func = pd.DataFrame(data=df_func.values, index=df_func.index, columns=[func_name])
 
+        #df_data = pd.concat([df_data, df_func])
+        df_data[func_name] = df_func
 
-    ## assign color values
-    num_entries = len(df_data)
-    color = colors(np.linspace(0, 1, num_entries))
-    custom_cycler = (cycler(color=color))
-    plt.rc('axes', prop_cycle=custom_cycler)
+    ## save DATA to csv
+    destination = get_summary_file_location('data')
+    filename = "mean_data_" + case_name + ".csv"
+    df_data.to_csv(os.path.join(destination, filename))
+
+    print(df_data)
 
 
-    max_size_raw = max(df_s_data.values)
-
-    models = list(df_x_data.index.values)
-
-    fig, ax = plt.subplots()
-    for m in models:
-        if 'lazy' in m:
-            mark = 'D'
-        else:
-            mark = 'o'
-        x = df_x_data[m]
-        y = df_y_data[m]
-        if size_generator is not None:
-            size = df_s_data[m] * (max_size / max_size_raw)
-            size = max(min_size, size)
-        ax.scatter(x, y, s=size, label=m, marker=mark)
-        # ax.annotate(m, (x,y))
-
-    ax.set_title(y_axis_name + " vs. " + x_axis_name + "\n(" + case_name + ")")
-    ax.set_ylabel(y_axis_name)
-    ax.set_xlabel(x_axis_name)
-
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-
-    ## save figure
-    filename = "paretoplot_" + case_name + "_" + y_axis_name + "_v_" + x_axis_name + ".png"
-    destination = os.path.join(case_location, 'plots')
-    if not os.path.exists(destination):
-        os.makedirs(destination)
-    plt.savefig(os.path.join(destination, filename))
-
-    ## save data to csv
-    filename, ext = os.path.splitext(filename)
-    csv_path = os.path.join(destination, filename + '.csv')
-    df_data.to_csv(csv_path)
-
-    if show_plot:
-        plt.show()
-
-
-def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.total_cost, vector_norm=2,
-                              colors=cmap.viridis, show_plot=False):
+def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas, vector_norm=2):
 
     case_location = get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
@@ -875,17 +824,98 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
             df_col = pd.DataFrame(data, index=[test_model])
             df_data = pd.concat([df_data, df_col])
 
-    # include acopf column for nominal data
-    # if data_is_nominal:
-    #    print('df_data: \n {} \n'.format(df_data))
-    #    print('df_acopf: \n {}'.format(df_acopf))
-    #    df_data = pd.concat([df_data, df_acopf])
 
-    # show data in table
+    ## save DATA as csv
     y_axis_data = data_generator.__name__
-    print('Summary data from {} and L-{} norm for non-scalar values.'.format(y_axis_data, vector_norm))
     df_data = df_data.T
-    print(df_data)
+    destination = get_summary_file_location('data')
+    filename = "sensitivity_data_" + case_name + "_" + y_axis_data + ".csv"
+    df_data.to_csv(os.path.join(destination, filename))
+
+
+
+def get_data(filename, test_case, test_model_dict):
+
+    ## get data from CSV
+    source = get_summary_file_location('data')
+    df_data = pd.read_csv(os.path.join(source,filename), index_col=0)
+
+    remove_list = []
+    for tm,val in test_model_dict.items():
+        if not val:
+            remove_list.append(tm)
+
+    try:
+        df_data = df_data.drop(remove_list, axis=0)
+    except:
+        df_data = df_data.drop(remove_list, axis=1)
+
+    return df_data
+
+def generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data='solve_time', y_units='p.u', x_units='s',
+                         mark_default='o', mark_lazy='D', mark_acopf='*', mark_size=36, colors=cmap.viridis,
+                         annotate_plot=False, show_plot=False):
+
+    ## get data
+    _, case_name = os.path.split(test_case)
+    case_name, ext = os.path.splitext(case_name)
+    input = "mean_data_" + case_name + ".csv"
+    df_data = get_data(input, test_case, test_model_dict)
+
+    models = list(df_data.index.values)
+    df_y_data = df_data[y_data]
+    df_x_data = df_data[x_data]
+
+
+    ## assign color values
+    num_entries = len(df_data)
+    color = colors(np.linspace(0, 1, num_entries))
+    custom_cycler = (cycler(color=color))
+    plt.rc('axes', prop_cycle=custom_cycler)
+
+
+    fig, ax = plt.subplots()
+    for m in models:
+        if 'lazy' in m:
+            mark = mark_lazy
+        elif 'acopf' in m:
+            mark = mark_acopf
+        else:
+            mark = mark_default
+
+        x = df_x_data[m]
+        y = df_y_data[m]
+        ax.scatter(x, y, s=mark_size, label=m, marker=mark)
+
+        if annotate_plot:
+            ax.annotate(m, (x,y))
+
+    ax.set_title(y_data + " vs. " + x_data + "\n(" + case_name + ")")
+    ax.set_ylabel(y_data + " (" + y_units + ")")
+    ax.set_xlabel(x_data + " (" + x_units + ")")
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+    ## save FIGURE to png
+    figure_dest = get_summary_file_location('figures')
+    filename = "paretoplot_" + case_name + "_" + y_data + "_v_" + x_data + ".png"
+    plt.savefig(os.path.join(figure_dest, filename))
+
+    if show_plot:
+        plt.show()
+
+
+
+def generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas', units='p.u.',
+                              colors=cmap.viridis, show_plot=False):
+
+    ## get data
+    _, case_name = os.path.split(test_case)
+    case_name, ext = os.path.splitext(case_name)
+    input = "sensitivity_data_" + case_name + "_" + plot_data + ".csv"
+    df_data = get_data(input, test_case, test_model_dict)
 
     models = list(df_data.columns.values)
 
@@ -898,15 +928,27 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
     # show data in graph
     fig, ax = plt.subplots()
     for m in models:
-        if m =='clopf_default':
-            mark = 'x'
+        if m =='slopf':
+            mark = '>'
+        elif m == 'dlopf_default':
+            mark = '^'
+        elif m == 'clopf_default':
+            mark = 'v'
+        elif m == 'clopf_p_default':
+            mark = '^'
+        elif m == 'qcopf_btheta':
+            mark = 'v'
+        elif m == 'dcopf_ptdf_default':
+            mark = '^'
+        elif m == 'dcopf_btheta':
+            mark = 'v'
         else:
-            mark = '.'
+            mark = ''
         y = df_data[m]
         ax.plot(y, label=m, marker=mark)
-        # ax.annotate(m, (x,y))
 
-    ax.set_title(y_axis_data + " (" + case_name + ")")
+
+    ax.set_title(plot_data + " (" + case_name + ")")
     # output.set_ylim(top=0)
     ax.set_xlabel("Demand Multiplier")
 
@@ -914,34 +956,25 @@ def generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.tota
     ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
-    if data_is_vector:
-        filename = "sensitivityplot_" + case_name + "_" + y_axis_data + "_L{}_norm.png".format(vector_norm)
-        ax.set_ylabel('L-{} norm'.format(vector_norm))
-    elif data_is_pct:
-        filename = "sensitivityplot_" + case_name + "_" + y_axis_data + "_pctDiff.png"
-        ax.set_ylabel('Relative difference (%)')
-        ax.yaxis.set_major_formatter(mtick.PercentFormatter())
-    elif data_is_nominal:
-        filename = "sensitivityplot_" + case_name + "_" + y_axis_data + "_nominal.png"
-        ax.set_ylabel('Nominal value (p.u.)')
+    filename = "sensitivityplot_" + case_name + "_" + plot_data + ".png"
+    ax.set_ylabel(plot_data + " (" +  units + ")")
 
-    # save to destination folder
-    destination = os.path.join(case_location, 'plots')
-
-    if not os.path.exists(destination):
-        os.makedirs(destination)
-
-    ## save figure
+    ## save FIGURE as png
+    destination = get_summary_file_location('figures')
     plt.savefig(os.path.join(destination, filename))
-
-    ## save data to csv
-    filename, ext = os.path.splitext(filename)
-    csv_path = os.path.join(destination, filename+'.csv')
-    df_data.to_csv(csv_path)
 
     # display
     if show_plot is True:
         plt.show()
+
+
+def generate_case_size_plot(test_case, test_model_dict, data_generator=tu.solve_time, colors=cmap.viridis,
+                            size_generator=tu.num_constraints, max_size=500, min_size=5, show_plot=False):
+
+    case_location = get_solution_file_location(test_case)
+    src_folder, case_name = os.path.split(test_case)
+    case_name, ext = os.path.splitext(case_name)
+
 
 
 def main(arg):
@@ -973,13 +1006,13 @@ def submain(idx=None, show_plot=True):
     """
 
     ## Sequential colors: lightness value increases monotonically
-    #colors = cmap.viridis
+    colors = cmap.viridis #*****#
     #colors = cmap.cividis
     #colors = cmap.magma
-    #colors = cmap.plasma
+    #colors = cmap.plasma #*****#
     ## Diverging/cyclic colors: monotonically increasing lightness followed by monotonically decreasing lightness
-    #colors = cmap.Spectral
-    colors = cmap.coolwarm #*****#
+    #colors = cmap.Spectral #*****#
+    #colors = cmap.coolwarm #*****#
     #colors = cmap.twilight
     #colors = cmap.twilight_shifted
     #colors = cmap.hsv
@@ -989,10 +1022,8 @@ def submain(idx=None, show_plot=True):
     #colors = cmap.Set3
     ## Miscellaneous colors:
     #colors = cmap.gnuplot #*****#
-    #colors = cmap.gnuplot2
-    #colors = cmap.CMRmap
     #colors = cmap.jet
-    #colors = cmap.nipy_spectral
+    #colors = cmap.nipy_spectral #*****#
 
 
 
@@ -1007,7 +1038,8 @@ def submain(idx=None, show_plot=True):
         test_case=idx_to_test_case(idx)
 
     test_model_dict = \
-        {'slopf': True,
+        {'acopf' : True,
+         'slopf': True,
          'dlopf_default': True,
          'dlopf_lazy' : True,
          'dlopf_e4': True,
@@ -1031,21 +1063,38 @@ def submain(idx=None, show_plot=True):
          'dcopf_ptdf_e2': True,
          'dcopf_btheta': True
          }
+    mean_functions = [tu.num_buses,
+    #                  tu.num_branches,
+    #                  tu.num_constraints,
+    #                  tu.num_variables,
+    #                  tu.model_sparsity,
+                      tu.sum_infeas,
+                      tu.solve_time,
+    #                  tu.thermal_infeas,
+    #                  tu.kcl_p_infeas,
+    #                  tu.kcl_q_infeas,
+    #                  tu.max_thermal_infeas,
+    #                  tu.max_kcl_p_infeas,
+    #                  tu.max_kcl_q_infeas,
+                      ]
 
     #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
+    generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
 
     ## remove lazy and tolerance models from sensitivity plots
     for key, val in test_model_dict.items():
         if 'lazy' in key or '_e' in key:
             test_model_dict[key] = False
-    generate_sensitivity_plot(test_case, test_model_dict, data_generator=tu.sum_infeas, colors=colors, show_plot=show_plot)
+    generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas', units='p.u.', colors=colors, show_plot=show_plot)
 
     ## add lazy models to pareto plots
     for key, val in test_model_dict.items():
         if 'lazy' in key:
             test_model_dict[key] = True
-    generate_pareto_plot(test_case, test_model_dict, y_axis_generator=tu.sum_infeas, x_axis_generator=tu.solve_time,
-                             size_generator=tu.num_constraints, colors=colors, show_plot=show_plot)
+    generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data='solve_time', y_units='p.u', x_units='s',
+                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
+                         annotate_plot=False, show_plot=show_plot)
 
 
 def idx_to_test_case(s):

@@ -27,6 +27,22 @@ def solve_time(md):
     return val
 
 
+def num_buses(md):
+
+    bus_attrs = md.attributes(element_type='bus')
+    val = len(bus_attrs['names'])
+
+    return val
+
+
+def num_branches(md):
+
+    branch_attrs = md.attributes(element_type='branch')
+    val = len(branch_attrs['names'])
+
+    return val
+
+
 def num_constraints(md):
 
     val = md.data['results']['#_cons']
