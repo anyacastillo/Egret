@@ -71,14 +71,14 @@ def model_sparsity(md):
 
     results = md.data['results']
 
-    if hasattr(results, '#_nz'):
+    try:
         nc = results['#_cons']
         nv = results['#_vars']
         nz = results['#_nz']
         val = nz / ( nc * nv )
         return val
-
-    return None
+    except:
+        return None
 
 
 def total_cost(md):

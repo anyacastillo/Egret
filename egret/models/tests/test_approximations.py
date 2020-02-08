@@ -100,7 +100,7 @@ case_names = ['pglib_opf_case3_lmbd',
               'pglib_opf_case39_epri',
               'pglib_opf_case57_ieee',
               'pglib_opf_case73_ieee_rts',
-              'pglib_opf_case89_pegase',
+              'pglib_opf_case89_pegase', ### not feasible at mult = 1.01 ###
               'pglib_opf_case118_ieee',
               'pglib_opf_case162_ieee_dtc',
               'pglib_opf_case179_goc',
@@ -213,6 +213,7 @@ def multiplier_loop(model_data, init=0.9, steps=10, acopf_model=create_psv_acopf
 
     if final_mult is None:
         print('Found no acceptable solutions with mult != 1. Try init between 1 and {}.'.format(mult))
+        final_mult = 1
 
     return final_mult
 
@@ -685,7 +686,9 @@ def read_sensitivity_data(case_folder, test_model, data_generator=tu.total_cost)
     filename = case + "_" + test_model + "_*.json"
     file_list = glob.glob(os.path.join(case_folder, filename))
 
-    print("Reading data for " + test_model + ".")
+    data_type = data_generator.__name__
+
+    print("Reading " + data_type + " data from " + filename + ".")
 
     data = {}
     for file in file_list:
@@ -737,6 +740,22 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
     create_testcase_directory(test_case)
 
 
+def geometricMean(array):
+
+    geomean = list()
+
+    for row in array:
+        n = len(row)
+        sum = 0
+        for i in range(n):
+            sum += math.log(row[i])
+        sum = sum / n
+        gm = math.exp(sum)
+        geomean.append(gm)
+
+    return geomean
+
+
 def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,tu.num_constraints,tu.sum_infeas,tu.solve_time]):
 
     case_location = get_solution_file_location(test_case)
@@ -758,6 +777,20 @@ def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,t
             df_func = pd.concat([df_func , df_raw], sort=True)
 
         func_name = func.__name__
+
+        ## also calculate geomean and maximum if function is solve_time()
+        if func_name=='solve_time':
+            gm = geometricMean(df_func.to_numpy())
+            gm_name = 'gm_' + func_name
+            df_gm = pd.DataFrame(data=gm, index=df_func.index, columns=[gm_name])
+            df_data[gm_name] = df_gm
+
+            max = df_func.max(axis=1)
+            max_name = 'max_' + func_name
+            df_max = pd.DataFrame(data=max.values, index=df_func.index, columns=['max_' + func_name])
+            df_data[max_name] = df_max
+
+
         df_func = df_func.mean(axis=1)
         df_func = pd.DataFrame(data=df_func.values, index=df_func.index, columns=[func_name])
 
@@ -769,10 +802,9 @@ def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,t
     filename = "mean_data_" + case_name + ".csv"
     df_data.to_csv(os.path.join(destination, filename))
 
-    print(df_data)
 
-
-def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas, vector_norm=2):
+def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas,
+                              data_is_pct=False, data_is_vector=False, vector_norm=2):
 
     case_location = get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
@@ -781,22 +813,16 @@ def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_
     # acopf comparison
     df_acopf = read_sensitivity_data(case_location, 'acopf', data_generator=data_generator)
 
-    data_is_vector = False
-    data_is_pct = False
-    data_is_nominal = False
 
     ## calculates specified L-norm of difference with acopf (e.g., generator dispatch, branch flows, voltage profile...)
-    if len(df_acopf.values) > 1:
-        data_is_vector = True
+    if data_is_vector:
         print('data is vector of length {}'.format(len(df_acopf.values)))
 
     ## calcuates relative difference from acopf (e.g., objective value, solution time...)
-    elif sum(df_acopf[idx].values for idx in df_acopf) / len(df_acopf) > 1.0:
-        data_is_pct = True
+    elif data_is_pct:
         acopf_avg = sum(df_acopf[idx].values for idx in df_acopf) / len(df_acopf)
         print('data is pct with acopf values averaging {}'.format(acopf_avg))
     else:
-        data_is_nominal = True
         acopf_avg = sum(df_acopf[idx].values for idx in df_acopf) / len(df_acopf)
         print('data is nominal with acopf values averaging {}'.format(acopf_avg))
 
@@ -822,7 +848,7 @@ def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_
 
             # record test_model column in DataFrame
             df_col = pd.DataFrame(data, index=[test_model])
-            df_data = pd.concat([df_data, df_col])
+            df_data = pd.concat([df_data, df_col], sort=True)
 
 
     ## save DATA as csv
@@ -986,7 +1012,7 @@ def main(arg):
     idxE = case_names.index('pglib_opf_case13659_pegase') + 1  ## 13659 buses
 
     if arg == 'A':
-        idx_list = list(range(0,idxA))
+        idx_list = list(range(9,idxA))
     elif arg == 'B':
         idx_list = list(range(idxA,idxB))
     elif arg == 'C':
@@ -1006,7 +1032,7 @@ def submain(idx=None, show_plot=True):
     """
 
     ## Sequential colors: lightness value increases monotonically
-    colors = cmap.viridis #*****#
+    #colors = cmap.viridis #*****#
     #colors = cmap.cividis
     #colors = cmap.magma
     #colors = cmap.plasma #*****#
@@ -1021,7 +1047,7 @@ def submain(idx=None, show_plot=True):
     #colors = cmap.Accent
     #colors = cmap.Set3
     ## Miscellaneous colors:
-    #colors = cmap.gnuplot #*****#
+    colors = cmap.gnuplot #*****#
     #colors = cmap.jet
     #colors = cmap.nipy_spectral #*****#
 
@@ -1064,31 +1090,36 @@ def submain(idx=None, show_plot=True):
          'dcopf_btheta': True
          }
     mean_functions = [tu.num_buses,
-    #                  tu.num_branches,
-    #                  tu.num_constraints,
-    #                  tu.num_variables,
-    #                  tu.model_sparsity,
+                      tu.num_branches,
+                      tu.num_constraints,
+                      tu.num_variables,
+                      tu.model_sparsity,
                       tu.sum_infeas,
                       tu.solve_time,
-    #                  tu.thermal_infeas,
-    #                  tu.kcl_p_infeas,
-    #                  tu.kcl_q_infeas,
-    #                  tu.max_thermal_infeas,
-    #                  tu.max_kcl_p_infeas,
-    #                  tu.max_kcl_q_infeas,
+                      tu.thermal_infeas,
+                      tu.kcl_p_infeas,
+                      tu.kcl_q_infeas,
+                      tu.max_thermal_infeas,
+                      tu.max_kcl_p_infeas,
+                      tu.max_kcl_q_infeas,
                       ]
 
+    ## Model solves
     #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
-    generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
+
+    ## Generate data files
+    generate_mean_data(test_case,test_model_dict)
+    #generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
     generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
 
-    ## remove lazy and tolerance models from sensitivity plots
+    ## Generate plots
+    #---- remove lazy and tolerance models from sensitivity plots
     for key, val in test_model_dict.items():
         if 'lazy' in key or '_e' in key:
             test_model_dict[key] = False
     generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas', units='p.u.', colors=colors, show_plot=show_plot)
 
-    ## add lazy models to pareto plots
+    #---- add lazy models to pareto plots
     for key, val in test_model_dict.items():
         if 'lazy' in key:
             test_model_dict[key] = True
