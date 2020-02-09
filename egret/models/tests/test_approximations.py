@@ -781,14 +781,16 @@ def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,t
         ## also calculate geomean and maximum if function is solve_time()
         if func_name=='solve_time':
             gm = geometricMean(df_func.to_numpy())
-            gm_name = 'gm_' + func_name
+            gm_name = func_name + '_geomean'
             df_gm = pd.DataFrame(data=gm, index=df_func.index, columns=[gm_name])
             df_data[gm_name] = df_gm
 
             max = df_func.max(axis=1)
-            max_name = 'max_' + func_name
+            max_name = func_name + '_max'
             df_max = pd.DataFrame(data=max.values, index=df_func.index, columns=['max_' + func_name])
             df_data[max_name] = df_max
+
+            func_name = func_name + '_avg'
 
 
         df_func = df_func.mean(axis=1)
@@ -860,7 +862,7 @@ def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_
 
 
 
-def get_data(filename, test_case, test_model_dict):
+def get_data(filename, test_model_dict):
 
     ## get data from CSV
     source = get_summary_file_location('data')
@@ -886,7 +888,7 @@ def generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data
     _, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
     input = "mean_data_" + case_name + ".csv"
-    df_data = get_data(input, test_case, test_model_dict)
+    df_data = get_data(input, test_model_dict)
 
     models = list(df_data.index.values)
     df_y_data = df_data[y_data]
@@ -941,7 +943,7 @@ def generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas'
     _, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
     input = "sensitivity_data_" + case_name + "_" + plot_data + ".csv"
-    df_data = get_data(input, test_case, test_model_dict)
+    df_data = get_data(input, test_model_dict)
 
     models = list(df_data.columns.values)
 
@@ -994,12 +996,86 @@ def generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas'
         plt.show()
 
 
-def generate_case_size_plot(test_case, test_model_dict, data_generator=tu.solve_time, colors=cmap.viridis,
-                            size_generator=tu.num_constraints, max_size=500, min_size=5, show_plot=False):
+def generate_case_size_plot(test_model_dict, case_list=case_names,
+                            y_data='solve_time_geomean', y_units='s', x_data = 'num_buses', x_units=None,
+                            s_data='num_constraints', colors=cmap.viridis, max_size=500, min_size=5,
+                            annotate_plot=False, show_plot=False):
 
-    case_location = get_solution_file_location(test_case)
-    src_folder, case_name = os.path.split(test_case)
-    case_name, ext = os.path.splitext(case_name)
+    ## TODO: separate color/size legends
+    ## TODO: loglog scale
+
+    ## get data
+    y_dict = {}
+    x_dict = {}
+    s_dict = {}
+    for case in case_list:
+        try:
+            input = "mean_data_" + case + ".csv"
+            df_data = get_data(input, test_model_dict)
+            models = list(df_data.index.values)
+            for m in models:
+                if m in y_dict:
+                    y_dict[m].append(df_data.at[m, y_data])
+                    x_dict[m].append(df_data.at[m, x_data])
+                    if s_data is not None:
+                        s_dict[m].append(df_data.at[m, s_data])
+                else:
+                    y_dict[m] = [df_data.at[m, y_data]]
+                    x_dict[m] = [df_data.at[m, x_data]]
+                    if s_data is not None:
+                        s_dict[m] = [df_data.at[m, s_data]]
+
+        except:
+            pass
+
+    df_y_data = pd.DataFrame(y_dict)
+    df_x_data = pd.DataFrame(x_dict)
+#    if s_data is not None:
+    df_s_data = pd.DataFrame(s_dict)
+
+
+    ## assign color values
+    num_entries = len(df_data)
+    color = colors(np.linspace(0, 1, num_entries))
+    custom_cycler = (cycler(color=color))
+    plt.rc('axes', prop_cycle=custom_cycler)
+
+
+    fig, ax = plt.subplots()
+    for m in models:
+
+        x = df_x_data[m]
+        y = df_y_data[m]
+        if s_data is None:
+            mark_size = None
+        else:
+            mark_size = df_s_data[m]
+        ax.scatter(x, y, s=mark_size, label=m)
+
+        if annotate_plot:
+            ax.annotate(m, (x,y))
+
+    ax.set_title(y_data + " vs. " + x_data)
+    if y_units is not None:
+        ax.set_ylabel(y_data + " (" + y_units + ")")
+    else:
+        ax.set_ylabel(y_data)
+    if x_units is not None:
+        ax.set_xlabel(x_data + " (" + x_units + ")")
+    else:
+        ax.set_xlabel(x_data)
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+    ## save FIGURE to png
+    figure_dest = get_summary_file_location('figures')
+    filename = "casesizeplot_" + y_data + "_v_" + x_data + ".png"
+    plt.savefig(os.path.join(figure_dest, filename))
+
+    if show_plot:
+        plt.show()
 
 
 
@@ -1108,25 +1184,31 @@ def submain(idx=None, show_plot=True):
     #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate data files
-    generate_mean_data(test_case,test_model_dict)
-    #generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
-    generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
+#    generate_mean_data(test_case,test_model_dict)
+#    generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
+#    generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
 
     ## Generate plots
-    #---- remove lazy and tolerance models from sensitivity plots
+    #---- Sensitivity plots: remove lazy and tolerance models
     for key, val in test_model_dict.items():
         if 'lazy' in key or '_e' in key:
             test_model_dict[key] = False
-    generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas', units='p.u.', colors=colors, show_plot=show_plot)
+#    generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas', units='p.u.', colors=colors, show_plot=show_plot)
 
-    #---- add lazy models to pareto plots
+    #---- Pareto plots: add lazy models
     for key, val in test_model_dict.items():
         if 'lazy' in key:
             test_model_dict[key] = True
-    generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data='solve_time', y_units='p.u', x_units='s',
-                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
-                         annotate_plot=False, show_plot=show_plot)
+#    generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data='solve_time', y_units='p.u', x_units='s',
+#                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
+#                         annotate_plot=False, show_plot=show_plot)
 
+    #---- Case size plots:
+    generate_case_size_plot(test_model_dict, case_list=case_names,
+                            y_data='solve_time_geomean', y_units='s', x_data = 'num_buses', x_units=None,
+                            s_data='num_constraints', colors=colors, show_plot=show_plot)
+
+    #---- TODO: Factor truncation bar charts:
 
 def idx_to_test_case(s):
     try:
