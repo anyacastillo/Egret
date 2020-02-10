@@ -896,13 +896,24 @@ def generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data
 
 
     ## assign color values
-    num_entries = len(df_data)
-    color = colors(np.linspace(0, 1, num_entries))
-    custom_cycler = (cycler(color=color))
-    plt.rc('axes', prop_cycle=custom_cycler)
+    #num_entries = len(df_data)
+    #color = colors(np.linspace(0, 1, num_entries))
+    #custom_cycler = (cycler(color=color))
+    #plt.rc('axes', prop_cycle=custom_cycler)
 
-
+    ## Create plot
     fig, ax = plt.subplots()
+
+    #---- set property cycles
+    markers = ['o', '+', 'x']
+    if colors is not None:
+        n = len(df_data)
+        m = len(markers)
+        ax.set_prop_cycle(color=[colors(i) for i in np.linspace(0,1,n)],
+                          marker=[markers[i%m] for i in range(n)])
+    else:
+        ax.set_prop_cycle(marker=markers)
+
     for m in models:
         if 'lazy' in m:
             mark = mark_lazy
@@ -947,33 +958,26 @@ def generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas'
 
     models = list(df_data.columns.values)
 
-    ## assign color values
-    num_entries = len(df_data.columns)
-    color = colors(np.linspace(0, 1, num_entries))
-    custom_cycler = (cycler(color=color))
-    plt.rc('axes', prop_cycle=custom_cycler)
 
-    # show data in graph
+    ## Create plot
     fig, ax = plt.subplots()
+
+    #---- set property cycles
+    markers = ['x','o','+']
+    if colors is not None:
+        n = len(df_data.columns)
+        m = len(markers)
+        ax.set_prop_cycle(color=[colors(i) for i in np.linspace(0,1,n)],
+                          marker=[markers[i%m] for i in range(n)])
+    else:
+        ax.set_prop_cycle(marker=markers)
+
     for m in models:
-        if m =='slopf':
-            mark = '>'
-        elif m == 'dlopf_default':
-            mark = '^'
-        elif m == 'clopf_default':
-            mark = 'v'
-        elif m == 'clopf_p_default':
-            mark = '^'
-        elif m == 'qcopf_btheta':
-            mark = 'v'
-        elif m == 'dcopf_ptdf_default':
-            mark = '^'
-        elif m == 'dcopf_btheta':
-            mark = 'v'
-        else:
-            mark = ''
         y = df_data[m]
-        ax.plot(y, label=m, marker=mark)
+        if m =='acopf':
+            ax.plot(y, label=m, marker='')
+        else:
+            ax.plot(y, label=m)
 
 
     ax.set_title(plot_data + " (" + case_name + ")")
@@ -998,11 +1002,9 @@ def generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas'
 
 def generate_case_size_plot(test_model_dict, case_list=case_names,
                             y_data='solve_time_geomean', y_units='s', x_data = 'num_buses', x_units=None,
-                            s_data='num_constraints', colors=cmap.viridis, max_size=500, min_size=5,
+                            s_data='num_constraints', colors=cmap.viridis, s_max=500, s_min=5,
+                            yscale='linear',xscale='linear',
                             annotate_plot=False, show_plot=False):
-
-    ## TODO: separate color/size legends
-    ## TODO: loglog scale
 
     ## get data
     y_dict = {}
@@ -1030,18 +1032,25 @@ def generate_case_size_plot(test_model_dict, case_list=case_names,
 
     df_y_data = pd.DataFrame(y_dict)
     df_x_data = pd.DataFrame(x_dict)
-#    if s_data is not None:
-    df_s_data = pd.DataFrame(s_dict)
+    if s_data is not None:
+        df_s_data = pd.DataFrame(s_dict)
+        arr = df_s_data.values
+        data_max = arr.max()
+        data_min = arr.min()
+        arr = arr * (s_max / data_max)
+        arr[arr<s_min] = s_min
+        df_s_data = pd.DataFrame(data=arr,columns=models)
 
 
-    ## assign color values
-    num_entries = len(df_data)
-    color = colors(np.linspace(0, 1, num_entries))
-    custom_cycler = (cycler(color=color))
-    plt.rc('axes', prop_cycle=custom_cycler)
 
+    ## Create plot
+    fig, ax = plt.subplots(figsize=(9, 4))
 
-    fig, ax = plt.subplots()
+    #---- set color cycle
+    if colors is not None:
+        ax.set_prop_cycle(color=[colors(i) for i in np.linspace(0,1,len(df_data))])
+
+    #---- plot data
     for m in models:
 
         x = df_x_data[m]
@@ -1050,10 +1059,18 @@ def generate_case_size_plot(test_model_dict, case_list=case_names,
             mark_size = None
         else:
             mark_size = df_s_data[m]
-        ax.scatter(x, y, s=mark_size, label=m)
+        ax.scatter(x, y, s=mark_size, label=None)
 
         if annotate_plot:
             ax.annotate(m, (x,y))
+
+    # ---- plot empty data to help format the legend
+    for m in models:
+        x = []
+        y = []
+        mark_size = None
+        ax.scatter(x, y, s=mark_size, label=m)
+
 
     ax.set_title(y_data + " vs. " + x_data)
     if y_units is not None:
@@ -1067,7 +1084,12 @@ def generate_case_size_plot(test_model_dict, case_list=case_names,
 
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    first_legend = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    ax = plt.gca().add_artist(first_legend)
+    create_circlesize_legend(title=s_data,s_min=s_min, s_max=s_max, data_max=data_max)
+
+    plt.yscale(yscale)
+    plt.xscale(xscale)
 
     ## save FIGURE to png
     figure_dest = get_summary_file_location('figures')
@@ -1077,6 +1099,18 @@ def generate_case_size_plot(test_model_dict, case_list=case_names,
     if show_plot:
         plt.show()
 
+
+def create_circlesize_legend(title=None, s_min=5, s_max=500, data_max=1000):
+
+    c = '0.75'
+    sizes = [s_min, s_max/10, s_max/3, s_max]
+    dots = [plt.scatter([], [], color=c, s=sizes[i]) for i in range(len(sizes))]
+
+    data = [int(s_min), int(round(data_max/10,-1)), int(round(data_max/3,-1)), int(round(data_max,-2))]
+    labels = [str(data[i]) for i in range(len(sizes))]
+
+    new_legend = plt.legend(dots, labels,title=title, ncol=4,loc='upper center',borderpad=1)
+    plt.gca().add_artist(new_legend)
 
 
 def main(arg):
@@ -1184,9 +1218,9 @@ def submain(idx=None, show_plot=True):
     #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate data files
-#    generate_mean_data(test_case,test_model_dict)
-#    generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
-#    generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
+    #generate_mean_data(test_case,test_model_dict)
+    #generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
+    #generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
 
     ## Generate plots
     #---- Sensitivity plots: remove lazy and tolerance models
@@ -1199,14 +1233,15 @@ def submain(idx=None, show_plot=True):
     for key, val in test_model_dict.items():
         if 'lazy' in key:
             test_model_dict[key] = True
-#    generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data='solve_time', y_units='p.u', x_units='s',
+#    generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data='solve_time_geomean', y_units='p.u', x_units='s',
 #                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
 #                         annotate_plot=False, show_plot=show_plot)
 
     #---- Case size plots:
     generate_case_size_plot(test_model_dict, case_list=case_names,
                             y_data='solve_time_geomean', y_units='s', x_data = 'num_buses', x_units=None,
-                            s_data='num_constraints', colors=colors, show_plot=show_plot)
+                            s_data='num_constraints', colors=colors, xscale='log', yscale='linear',
+                            show_plot=show_plot)
 
     #---- TODO: Factor truncation bar charts:
 
