@@ -926,7 +926,7 @@ def declare_ineq_angle_diff_branch_lbub(model, index_set,
                 - pe.atan(m.vj[to_bus] / m.vr[to_bus]) <= branches[branch_name]['angle_diff_max']
 
 
-def declare_fdf_thermal_limit(model, index_set, thermal_limits, cuts=10):
+def declare_fdf_thermal_limit(model, index_set, thermal_limits, ploss_distribution=None, qloss_distribution=None, cuts=10):
     """
     Create the inequality constraints for the branch thermal limits
     based on the power variables for the fdf model.
@@ -949,10 +949,18 @@ def declare_fdf_thermal_limit(model, index_set, thermal_limits, cuts=10):
 
     for bn in index_set:
         thermal_limit = thermal_limits[bn]
-        add_constr_branch_thermal_limit(model, bn, thermal_limit)
+        if ploss_distribution is None:
+            pld = 0
+        else:
+            pld = ploss_distribution[bn]
+        if qloss_distribution is None:
+            qld = 0
+        else:
+            qld = qloss_distribution[bn]
+        add_constr_branch_thermal_limit(model, bn, thermal_limit, pfl_of_ploss=pld, qfl_of_qloss=qld)
 
 
-def add_constr_branch_thermal_limit(model, branch_name, thermal_limit):
+def add_constr_branch_thermal_limit(model, branch_name, thermal_limit, pfl_of_ploss=0, qfl_of_qloss=0):
     """
     Create the inequality constraints for the branch thermal limits
     based on the power variables for the fdf model.
@@ -960,6 +968,23 @@ def add_constr_branch_thermal_limit(model, branch_name, thermal_limit):
 
     m = model
     bn = branch_name
+    m_pf = m.pf[bn]
+    m_qf = m.qf[bn]
+
+    ## find current direction of flows (**uses current value as base point but may be better to use value in modelData**)
+    if value(m_pf < 1):
+        p_direct = -1
+    else:
+        p_direct = 1
+    if value(m_qf < 1):
+        q_direct = -1
+    else:
+        q_direct = 1
+
+    has_pfl = hasattr(m,'pfl')
+    has_qfl = hasattr(m,'qfl')
+    has_ploss = hasattr(m,'ploss')
+    has_qloss = hasattr(m,'qloss')
 
     for x,y in m._fdf_unitcircle:
         if thermal_limit is None:
@@ -973,17 +998,31 @@ def add_constr_branch_thermal_limit(model, branch_name, thermal_limit):
         #model.ineq_branch_thermal_limit[branch_name,x,y] = 2 * _pf * m.pf[branch_name] + 2 * _qf * m.qf[branch_name] \
         #                                             <= thermal_limit**2 + _pf**2 + _qf**2
 
+        coef_list = [2*_pf, 2*_qf]
+        vars_list = [ m_pf,  m_qf]
+
+        ## add 1/2 of branch loss, in the same (+/-) direction as power flows
+        if has_pfl:
+            coef_list.append(_pf * p_direct)
+            vars_list.append(m.pfl[bn])
+        if has_qfl:
+            coef_list.append(_qf * q_direct)
+            vars_list.append(m.qfl[bn])
+        if has_ploss:
+            coef_list.append(_pf * p_direct * pfl_of_ploss)
+            vars_list.append(m.ploss)
+        if has_qloss:
+            coef_list.append(_qf * q_direct * qfl_of_qloss)
+            vars_list.append(m.qloss)
+
         ## Taylor series form using LinearExpression
         model.ineq_branch_thermal_limit[branch_name,x,y] = (None,
                                                             LinearExpression(constant=0, 
-                                                                             linear_coefs=[  2*_pf, 2*_qf ], 
-                                                                             linear_vars=[m.pf[bn], m.qf[bn]] 
+                                                                             linear_coefs = coef_list,
+                                                                             linear_vars  = vars_list
                                                                             ),
                                                             thermal_limit**2 + _pf**2 + _qf**2)
 
-        ## Bilinear form
-        #model.ineq_branch_thermal_limit[branch_name, x, y] = _pf * m.pf[branch_name] + _qf * m.qf[branch_name] \
-        #                                             <= thermal_limit**2
 
 
 def declare_eq_branch_midpoint_power(model, index_set, branches, coordinate_type=CoordinateType.POLAR):

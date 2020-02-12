@@ -169,6 +169,8 @@ def create_dicts_of_fdf(md, base_point=BasePointType.SOLUTION):
 
     branches = md.data['elements']['branch']
     buses = md.data['elements']['bus']
+    total_ploss = md.data['system']['ploss']
+    total_qloss = md.data['system']['qloss']
 
     for idx, branch_name in enumerate(branch_name_list):
         branch = branches[branch_name]
@@ -184,6 +186,17 @@ def create_dicts_of_fdf(md, base_point=BasePointType.SOLUTION):
             branch['qldf'] = _make_sensi_dict_from_dense(bus_name_list, qldf[idx])
             branch['qtdf_c'] = qtdf_c[idx]
             branch['qldf_c'] = qldf_c[idx]
+
+
+        ## loss distributions get updated every time (this could cause some inconsistency)
+        if total_ploss > 0:
+            branch['ploss_distribution'] = (branch['pf'] + branch['pt']) / total_ploss
+        else:
+            branch['ploss_distribution'] = 0
+        if total_qloss > 0:
+            branch['qloss_distribution'] = (branch['qf'] + branch['qt']) / total_qloss
+        else:
+            branch['qloss_distribution'] = 0
 
 
     # TODO: check if phi-constants are used anywhere
@@ -333,6 +346,8 @@ def create_dicts_of_fdf_simplified(md, base_point=BasePointType.SOLUTION):
 
     branches = md.data['elements']['branch']
     buses = md.data['elements']['bus']
+    total_ploss = md.data['system']['ploss']
+    total_qloss = md.data['system']['qloss']
 
     for idx, branch_name in enumerate(branch_name_list):
         branch = branches[branch_name]
@@ -348,6 +363,18 @@ def create_dicts_of_fdf_simplified(md, base_point=BasePointType.SOLUTION):
             branch['qldf'] = _make_sensi_dict_from_dense(bus_name_list, qldf[idx])
             branch['qtdf_c'] = qtdf_c[idx]
             branch['qldf_c'] = qldf_c[idx]
+
+
+        ## loss distributions get updated every time (this could cause some inconsistency)
+        if total_ploss > 0:
+            branch['ploss_distribution'] = (branch['pf'] + branch['pt']) / total_ploss
+        else:
+            branch['ploss_distribution'] = 0
+        if total_qloss > 0:
+            branch['qloss_distribution'] = (branch['qf'] + branch['qt']) / total_qloss
+        else:
+            branch['qloss_distribution'] = 0
+
 
     # need to sum over branches.items() since pldf_c may not have been independently calculated
     if update_ploss_sens:

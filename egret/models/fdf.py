@@ -602,10 +602,10 @@ def create_ccm_model(model_data, include_feasibility_slack=False, include_v_feas
                                            )
 
     ### declare the real power flow limits
-    libbranch.declare_fdf_thermal_limit(model=model,
-                                        index_set=branch_attrs['names'],
-                                        thermal_limits=s_max,
-                                        )
+    #libbranch.declare_fdf_thermal_limit(model=model,
+    #                                    index_set=branch_attrs['names'],
+    #                                    thermal_limits=s_max,
+    #                                    )
 
     libgen.declare_eq_q_fdf_deviation(model=model,
                                       index_set=gen_attrs['names'],

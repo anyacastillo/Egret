@@ -119,6 +119,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
     md = model_data.clone_in_service()
     tx_utils.scale_ModelData_to_pu(md, inplace=True)
 
+    print('CREATING DICTS OF THE FDF')
     data_utils_deprecated.create_dicts_of_fdf_simplified(md)
     # TO BE DELETED: below and other functions called in create_dicts... method above
     # calculate_ptdf_ldf(branches, buses, index_set_branch, index_set_bus, reference_bus,
@@ -137,6 +138,8 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
     load_attrs = md.attributes(element_type='load')
     shunt_attrs = md.attributes(element_type='shunt')
     system_attrs = md.data['system']
+
+    print('branch keys: \n{}'.format(branch_attrs.keys()))
 
     inlet_branches_by_bus, outlet_branches_by_bus = tx_utils.inlet_outlet_branches_by_bus(branches, buses)
     gens_by_bus = tx_utils.gens_by_bus(buses, gens)
@@ -256,6 +259,8 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
         libbranch.declare_fdf_thermal_limit(model=model,
                                             index_set=branch_attrs['names'],
                                             thermal_limits=s_max,
+                                            ploss_distribution=branch_attrs['ploss_distribution'],
+                                            qloss_distribution=branch_attrs['qloss_distribution'],
                                             )
         ### add helpers for tracking monitored branches
         lpu.add_monitored_branch_tracker(model)
@@ -320,6 +325,8 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
         libbranch.declare_fdf_thermal_limit(model=model,
                                             index_set=branch_attrs['names'],
                                             thermal_limits=s_max,
+                                            ploss_distribution=branch_attrs['ploss_distribution'],
+                                            qloss_distribution=branch_attrs['qloss_distribution'],
                                             )
 
     if ptdf_options['lazy_voltage']:
@@ -807,7 +814,7 @@ if __name__ == '__main__':
     # set case and filepath
     path = os.path.dirname(__file__)
     #filename = 'pglib_opf_case3_lmbd.m'
-    #filename = 'pglib_opf_case5_pjm.m'
+    filename = 'pglib_opf_case5_pjm.m'
     #filename = 'pglib_opf_case14_ieee.m'
     #filename = 'pglib_opf_case30_ieee.m'
     #filename = 'pglib_opf_case57_ieee.m'
@@ -817,7 +824,7 @@ if __name__ == '__main__':
     #filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
     #filename = 'pglib_opf_case2000_tamu.m'
-    filename = 'pglib_opf_case1951_rte.m'
+    #filename = 'pglib_opf_case1951_rte.m'
     #filename = 'pglib_opf_case1354_pegase.m'
     #filename = 'pglib_opf_case2869_pegase.m'
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
