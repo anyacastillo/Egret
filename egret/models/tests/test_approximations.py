@@ -1270,7 +1270,7 @@ def main(arg):
     idxE = case_names.index('pglib_opf_case13659_pegase') + 1  ## 13659 buses
 
     if arg == 'A':
-        idx_list = list(range(9,idxA))
+        idx_list = list(range(0,idxA))
     elif arg == 'B':
         idx_list = list(range(idxA,idxB))
     elif arg == 'C':
@@ -1363,12 +1363,12 @@ def submain(idx=None, show_plot=True):
                       ]
 
     ## Model solves
-#    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate data files
-#    generate_mean_data(test_case,test_model_dict)
-#    generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
-#    generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
+    generate_mean_data(test_case,test_model_dict)
+    generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
+    generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
 
     ## Generate plots
     #---- Sensitivity plots: remove lazy and tolerance models

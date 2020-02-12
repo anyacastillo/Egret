@@ -516,6 +516,9 @@ if __name__ == '__main__':
 
     # solve S-LOPF
     md, m, results = solve_lccm(md_ac, "gurobi", lccm_model_generator=create_lccm_model, return_model=True,return_results=True,solver_tee=False, **kwargs)
+
+    m.pprint()
+
     print('S-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
     print(results.Solver)
 

@@ -119,7 +119,6 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
     md = model_data.clone_in_service()
     tx_utils.scale_ModelData_to_pu(md, inplace=True)
 
-    print('CREATING DICTS OF THE FDF')
     data_utils_deprecated.create_dicts_of_fdf_simplified(md)
     # TO BE DELETED: below and other functions called in create_dicts... method above
     # calculate_ptdf_ldf(branches, buses, index_set_branch, index_set_bus, reference_bus,
@@ -138,8 +137,6 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
     load_attrs = md.attributes(element_type='load')
     shunt_attrs = md.attributes(element_type='shunt')
     system_attrs = md.data['system']
-
-    print('branch keys: \n{}'.format(branch_attrs.keys()))
 
     inlet_branches_by_bus, outlet_branches_by_bus = tx_utils.inlet_outlet_branches_by_bus(branches, buses)
     gens_by_bus = tx_utils.gens_by_bus(buses, gens)
@@ -855,6 +852,7 @@ if __name__ == '__main__':
     md, m, results = solve_fdf_simplified(md_ac, "gurobi_persistent", fdf_model_generator=create_simplified_fdf_model,
                                           return_model=True, return_results=True, solver_tee=False,
                                           options=options, **kwargs)
+    m.pprint()
 
     print('C-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
     print('C-LOPF time: %3.5f' % md.data['results']['time'])

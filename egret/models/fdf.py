@@ -979,6 +979,7 @@ if __name__ == '__main__':
     kwargs['ptdf_options'] = ptdf_options
     md, m, results = solve_fdf(md_ac, "gurobi_persistent", fdf_model_generator=create_fdf_model, return_model=True,
                                return_results=True, solver_tee=False, options=options, **kwargs)
+    m.pprint()
 
 
     # solve S-LOPF
