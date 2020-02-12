@@ -69,6 +69,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import matplotlib.cm as cmap
+import seaborn as sns
 from cycler import cycler
 import math
 import unittest
@@ -805,6 +806,69 @@ def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,t
     df_data.to_csv(os.path.join(destination, filename))
 
 
+def generate_speedup_data(test_model_dict, case_list=case_names, mean_data='solve_time_geomean', benchmark='dlopf_lazy'):
+
+    ## get data
+    data_dict = {}
+    cases = []
+    for case in case_list:
+        try:
+            input = "mean_data_" + case + ".csv"
+            df_data = get_data(input, test_model_dict)
+            models = list(df_data.index.values)
+            for m in models:
+                val = df_data.at[benchmark, mean_data] / df_data.at[m, mean_data]
+                if m in data_dict:
+                    data_dict[m].append(val)
+                else:
+                    data_dict[m] = [val]
+            cases.append(case)
+        except:
+            pass
+
+    df_data = pd.DataFrame(data_dict,index=cases)
+    df_data.loc['AVERAGE'] = df_data.mean()
+
+    ## save DATA to csv
+    destination = get_summary_file_location('data')
+    filename = "speedup_data_" + mean_data + "_" + benchmark + ".csv"
+    df_data.to_csv(os.path.join(destination, filename))
+
+
+def generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='dlopf_lazy',colormap=None, show_plot=False):
+
+    filename = "speedup_data_" + mean_data + "_" + benchmark + ".csv"
+    df_data = get_data(filename,test_model_dict=test_model_dict)
+
+    model_names = [c for c in df_data.columns]
+    index_names = [i for i in df_data.index]
+    data = df_data.values
+    model_num = len(model_names)
+    x = np.arange(model_num)
+
+    ax = sns.heatmap(data,
+                     linewidth=0.5,
+                     xticklabels=model_names,
+                     yticklabels=index_names,
+                     cmap=colormap
+                     )
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
+
+    ax.set_title(mean_data + " speedup vs. " + benchmark)
+    ax.set_xlabel("Model")
+    ax.set_ylabel("Test Case")
+
+    plt.tight_layout()
+
+    ## save FIGURE as png
+    filename = "speedupplot_v_" + benchmark + "_" + mean_data + ".png"
+    destination = get_summary_file_location('figures')
+    plt.savefig(os.path.join(destination, filename))
+
+    if show_plot:
+        plt.show()
+
+
 def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas,
                               data_is_pct=False, data_is_vector=False, vector_norm=2):
 
@@ -863,6 +927,7 @@ def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_
 
 
 def get_data(filename, test_model_dict):
+    print(filename)
 
     ## get data from CSV
     source = get_summary_file_location('data')
@@ -873,10 +938,11 @@ def get_data(filename, test_model_dict):
         if not val:
             remove_list.append(tm)
 
-    try:
-        df_data = df_data.drop(remove_list, axis=0)
-    except:
-        df_data = df_data.drop(remove_list, axis=1)
+    for rm in remove_list:
+        if rm in df_data.index:
+            df_data = df_data.drop(rm, axis=0)
+        elif rm in df_data.columns:
+            df_data = df_data.drop(rm, axis=1)
 
     return df_data
 
@@ -1000,9 +1066,72 @@ def generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas'
         plt.show()
 
 
+def generate_case_size_plot_seaborn(test_model_dict, case_list=case_names,
+                            y_data='solve_time_geomean', y_units='s',
+                            x_data='num_buses', x_units=None,
+                            s_data=None, s_units=None,
+                            colors=cmap.viridis, s_max=250, s_min=1, x_min = 0,
+                            yscale='linear',xscale='linear',
+                            annotate_plot=False, show_plot=False):
+
+
+    ## get data
+    if s_data is None:
+        var_names = ['model',x_data,y_data]
+    else:
+        var_names = ['model',x_data,y_data,s_data]
+    sns_data = pd.DataFrame(data=None,columns=var_names)
+    cases = []
+    for case in case_list:
+        try:
+            input = "mean_data_" + case + ".csv"
+            df_data = get_data(input, test_model_dict)
+            if 'con_per_bus' in var_names:
+                df_data['con_per_bus'] = df_data['num_constraints'] / df_data['num_buses']
+
+            models = list(df_data.index.values)
+            df_data['model'] = models
+
+            var_drop = [var for var in df_data.columns if var not in var_names]
+            df_data = df_data.drop(labels=var_drop, axis=1)
+
+            sns_data = sns_data.append(df_data, ignore_index=True)
+            cases.append(case)
+
+        except:
+            pass
+
+    sns.set(style="ticks", palette='colorblind')
+    if s_data is None:
+        g = sns.scatterplot(x=x_data, y=y_data, size=s_data, hue='model', style='model', data=sns_data)
+    else:
+        g = sns.scatterplot(x=x_data, y=y_data, size=s_data, hue='model', data=sns_data)
+    sns.despine()
+
+    plt.yscale(yscale)
+    plt.xscale(xscale)
+    #plt.tight_layout()
+
+    # set legend location
+    box = g.get_position()
+    g.set_position([box.x0, box.y0, 0.75 * box.width, box.height])
+    plt.legend(bbox_to_anchor=(1, 0.5), loc=6)
+
+
+
+    ## save FIGURE to png
+#    figure_dest = get_summary_file_location('figures')
+#    filename = "casesizeplot_" + y_data + "_v_" + x_data + ".png"
+#    plt.savefig(os.path.join(figure_dest, filename))
+
+    if show_plot:
+        plt.show()
+
+
 def generate_case_size_plot(test_model_dict, case_list=case_names,
-                            y_data='solve_time_geomean', y_units='s', x_data = 'num_buses', x_units=None,
-                            s_data='num_constraints', colors=cmap.viridis, s_max=500, s_min=5,
+                            y_data='solve_time_geomean', y_units='s',
+                            x_data='num_buses', x_units=None,
+                            s_data=None, colors=cmap.viridis, s_max=250, s_min=1,
                             yscale='linear',xscale='linear',
                             annotate_plot=False, show_plot=False):
 
@@ -1010,21 +1139,31 @@ def generate_case_size_plot(test_model_dict, case_list=case_names,
     y_dict = {}
     x_dict = {}
     s_dict = {}
+    if s_data is None:
+        var_names = ['model',x_data,y_data]
+    else:
+        var_names = ['model',x_data,y_data,s_data]
     for case in case_list:
         try:
             input = "mean_data_" + case + ".csv"
             df_data = get_data(input, test_model_dict)
+            if 'con_per_bus' in var_names:
+                df_data['con_per_bus'] = df_data['num_constraints'] / df_data['num_buses']
             models = list(df_data.index.values)
             for m in models:
-                if m in y_dict:
+                if m in y_dict.keys():
                     y_dict[m].append(df_data.at[m, y_data])
                     x_dict[m].append(df_data.at[m, x_data])
-                    if s_data is not None:
+                    if s_data is None:
+                        s_dict[m].append(36)
+                    else:
                         s_dict[m].append(df_data.at[m, s_data])
                 else:
                     y_dict[m] = [df_data.at[m, y_data]]
                     x_dict[m] = [df_data.at[m, x_data]]
-                    if s_data is not None:
+                    if s_data is None:
+                        s_dict[m] = [36]
+                    else:
                         s_dict[m] = [df_data.at[m, s_data]]
 
         except:
@@ -1032,15 +1171,15 @@ def generate_case_size_plot(test_model_dict, case_list=case_names,
 
     df_y_data = pd.DataFrame(y_dict)
     df_x_data = pd.DataFrame(x_dict)
-    if s_data is not None:
-        df_s_data = pd.DataFrame(s_dict)
-        arr = df_s_data.values
-        data_max = arr.max()
-        data_min = arr.min()
-        arr = arr * (s_max / data_max)
-        arr[arr<s_min] = s_min
-        df_s_data = pd.DataFrame(data=arr,columns=models)
+    df_s_data = pd.DataFrame(s_dict)
 
+
+    # scale s_data
+    arr = df_s_data.values
+    data_max = arr.max()
+    arr = arr * (s_max / data_max)
+    arr[arr<s_min] = s_min
+    df_s_data = pd.DataFrame(data=arr, columns=models)
 
 
     ## Create plot
@@ -1055,10 +1194,7 @@ def generate_case_size_plot(test_model_dict, case_list=case_names,
 
         x = df_x_data[m]
         y = df_y_data[m]
-        if s_data is None:
-            mark_size = None
-        else:
-            mark_size = df_s_data[m]
+        mark_size = df_s_data[m]
         ax.scatter(x, y, s=mark_size, label=None)
 
         if annotate_plot:
@@ -1072,24 +1208,30 @@ def generate_case_size_plot(test_model_dict, case_list=case_names,
         ax.scatter(x, y, s=mark_size, label=m)
 
 
-    ax.set_title(y_data + " vs. " + x_data)
-    if y_units is not None:
-        ax.set_ylabel(y_data + " (" + y_units + ")")
-    else:
+    #ax.set_title(y_data + " vs. " + x_data)
+    if y_units is None:
         ax.set_ylabel(y_data)
-    if x_units is not None:
-        ax.set_xlabel(x_data + " (" + x_units + ")")
     else:
+        ax.set_ylabel(y_data + " (" + y_units + ")")
+    if x_units is None:
         ax.set_xlabel(x_data)
-
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
-    first_legend = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    ax = plt.gca().add_artist(first_legend)
-    create_circlesize_legend(title=s_data,s_min=s_min, s_max=s_max, data_max=data_max)
+    else:
+        ax.set_xlabel(x_data + " (" + x_units + ")")
 
     plt.yscale(yscale)
     plt.xscale(xscale)
+    plt.tight_layout()
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
+    first_legend = plt.legend(title='models', bbox_to_anchor=(1, 0.35), loc='lower left')
+    plt.gca().add_artist(first_legend)
+
+    if s_data is not None:
+        lgd_title = s_data
+        create_circlesize_legend(title=lgd_title,s_min=s_min, s_max=s_max, data_max=data_max)
+
+
 
     ## save FIGURE to png
     figure_dest = get_summary_file_location('figures')
@@ -1100,16 +1242,22 @@ def generate_case_size_plot(test_model_dict, case_list=case_names,
         plt.show()
 
 
-def create_circlesize_legend(title=None, s_min=5, s_max=500, data_max=1000):
+def create_circlesize_legend(title=None, s_min=1, s_max=500, data_min=2, data_max=1000):
 
     c = '0.75'
-    sizes = [s_min, s_max/10, s_max/3, s_max]
+    sizes = np.linspace(s_min, s_max, num=4)
+    data = np.linspace(data_min, data_max, num=4)
+#    if s_min <= 0:
+#        s_min=0.1
+#    if data_min <= 0:
+#        data_min = 0.1
+#    sizes = np.logspace(np.log10(s_min), np.log10(s_max), num=4)
+#    data = np.logspace(np.log10(data_min), np.log10(data_max), num=4)
+
     dots = [plt.scatter([], [], color=c, s=sizes[i]) for i in range(len(sizes))]
+    labels = [str(int(round(data[i],0))) for i in range(len(sizes))]
 
-    data = [int(s_min), int(round(data_max/10,-1)), int(round(data_max/3,-1)), int(round(data_max,-2))]
-    labels = [str(data[i]) for i in range(len(sizes))]
-
-    new_legend = plt.legend(dots, labels,title=title, ncol=4,loc='upper center',borderpad=1)
+    new_legend = plt.legend(dots, labels,title=title, bbox_to_anchor=(1.05,0.35), loc='upper left')
     plt.gca().add_artist(new_legend)
 
 
@@ -1215,35 +1363,44 @@ def submain(idx=None, show_plot=True):
                       ]
 
     ## Model solves
-    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+#    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate data files
-    #generate_mean_data(test_case,test_model_dict)
-    #generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
-    #generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
+#    generate_mean_data(test_case,test_model_dict)
+#    generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
+#    generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
 
     ## Generate plots
     #---- Sensitivity plots: remove lazy and tolerance models
     for key, val in test_model_dict.items():
         if 'lazy' in key or '_e' in key:
             test_model_dict[key] = False
-#    generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas', units='p.u.', colors=colors, show_plot=show_plot)
+    generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas', units='p.u.', colors=colors, show_plot=show_plot)
 
     #---- Pareto plots: add lazy models
     for key, val in test_model_dict.items():
         if 'lazy' in key:
             test_model_dict[key] = True
-#    generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data='solve_time_geomean', y_units='p.u', x_units='s',
-#                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
-#                         annotate_plot=False, show_plot=show_plot)
+        elif 'default' in key:
+            test_model_dict[key] = False
+    generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data='solve_time_geomean', y_units='p.u', x_units='s',
+                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
+                         annotate_plot=False, show_plot=show_plot)
 
     #---- Case size plots:
-    generate_case_size_plot(test_model_dict, case_list=case_names,
-                            y_data='solve_time_geomean', y_units='s', x_data = 'num_buses', x_units=None,
-                            s_data='num_constraints', colors=colors, xscale='log', yscale='linear',
-                            show_plot=show_plot)
+    generate_case_size_plot(test_model_dict, case_list=case_names,y_data='solve_time_geomean', y_units='s',
+                            x_data='num_buses', x_units=None, s_data='con_per_bus',colors=colors,
+                            xscale='log', yscale='linear',show_plot=show_plot)
 
-    #---- TODO: Factor truncation bar charts:
+    #---- Factor truncation speedup: remove all but lazy and tolerance option models
+    for key, val in test_model_dict.items():
+        if 'clopf_lazy' in key or 'clopf_e' in key:
+            test_model_dict[key] = True
+        else:
+            test_model_dict[key] = False
+    generate_speedup_data(test_model_dict, case_list=case_names, mean_data='solve_time_geomean', benchmark='clopf_lazy')
+    generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='clopf_lazy',colormap=None, show_plot=show_plot)
+
 
 def idx_to_test_case(s):
     try:
