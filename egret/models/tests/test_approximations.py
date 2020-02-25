@@ -1284,7 +1284,7 @@ def main(arg):
         submain(idx, show_plot=False)
 
 
-def submain(idx=None, show_plot=True):
+def submain(idx=None, show_plot=False):
     """
     solves models and generates plots for test case at test_cases[idx] or a default case
     """
@@ -1366,7 +1366,7 @@ def submain(idx=None, show_plot=True):
     solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate data files
-    generate_mean_data(test_case,test_model_dict)
+    #generate_mean_data(test_case,test_model_dict)
     generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
     generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
 
