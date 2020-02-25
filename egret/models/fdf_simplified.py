@@ -221,6 +221,15 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
     #ploss_init = 0
     #qloss_init = 0
 
+    libbranch.declare_var_ploss(model=model,
+                              initialize=ploss_init)  # ,
+    #                             bounds=pfl_bounds
+    #                             )
+    libbranch.declare_var_qloss(model=model,
+                              initialize=qloss_init)  # ,
+    #                              bounds=qfl_bounds
+    #                              )
+
 
     ### declare the branch power flow variables and approximation constraints
     if ptdf_options['lazy']:
@@ -254,6 +263,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
 
         ## Note: constructor does not build constraints for index_set when 'lazy' is enabled
         libbranch.declare_fdf_thermal_limit(model=model,
+                                            branches=branches,
                                             index_set=branch_attrs['names'],
                                             thermal_limits=s_max,
                                             ploss_distribution=branch_attrs['ploss_distribution'],
@@ -282,7 +292,10 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                 model.eq_qf_branch[bn] = model.qf[bn] == expr
                 ## add thermal limit
                 thermal_limit = s_max[bn]
-                libbranch.add_constr_branch_thermal_limit(model, bn, thermal_limit)
+                branch = branches[bn]
+                pld = branch_attrs['ploss_distribution'][bn]
+                qld = branch_attrs['qloss_distribution'][bn]
+                libbranch.add_constr_branch_thermal_limit(model, branch, bn, thermal_limit, pfl_of_ploss=pld, qfl_of_qloss=qld)
                 thermal_idx_monitored.append(i)
         print('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
 
@@ -320,6 +333,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                                                   )
 
         libbranch.declare_fdf_thermal_limit(model=model,
+                                            branches=branches,
                                             index_set=branch_attrs['names'],
                                             thermal_limits=s_max,
                                             ploss_distribution=branch_attrs['ploss_distribution'],
@@ -374,15 +388,6 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                                         abs_tol=ptdf_options['abs_vdf_tol'],
                                         )
 
-
-    libbranch.declare_var_ploss(model=model,
-                              initialize=ploss_init)  # ,
-    #                             bounds=pfl_bounds
-    #                             )
-    libbranch.declare_var_qloss(model=model,
-                              initialize=qloss_init)  # ,
-    #                              bounds=qfl_bounds
-    #                              )
 
     libbranch.declare_eq_ploss_fdf_simplified(model=model,
                                            sensitivity=bus_attrs['ploss_sens'],
@@ -663,8 +668,8 @@ def compare_to_acopf():
 
     # set case and filepath
     path = os.path.dirname(__file__)
-    filename = 'pglib_opf_case3_lmbd.m'
-    #filename = 'pglib_opf_case5_pjm.m'
+    #filename = 'pglib_opf_case3_lmbd.m'
+    filename = 'pglib_opf_case5_pjm.m'
     #filename = 'pglib_opf_case14_ieee.m'
     #filename = 'pglib_opf_case30_ieee.m'
     #filename = 'pglib_opf_case57_ieee.m'
@@ -852,7 +857,6 @@ if __name__ == '__main__':
     md, m, results = solve_fdf_simplified(md_ac, "gurobi_persistent", fdf_model_generator=create_simplified_fdf_model,
                                           return_model=True, return_results=True, solver_tee=False,
                                           options=options, **kwargs)
-    m.pprint()
 
     print('C-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
     print('C-LOPF time: %3.5f' % md.data['results']['time'])

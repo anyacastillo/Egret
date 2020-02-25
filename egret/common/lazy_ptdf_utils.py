@@ -285,6 +285,7 @@ def add_thermal_violations(thermal_viol_lazy, SV, mb, md, solver, ptdf_options, 
     model = mb.model()
 
     branch_name_list = branch_attrs['names']
+    branches = dict(md.elements(element_type='branch'))
 
     baseMVA = md.data['system']['baseMVA']
 
@@ -320,6 +321,7 @@ def add_thermal_violations(thermal_viol_lazy, SV, mb, md, solver, ptdf_options, 
     def _iter_over_viol_set(viol_set):
         for i in viol_set:
             bn = branch_name_list[i]
+            branch = branches[bn]
             if bn not in eq_pf_constr:
                 ## add eq_pf_branch constraint
                 expr = libbranch.get_expr_branch_pf_fdf_approx(mb, bn, ba_ptdf[bn], ba_ptdf_c[bn],
@@ -331,7 +333,7 @@ def add_thermal_violations(thermal_viol_lazy, SV, mb, md, solver, ptdf_options, 
                                                                     rel_tol=rel_qtdf_tol, abs_tol=abs_qtdf_tol)
                     eq_qf_constr[bn] = qf[bn] == expr
                     ## add ineq_branch_thermal_limit constraint
-                    libbranch.add_constr_branch_thermal_limit(mb, bn, ba_rating_long_term[bn])
+                    libbranch.add_constr_branch_thermal_limit(mb, branch, bn, ba_rating_long_term[bn])
             yield i, bn
 
 

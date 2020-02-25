@@ -208,6 +208,17 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
         qf_init[branch_name] = (branch['qf'] - branch['qt']) / 2
         qfl_init[branch_name] = branch['qf'] + branch['qt']
 
+    libbranch.declare_var_pfl(model=model,
+                              index_set=branch_attrs['names'],
+                              initialize=pfl_init)  # ,
+    #                             bounds=pfl_bounds
+    #                             )
+    libbranch.declare_var_qfl(model=model,
+                              index_set=branch_attrs['names'],
+                              initialize=qfl_init)  # ,
+    #                          bounds=qfl_bounds
+    #                          )
+
     if ptdf_options['lazy']:
 
         monitor_init = set()
@@ -236,6 +247,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
 
         ## Note: constructor does not build constraints for index_set when 'lazy' is enabled
         libbranch.declare_fdf_thermal_limit(model=model,
+                                            branches=branches,
                                             index_set=branch_attrs['names'],
                                             thermal_limits=s_max,
                                             )
@@ -263,7 +275,8 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                 model.eq_qf_branch[bn] = model.qf[bn] == expr
                 ## add thermal limit
                 thermal_limit = s_max[bn]
-                libbranch.add_constr_branch_thermal_limit(model, bn, thermal_limit)
+                branch = branches[bn]
+                libbranch.add_constr_branch_thermal_limit(model, branch, bn, thermal_limit)
                 thermal_idx_monitored.append(i)
         print('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
 
@@ -298,6 +311,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                                   )
 
         libbranch.declare_fdf_thermal_limit(model=model,
+                                            branches=branches,
                                             index_set=branch_attrs['names'],
                                             thermal_limits=s_max,
                                             )
@@ -353,17 +367,6 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                         abs_tol=ptdf_options['abs_vdf_tol'],
                                         )
 
-
-    libbranch.declare_var_pfl(model=model,
-                             index_set=branch_attrs['names'],
-                             initialize=pfl_init)#,
-#                             bounds=pfl_bounds
-#                             )
-    libbranch.declare_var_qfl(model=model,
-                              index_set=branch_attrs['names'],
-                              initialize=qfl_init)  # ,
-#                              bounds=qfl_bounds
-#                              )
 
     libbranch.declare_eq_branch_pfl_fdf_approx(model=model,
                                                index_set=branch_attrs['names'],
@@ -979,7 +982,6 @@ if __name__ == '__main__':
     kwargs['ptdf_options'] = ptdf_options
     md, m, results = solve_fdf(md_ac, "gurobi_persistent", fdf_model_generator=create_fdf_model, return_model=True,
                                return_results=True, solver_tee=False, options=options, **kwargs)
-    m.pprint()
 
 
     # solve S-LOPF

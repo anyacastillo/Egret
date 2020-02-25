@@ -292,6 +292,7 @@ def create_lccm_model(model_data, include_feasibility_slack=False, include_v_fea
 
     ### declare the real power flow limits
     libbranch.declare_fdf_thermal_limit(model=model,
+                                        branches=branches,
                                         index_set=branch_attrs['names'],
                                         thermal_limits=s_max
                                         )
@@ -516,8 +517,6 @@ if __name__ == '__main__':
 
     # solve S-LOPF
     md, m, results = solve_lccm(md_ac, "gurobi", lccm_model_generator=create_lccm_model, return_model=True,return_results=True,solver_tee=False, **kwargs)
-
-    m.pprint()
 
     print('S-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
     print(results.Solver)

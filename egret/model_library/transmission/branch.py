@@ -926,7 +926,7 @@ def declare_ineq_angle_diff_branch_lbub(model, index_set,
                 - pe.atan(m.vj[to_bus] / m.vr[to_bus]) <= branches[branch_name]['angle_diff_max']
 
 
-def declare_fdf_thermal_limit(model, index_set, thermal_limits, ploss_distribution=None, qloss_distribution=None, cuts=10):
+def declare_fdf_thermal_limit(model, branches, index_set, thermal_limits, ploss_distribution=None, qloss_distribution=None, cuts=10):
     """
     Create the inequality constraints for the branch thermal limits
     based on the power variables for the fdf model.
@@ -948,6 +948,7 @@ def declare_fdf_thermal_limit(model, index_set, thermal_limits, ploss_distributi
         return
 
     for bn in index_set:
+        branch = branches[bn]
         thermal_limit = thermal_limits[bn]
         if ploss_distribution is None:
             pld = 0
@@ -957,10 +958,10 @@ def declare_fdf_thermal_limit(model, index_set, thermal_limits, ploss_distributi
             qld = 0
         else:
             qld = qloss_distribution[bn]
-        add_constr_branch_thermal_limit(model, bn, thermal_limit, pfl_of_ploss=pld, qfl_of_qloss=qld)
+        add_constr_branch_thermal_limit(model, branch, bn, thermal_limit, pfl_of_ploss=pld, qfl_of_qloss=qld)
 
 
-def add_constr_branch_thermal_limit(model, branch_name, thermal_limit, pfl_of_ploss=0, qfl_of_qloss=0):
+def add_constr_branch_thermal_limit(model, branch, branch_name, thermal_limit, pfl_of_ploss=0, qfl_of_qloss=0):
     """
     Create the inequality constraints for the branch thermal limits
     based on the power variables for the fdf model.
@@ -971,15 +972,13 @@ def add_constr_branch_thermal_limit(model, branch_name, thermal_limit, pfl_of_pl
     m_pf = m.pf[bn]
     m_qf = m.qf[bn]
 
-    ## find current direction of flows (**uses current value as base point but may be better to use value in modelData**)
-    if value(m_pf < 1):
-        p_direct = -1
+    s_to = branch['pt']**2 + branch['qt']**2
+    s_fr = branch['pf']**2 + branch['qt']**2
+
+    if s_fr > s_to:
+        direction = 1
     else:
-        p_direct = 1
-    if value(m_qf < 1):
-        q_direct = -1
-    else:
-        q_direct = 1
+        direction = -1
 
     has_pfl = hasattr(m,'pfl')
     has_qfl = hasattr(m,'qfl')
@@ -1003,16 +1002,16 @@ def add_constr_branch_thermal_limit(model, branch_name, thermal_limit, pfl_of_pl
 
         ## add 1/2 of branch loss, in the same (+/-) direction as power flows
         if has_pfl:
-            coef_list.append(_pf * p_direct)
+            coef_list.append(_pf * direction)
             vars_list.append(m.pfl[bn])
         if has_qfl:
-            coef_list.append(_qf * q_direct)
+            coef_list.append(_qf * direction)
             vars_list.append(m.qfl[bn])
         if has_ploss:
-            coef_list.append(_pf * p_direct * pfl_of_ploss)
+            coef_list.append(_pf * direction * pfl_of_ploss)
             vars_list.append(m.ploss)
         if has_qloss:
-            coef_list.append(_qf * q_direct * qfl_of_qloss)
+            coef_list.append(_qf * direction * qfl_of_qloss)
             vars_list.append(m.qloss)
 
         ## Taylor series form using LinearExpression
