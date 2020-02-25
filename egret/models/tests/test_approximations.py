@@ -136,7 +136,7 @@ case_names = ['pglib_opf_case3_lmbd',
               'pglib_opf_case10000_tamu',
               'pglib_opf_case13659_pegase',
               ]
-test_cases = [join('../../download/pglib-opf-master/', f + '.m') for f in case_names]
+test_cases = [join('../../../download/pglib-opf-master/', f + '.m') for f in case_names]
 #test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
 
 
@@ -256,7 +256,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
     if tm['slopf']:
         md = create_new_model_data(md_basepoint, mult)
         try:
-            md_lccm, m, results = solve_lccm(md, "gurobi", return_model=True, return_results=True, solver_tee=False)
+            md_lccm, m, results = solve_lccm(md, "gurobi_direct", return_model=True, return_results=True, solver_tee=False)
             record_results('slopf', mult, md_lccm)
         except:
             pass
@@ -269,7 +269,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['lazy_voltage'] = False
         kwargs['ptdf_options'] = ptdf_options
         try:
-            md_fdf, m, results = solve_fdf(md, "gurobi", return_model=True, return_results=True,
+            md_fdf, m, results = solve_fdf(md, "gurobi_direct", return_model=True, return_results=True,
                                            solver_tee=False, **kwargs)
             record_results('dlopf_default', mult, md_fdf)
         except:
@@ -356,7 +356,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         ptdf_options['lazy_voltage'] = False
         kwargs['ptdf_options'] = ptdf_options
         try:
-            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi", return_model=True, return_results=True,
+            md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_direct", return_model=True, return_results=True,
                                                        solver_tee=False, **kwargs)
             record_results('clopf_default', mult, md_fdfs)
         except:
@@ -442,7 +442,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         kwargs['ptdf_options'] = ptdf_options
         md = create_new_model_data(md_basepoint, mult)
         try:
-            md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi",
+            md_ptdfl, m, results = solve_dcopf_losses(md, "gurobi_direct",
                                                       dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
                                                       return_model=True, return_results=True, solver_tee=False, **kwargs)
             record_results('clopf_p_default', mult, md_ptdfl)
@@ -527,7 +527,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         kwargs['ptdf_options'] = ptdf_options
         md = create_new_model_data(md_flat, mult)
         try:
-            md_ptdf, m, results = solve_dcopf(md, "gurobi", dcopf_model_generator=create_ptdf_dcopf_model,
+            md_ptdf, m, results = solve_dcopf(md, "gurobi_direct", dcopf_model_generator=create_ptdf_dcopf_model,
                                               return_model=True, return_results=True, solver_tee=False, **kwargs)
             record_results('dcopf_ptdf_default', mult, md_ptdf)
         except:
@@ -603,7 +603,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
     if tm['qcopf_btheta']:
         md = create_new_model_data(md_flat, mult)
         try:
-            md_bthetal, m, results = solve_dcopf_losses(md, "gurobi",
+            md_bthetal, m, results = solve_dcopf_losses(md, "gurobi_direct",
                                                         dcopf_losses_model_generator=create_btheta_losses_dcopf_model,
                                                         return_model=True, return_results=True, solver_tee=False)
             record_results('qcopf_btheta', mult, md_bthetal)
@@ -613,7 +613,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
     if tm['dcopf_btheta']:
         md = create_new_model_data(md_flat, mult)
         try:
-            md_btheta, m, results = solve_dcopf(md, "gurobi", dcopf_model_generator=create_btheta_dcopf_model,
+            md_btheta, m, results = solve_dcopf(md, "gurobi_direct", dcopf_model_generator=create_btheta_dcopf_model,
                                                 return_model=True, return_results=True, solver_tee=False)
             record_results('dcopf_btheta', mult, md_btheta)
         except:
