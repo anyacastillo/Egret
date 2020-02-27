@@ -12,7 +12,6 @@ This module provides functions that create the modules for typical ACPF formulat
 #TODO: document this with examples
 """
 import pyomo.environ as pe
-import operator as op
 import egret.model_library.transmission.tx_utils as tx_utils
 import egret.model_library.transmission.tx_calc as tx_calc
 import egret.model_library.transmission.bus as libbus
@@ -20,41 +19,12 @@ import egret.model_library.transmission.branch as libbranch
 import egret.model_library.transmission.gen as libgen
 from egret.data.data_utils import zip_items
 
-from egret.model_library.defn import FlowType, CoordinateType
+from egret.model_library.defn import CoordinateType
 from math import pi
 from collections import OrderedDict
 
 
-def _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads, penalty=1000):
-    import egret.model_library.decl as decl
-    slack_init = {k: 0 for k in bus_attrs['names']}
-    slack_bounds = {k: (0, sum(bus_p_loads.values())) for k in bus_attrs['names']}
-    decl.declare_var('p_slack_pos', model=model, index_set=bus_attrs['names'],
-                     initialize=slack_init, bounds=slack_bounds, domain=pe.NonNegativeReals
-                     )
-    decl.declare_var('p_slack_neg', model=model, index_set=bus_attrs['names'],
-                     initialize=slack_init, bounds=slack_bounds, domain=pe.NonNegativeReals
-                     )
-    slack_bounds = {k: (0, sum(bus_q_loads.values())) for k in bus_attrs['names']}
-    decl.declare_var('q_slack_pos', model=model, index_set=bus_attrs['names'],
-                     initialize=slack_init, bounds=slack_bounds, domain=pe.NonNegativeReals
-                     )
-    decl.declare_var('q_slack_neg', model=model, index_set=bus_attrs['names'],
-                     initialize=slack_init, bounds=slack_bounds, domain=pe.NonNegativeReals
-                     )
-    p_rhs_kwargs = {'include_feasibility_slack_pos':'p_slack_pos','include_feasibility_slack_neg':'p_slack_neg'}
-    q_rhs_kwargs = {'include_feasibility_slack_pos':'q_slack_pos','include_feasibility_slack_neg':'q_slack_neg'}
-
-    p_penalty = penalty * (max([gen_attrs['p_cost'][k]['values'][1] for k in gen_attrs['names']]) + 1)
-    q_penalty = penalty * (max(gen_attrs.get('q_cost', gen_attrs['p_cost'])[k]['values'][1] for k in gen_attrs['names']) + 1)
-
-    penalty_expr = sum(p_penalty * (model.p_slack_pos[bus_name] + model.p_slack_neg[bus_name])
-                    + q_penalty * (model.q_slack_pos[bus_name] + model.q_slack_neg[bus_name])
-                    for bus_name in bus_attrs['names'])
-    return p_rhs_kwargs, q_rhs_kwargs, penalty_expr
-
-
-def create_psv_acpf_model(model_data, include_feasibility_slack=False):
+def create_psv_acpf_model(model_data):
     md = model_data.clone_in_service()
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
@@ -89,34 +59,20 @@ def create_psv_acpf_model(model_data, include_feasibility_slack=False):
     bus_bs_fixed_shunts, bus_gs_fixed_shunts = tx_utils.dict_of_bus_fixed_shunts(buses, shunts)
 
     ### declare the polar voltages
-    libbus.declare_var_vm(model, bus_attrs['names'], initialize=bus_attrs['vm'],
-                          bounds=zip_items(bus_attrs['v_min'], bus_attrs['v_max'])
-                          )
+    libbus.declare_var_vm(model, bus_attrs['names'], initialize=bus_attrs['vm'])
 
     libbus.declare_expr_vmsq(model=model, index_set=bus_attrs['names'], coordinate_type=CoordinateType.POLAR)
 
     va_bounds = {k: (-pi, pi) for k in bus_attrs['va']}
-    libbus.declare_var_va(model, bus_attrs['names'], initialize=bus_attrs['va'],
-                          bounds=va_bounds
-                          )
-
-    ### include the feasibility slack for the bus balances
-    p_rhs_kwargs = {}
-    q_rhs_kwargs = {}
-    if include_feasibility_slack:
-        p_rhs_kwargs, q_rhs_kwargs, penalty_expr = _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads)
+    libbus.declare_var_va(model, bus_attrs['names'], initialize=bus_attrs['va'])
 
     ### declare the generator real and reactive power
-    libgen.declare_var_pg(model, gen_attrs['names'], initialize=gen_attrs['pg'],
-                          bounds=zip_items(gen_attrs['p_min'], gen_attrs['p_max'])
-                          )
+    libgen.declare_var_pg(model, gen_attrs['names'], initialize=gen_attrs['pg'])
 
-    libgen.declare_var_qg(model, gen_attrs['names'], initialize=gen_attrs['qg'],
-                          bounds=zip_items(gen_attrs['q_min'], gen_attrs['q_max'])
-                          )
+    libgen.declare_var_qg(model, gen_attrs['names'], initialize=gen_attrs['qg'])\
 
 
-    ### In a system with N buses and R generators, there are then 2(N-1)-(R-1) unknowns.
+    ### In a system with N buses and G generators, there are then 2(N-1)-(G-1) unknowns.
     ### fix the reference bus
     ref_bus = md.data['system']['reference_bus']
     model.vm[ref_bus].fixed = True
@@ -138,10 +94,6 @@ def create_psv_acpf_model(model_data, include_feasibility_slack=False):
             s_lbub[k] = (None, None)
         else:
             s_lbub[k] = (-s_max[k],s_max[k])
-    pf_bounds = s_lbub
-    pt_bounds = s_lbub
-    qf_bounds = s_lbub
-    qt_bounds = s_lbub
     pf_init = dict()
     pt_init = dict()
     qf_init = dict()
@@ -201,8 +153,7 @@ def create_psv_acpf_model(model_data, include_feasibility_slack=False):
                                 bus_gs_fixed_shunts=bus_gs_fixed_shunts,
                                 inlet_branches_by_bus=inlet_branches_by_bus,
                                 outlet_branches_by_bus=outlet_branches_by_bus,
-                                coordinate_type=CoordinateType.POLAR,
-                                **p_rhs_kwargs
+                                coordinate_type=CoordinateType.POLAR
                                 )
 
     libbus.declare_eq_q_balance(model=model,
@@ -212,38 +163,10 @@ def create_psv_acpf_model(model_data, include_feasibility_slack=False):
                                 bus_bs_fixed_shunts=bus_bs_fixed_shunts,
                                 inlet_branches_by_bus=inlet_branches_by_bus,
                                 outlet_branches_by_bus=outlet_branches_by_bus,
-                                coordinate_type=CoordinateType.POLAR,
-                                **q_rhs_kwargs
+                                coordinate_type=CoordinateType.POLAR
                                 )
 
-    ### declare the thermal limits
-    libbranch.declare_ineq_s_branch_thermal_limit(model=model,
-                                                  index_set=branch_attrs['names'],
-                                                  branches=branches,
-                                                  s_thermal_limits=s_max,
-                                                  flow_type=FlowType.POWER
-                                                  )
-
-    ### declare the voltage min and max inequalities
-    libbus.declare_ineq_vm_bus_lbub(model=model,
-                                    index_set=bus_attrs['names'],
-                                    buses=buses,
-                                    coordinate_type=CoordinateType.POLAR
-                                    )
-
-    ### declare angle difference limits on interconnected buses
-    libbranch.declare_ineq_angle_diff_branch_lbub(model=model,
-                                                  index_set=branch_attrs['names'],
-                                                  branches=branches,
-                                                  coordinate_type=CoordinateType.POLAR
-                                                  )
-
-    ### declare feasibility check objective
-    obj_expr = 0.0
-    if include_feasibility_slack:
-        obj_expr += penalty_expr
-
-    model.obj = pe.Objective(expr=penalty_expr)
+    model.obj = pe.Objective(expr=0.0)
 
     return model, md
 
@@ -379,5 +302,4 @@ if __name__ == '__main__':
     md = create_ModelData(matpower_file)
     kwargs = {'include_feasibility_slack':False}
     md,m,results = solve_acopf(md, "ipopt", acopf_model_generator=create_psv_acopf_model,return_model=True, return_results=True,**kwargs)
-    kwargs = {'include_feasibility_slack':True}
-    md = solve_acpf(md, "ipopt", **kwargs)
+    md = solve_acpf(md, "ipopt")

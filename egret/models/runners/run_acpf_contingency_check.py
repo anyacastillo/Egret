@@ -60,9 +60,8 @@ if __name__ == '__main__':
             for branch, branch_dict in branches.items():
                 if branches[branch]['in_service'] == True:
                     branches[branch]['in_service'] = False
-                    kwargs = {'include_feasibility_slack': True}
                     md, m, results = solve_acpf(md, "ipopt", return_model=True, return_results=True, write_results=True,
-                                                runid=samples, **kwargs)
+                                                runid=samples)
                     branches[branch]['in_service'] = True
 
 
