@@ -40,11 +40,11 @@ if __name__ == '__main__':
 
     while samples < max_samples:
 
-        # N-1 contingency (line outages only
-        md = create_ModelData(matpower_file)
-        loads = dict(md.elements(element_type='load'))
-
         while True:
+            # N-1 contingency (line outages only
+            md = create_ModelData(matpower_file)
+            loads = dict(md.elements(element_type='load'))
+
             for load, load_dict in loads.items():
                 _variation_fraction = random.uniform(0.85,1.15)
                 power_factor = load_dict['p_load']/math.sqrt(load_dict['p_load']**2 + load_dict['q_load']**2)
