@@ -56,6 +56,7 @@ if __name__ == '__main__':
                                          return_results=True, **kwargs)
 
             if results.solver.termination_condition == po.TerminationCondition.optimal:
+                print('*** failed ACOPF ***', results.solver.termination_condition)
                 samples += 1
                 break
 
@@ -64,7 +65,7 @@ if __name__ == '__main__':
             if branches[branch]['in_service'] == True:
                 branches[branch]['in_service'] = False
                 md, m, results = solve_acpf(md, "ipopt", return_model=True, return_results=True, write_results=True,
-                                                runid=samples)
+                                                runid='sample.{}_branch.{}'.format(samples,branch))
                 branches[branch]['in_service'] = True
 
 
