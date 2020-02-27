@@ -21,6 +21,7 @@ if __name__ == '__main__':
     from egret.models.acpf import *
     from egret.models.acopf import *
     import sys
+    import pyomo.opt as po
 
     random.seed(23) # repeatable
 
@@ -45,7 +46,7 @@ if __name__ == '__main__':
         loads = dict(md.elements(element_type='load'))
 
         for load, load_dict in loads.items():
-            _variation_fraction = random.uniform(0.5,1.5)
+            _variation_fraction = random.uniform(0.85,1.15)
             power_factor = load_dict['p_load']/math.sqrt(load_dict['p_load']**2 + load_dict['q_load']**2)
             load_dict['p_load'] = _variation_fraction*load_dict['p_load']
             load_dict['q_load'] = load_dict['p_load']*math.tan(math.acos(power_factor))
@@ -54,14 +55,15 @@ if __name__ == '__main__':
         md, m, results = solve_acopf(md, "ipopt", acopf_model_generator=create_psv_acopf_model, return_model=True,
                                      return_results=True, **kwargs)
 
-        branches = dict(md.elements(element_type='branch'))
-        for branch, branch_dict in branches.items():
-            if branches[branch]['in_service'] == True:
-                branches[branch]['in_service'] = False
-                kwargs = {'include_feasibility_slack': True}
-                md, m, results = solve_acpf(md, "ipopt", return_model=True, return_results=True, write_results=True,
-                                            runid=samples, **kwargs)
-                branches[branch]['in_service'] = True
+        if results is not None:
+            branches = dict(md.elements(element_type='branch'))
+            for branch, branch_dict in branches.items():
+                if branches[branch]['in_service'] == True:
+                    branches[branch]['in_service'] = False
+                    kwargs = {'include_feasibility_slack': True}
+                    md, m, results = solve_acpf(md, "ipopt", return_model=True, return_results=True, write_results=True,
+                                                runid=samples, **kwargs)
+                    branches[branch]['in_service'] = True
 
 
 

@@ -206,59 +206,60 @@ def solve_acopf_n1(model_data,
     model, results = _solve_model(model,solver,timelimit=timelimit,solver_tee=solver_tee,
                               symbolic_solver_labels=symbolic_solver_labels,solver_options=options)
 
-    gens = dict(md.elements(element_type='generator'))
-    buses = dict(md.elements(element_type='bus'))
-    branches = dict(md.elements(element_type='branch'))
-    _idx0 = model.contingency_list[0]
-    m = model.pre_contingency_problem[_idx0]
-    md.data['system']['total_cost'] = value(m.obj)
+    if results is not None:
+        gens = dict(md.elements(element_type='generator'))
+        buses = dict(md.elements(element_type='bus'))
+        branches = dict(md.elements(element_type='branch'))
+        _idx0 = model.contingency_list[0]
+        m = model.pre_contingency_problem[_idx0]
+        md.data['system']['total_cost'] = value(m.obj)
 
-    for g,g_dict in gens.items():
-        g_dict['pg'] = value(m.pg[g])
-        g_dict['qg'] = value(m.qg[g])
+        for g,g_dict in gens.items():
+            g_dict['pg'] = value(m.pg[g])
+            g_dict['qg'] = value(m.qg[g])
 
-    for b,b_dict in buses.items():
-        #b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
-        #b_dict['qlmp'] = value(m.dual[m.eq_q_balance[b]])
-        b_dict['pl'] = value(m.pl[b])
-        if hasattr(m,'p_slack_pos'):
-            b_dict['p_slack_pos'] = value(m.p_slack_pos[b])
-        if hasattr(m, 'p_slack_neg'):
-            b_dict['p_slack_neg'] = value(m.p_slack_neg[b])
-        if hasattr(m, 'q_slack_pos'):
-            b_dict['q_slack_pos'] = value(m.q_slack_pos[b])
-        if hasattr(m, 'q_slack_neg'):
-            b_dict['q_slack_neg'] = value(m.q_slack_neg[b])
-        if hasattr(m, 'vj'):
-            b_dict['vm'] = tx_calc.calculate_vm_from_vj_vr(value(m.vj[b]), value(m.vr[b]))
-            b_dict['va'] = tx_calc.calculate_va_from_vj_vr(value(m.vj[b]), value(m.vr[b]))
-        else:
-            b_dict['vm'] = value(m.vm[b])
-            b_dict['va'] = value(m.va[b])
+        for b,b_dict in buses.items():
+            #b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
+            #b_dict['qlmp'] = value(m.dual[m.eq_q_balance[b]])
+            b_dict['pl'] = value(m.pl[b])
+            if hasattr(m,'p_slack_pos'):
+                b_dict['p_slack_pos'] = value(m.p_slack_pos[b])
+            if hasattr(m, 'p_slack_neg'):
+                b_dict['p_slack_neg'] = value(m.p_slack_neg[b])
+            if hasattr(m, 'q_slack_pos'):
+                b_dict['q_slack_pos'] = value(m.q_slack_pos[b])
+            if hasattr(m, 'q_slack_neg'):
+                b_dict['q_slack_neg'] = value(m.q_slack_neg[b])
+            if hasattr(m, 'vj'):
+                b_dict['vm'] = tx_calc.calculate_vm_from_vj_vr(value(m.vj[b]), value(m.vr[b]))
+                b_dict['va'] = tx_calc.calculate_va_from_vj_vr(value(m.vj[b]), value(m.vr[b]))
+            else:
+                b_dict['vm'] = value(m.vm[b])
+                b_dict['va'] = value(m.va[b])
 
-    for k, k_dict in branches.items():
-        if hasattr(m,'pf'):
-            k_dict['pf'] = value(m.pf[k])
-            k_dict['pt'] = value(m.pt[k])
-            k_dict['qf'] = value(m.qf[k])
-            k_dict['qt'] = value(m.qt[k])
-        if hasattr(m,'irf'):
-            b = k_dict['from_bus']
-            k_dict['pf'] = value(tx_calc.calculate_p(value(m.ifr[k]), value(m.ifj[k]), value(m.vr[b]), value(m.vj[b])))
-            k_dict['qf'] = value(tx_calc.calculate_q(value(m.ifr[k]), value(m.ifj[k]), value(m.vr[b]), value(m.vj[b])))
-            b = k_dict['to_bus']
-            k_dict['pt'] = value(tx_calc.calculate_p(value(m.itr[k]), value(m.itj[k]), value(m.vr[b]), value(m.vj[b])))
-            k_dict['qt'] = value(tx_calc.calculate_q(value(m.itr[k]), value(m.itj[k]), value(m.vr[b]), value(m.vj[b])))
+        for k, k_dict in branches.items():
+            if hasattr(m,'pf'):
+                k_dict['pf'] = value(m.pf[k])
+                k_dict['pt'] = value(m.pt[k])
+                k_dict['qf'] = value(m.qf[k])
+                k_dict['qt'] = value(m.qt[k])
+            if hasattr(m,'irf'):
+                b = k_dict['from_bus']
+                k_dict['pf'] = value(tx_calc.calculate_p(value(m.ifr[k]), value(m.ifj[k]), value(m.vr[b]), value(m.vj[b])))
+                k_dict['qf'] = value(tx_calc.calculate_q(value(m.ifr[k]), value(m.ifj[k]), value(m.vr[b]), value(m.vj[b])))
+                b = k_dict['to_bus']
+                k_dict['pt'] = value(tx_calc.calculate_p(value(m.itr[k]), value(m.itj[k]), value(m.vr[b]), value(m.vj[b])))
+                k_dict['qt'] = value(tx_calc.calculate_q(value(m.itr[k]), value(m.itj[k]), value(m.vr[b]), value(m.vj[b])))
 
-    unscale_ModelData_to_pu(md, inplace=True)
+        unscale_ModelData_to_pu(md, inplace=True)
 
-    if write_results:
-        system = model_data.data['system']['model_name']
-        if runid is None:
-            from datetime import datetime
-            runid = datetime.now().strftime("%d-%b-%Y_%H_%M_%S")
-        filename = "%s__runid_%d.json" % (system, runid)
-        md.write(filename,file_type='json')
+        if write_results:
+            system = model_data.data['system']['model_name']
+            if runid is None:
+                from datetime import datetime
+                runid = datetime.now().strftime("%d-%b-%Y_%H_%M_%S")
+            filename = "%s__runid_%d.json" % (system, runid)
+            md.write(filename,file_type='json')
 
     if return_model and return_results:
         return md, m, results

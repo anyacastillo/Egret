@@ -21,6 +21,7 @@ if __name__ == '__main__':
     import random
     from egret.models.preventive_acopf_n1 import *
     import sys
+    import math
 
     random.seed(23) # repeatable
 
@@ -49,7 +50,7 @@ if __name__ == '__main__':
             contingency_dict = {'branches': [branch]}
 
         for load, load_dict in loads.items():
-            _variation_fraction = random.uniform(0.5,1.5)
+            _variation_fraction = random.uniform(0.85,1.15)
             power_factor = load_dict['p_load']/math.sqrt(load_dict['p_load']**2 + load_dict['q_load']**2)
             load_dict['p_load'] = _variation_fraction*load_dict['p_load']
             load_dict['q_load'] = load_dict['p_load']*math.tan(math.acos(power_factor))

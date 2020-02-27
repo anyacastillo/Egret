@@ -724,44 +724,45 @@ def solve_acopf(model_data,
     m, results = _solve_model(m,solver,timelimit=timelimit,solver_tee=solver_tee,
                               symbolic_solver_labels=symbolic_solver_labels,solver_options=options)
 
-    # save results data to ModelData object
-    gens = dict(md.elements(element_type='generator'))
-    buses = dict(md.elements(element_type='bus'))
-    branches = dict(md.elements(element_type='branch'))
+    if results is not None:
+        # save results data to ModelData object
+        gens = dict(md.elements(element_type='generator'))
+        buses = dict(md.elements(element_type='bus'))
+        branches = dict(md.elements(element_type='branch'))
 
-    md.data['system']['total_cost'] = value(m.obj)
+        md.data['system']['total_cost'] = value(m.obj)
 
-    for g,g_dict in gens.items():
-        g_dict['pg'] = value(m.pg[g])
-        g_dict['qg'] = value(m.qg[g])
+        for g,g_dict in gens.items():
+            g_dict['pg'] = value(m.pg[g])
+            g_dict['qg'] = value(m.qg[g])
 
-    for b,b_dict in buses.items():
-        b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
-        b_dict['qlmp'] = value(m.dual[m.eq_q_balance[b]])
-        b_dict['pl'] = value(m.pl[b])
-        if hasattr(m, 'vj'):
-            b_dict['vm'] = tx_calc.calculate_vm_from_vj_vr(value(m.vj[b]), value(m.vr[b]))
-            b_dict['va'] = tx_calc.calculate_va_from_vj_vr(value(m.vj[b]), value(m.vr[b]))
-        else:
-            b_dict['vm'] = value(m.vm[b])
-            b_dict['va'] = value(m.va[b])
+        for b,b_dict in buses.items():
+            b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
+            b_dict['qlmp'] = value(m.dual[m.eq_q_balance[b]])
+            b_dict['pl'] = value(m.pl[b])
+            if hasattr(m, 'vj'):
+                b_dict['vm'] = tx_calc.calculate_vm_from_vj_vr(value(m.vj[b]), value(m.vr[b]))
+                b_dict['va'] = tx_calc.calculate_va_from_vj_vr(value(m.vj[b]), value(m.vr[b]))
+            else:
+                b_dict['vm'] = value(m.vm[b])
+                b_dict['va'] = value(m.va[b])
 
-    for k, k_dict in branches.items():
-        if hasattr(m,'pf'):
-            k_dict['pf'] = value(m.pf[k])
-            k_dict['pt'] = value(m.pt[k])
-            k_dict['qf'] = value(m.qf[k])
-            k_dict['qt'] = value(m.qt[k])
-        if hasattr(m,'irf'):
-            b = k_dict['from_bus']
-            k_dict['pf'] = value(tx_calc.calculate_p(value(m.ifr[k]), value(m.ifj[k]), value(m.vr[b]), value(m.vj[b])))
-            k_dict['qf'] = value(tx_calc.calculate_q(value(m.ifr[k]), value(m.ifj[k]), value(m.vr[b]), value(m.vj[b])))
-            b = k_dict['to_bus']
-            k_dict['pt'] = value(tx_calc.calculate_p(value(m.itr[k]), value(m.itj[k]), value(m.vr[b]), value(m.vj[b])))
-            k_dict['qt'] = value(tx_calc.calculate_q(value(m.itr[k]), value(m.itj[k]), value(m.vr[b]), value(m.vj[b])))
+        for k, k_dict in branches.items():
+            if hasattr(m,'pf'):
+                k_dict['pf'] = value(m.pf[k])
+                k_dict['pt'] = value(m.pt[k])
+                k_dict['qf'] = value(m.qf[k])
+                k_dict['qt'] = value(m.qt[k])
+            if hasattr(m,'irf'):
+                b = k_dict['from_bus']
+                k_dict['pf'] = value(tx_calc.calculate_p(value(m.ifr[k]), value(m.ifj[k]), value(m.vr[b]), value(m.vj[b])))
+                k_dict['qf'] = value(tx_calc.calculate_q(value(m.ifr[k]), value(m.ifj[k]), value(m.vr[b]), value(m.vj[b])))
+                b = k_dict['to_bus']
+                k_dict['pt'] = value(tx_calc.calculate_p(value(m.itr[k]), value(m.itj[k]), value(m.vr[b]), value(m.vj[b])))
+                k_dict['qt'] = value(tx_calc.calculate_q(value(m.itr[k]), value(m.itj[k]), value(m.vr[b]), value(m.vj[b])))
 
 
-    unscale_ModelData_to_pu(md, inplace=True)
+        unscale_ModelData_to_pu(md, inplace=True)
 
     if return_model and return_results:
         return md, m, results

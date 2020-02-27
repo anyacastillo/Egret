@@ -151,18 +151,19 @@ def _solve_model(model,
                               symbolic_solver_labels=symbolic_solver_labels, load_solutions=False,
                               **solve_method_options)
 
-    if results.solver.termination_condition not in safe_termination_conditions:
-        raise Exception('Problem encountered during solve, termination_condition {}'.format(results.solver.termination_condition))
+    if results.solver.termination_condition in safe_termination_conditions:
+        if isinstance(solver, PersistentSolver):
+            solver.load_vars(vars_to_load)
+            if vars_to_load is None:
+                if hasattr(model, "dual"):
+                    solver.load_duals()
+                if hasattr(model, "slack"):
+                    solver.load_slacks()
+        else:
+            model.solutions.load_from(results)
 
-    if isinstance(solver, PersistentSolver):
-        solver.load_vars(vars_to_load)
-        if vars_to_load is None:
-            if hasattr(model, "dual"):
-                solver.load_duals()
-            if hasattr(model, "slack"):
-                solver.load_slacks()
-    else:
-        model.solutions.load_from(results)
+    if results.solver.termination_condition not in safe_termination_conditions:
+        results = None
 
     if return_solver:
         return model, results, solver
