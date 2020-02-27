@@ -41,7 +41,8 @@ if __name__ == '__main__':
         while True:
             md = create_ModelData(matpower_file)
             loads = dict(md.elements(element_type='load'))
-            gens = dict(md.elements(element_type='gen'))
+            gens = dict(md.elements(element_type='generator'))
+            buses = dict(md.elements(element_type='bus'))
 
             for load, load_dict in loads.items():
                 _variation_fraction = random.uniform(0.85,1.15)
@@ -53,9 +54,13 @@ if __name__ == '__main__':
                 while True:
                     _variation_fraction = random.uniform(0.85,1.15)
                     p_tmp = gen_dict['pg']*_variation_fraction
-                    if gen_dict['pmin'] <= p_tmp <= gen_dict['pmax']:
+                    if gen_dict['p_min'] <= p_tmp <= gen_dict['p_max']:
                         gen_dict['pg'] = p_tmp
                         break
+
+            for bus, bus_dict in buses.items():
+                _variation_fraction = random.uniform(bus_dict['v_min'],bus_dict['v_max'])
+                bus_dict['vm'] = _variation_fraction
 
             md, m, results = solve_acpf(md, "ipopt", return_model=True, return_results=True, write_results=True,
                                         runid=samples)
