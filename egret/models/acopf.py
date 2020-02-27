@@ -55,7 +55,7 @@ def _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_l
     return p_rhs_kwargs, q_rhs_kwargs, penalty_expr
 
 
-def create_psv_acopf_model(model_data, include_feasibility_slack=False):
+def create_psv_acopf_model(model_data, model = None, include_feasibility_slack=False):
     md = model_data.clone_in_service()
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
@@ -75,7 +75,8 @@ def create_psv_acopf_model(model_data, include_feasibility_slack=False):
         tx_utils.inlet_outlet_branches_by_bus(branches, buses)
     gens_by_bus = tx_utils.gens_by_bus(buses, gens)
 
-    model = pe.ConcreteModel()
+    if model is None:
+        model = pe.ConcreteModel()
 
     ### declare (and fix) the loads at the buses
     bus_p_loads, bus_q_loads = tx_utils.dict_of_bus_loads(buses, loads)
@@ -249,7 +250,7 @@ def create_psv_acopf_model(model_data, include_feasibility_slack=False):
     return model, md
 
 
-def create_rsv_acopf_model(model_data, include_feasibility_slack=False):
+def create_rsv_acopf_model(model_data, model = None, include_feasibility_slack=False):
     md = model_data.clone_in_service()
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
@@ -269,7 +270,8 @@ def create_rsv_acopf_model(model_data, include_feasibility_slack=False):
         tx_utils.inlet_outlet_branches_by_bus(branches, buses)
     gens_by_bus = tx_utils.gens_by_bus(buses, gens)
 
-    model = pe.ConcreteModel()
+    if model is None:
+        model = pe.ConcreteModel()
 
     ### declare (and fix) the loads at the buses
     bus_p_loads, bus_q_loads = tx_utils.dict_of_bus_loads(buses, loads)
@@ -447,7 +449,7 @@ def create_rsv_acopf_model(model_data, include_feasibility_slack=False):
     return model, md
 
 
-def create_riv_acopf_model(model_data, include_feasibility_slack=False):
+def create_riv_acopf_model(model_data, model = None, include_feasibility_slack=False):
     md = model_data.clone_in_service()
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
@@ -467,7 +469,8 @@ def create_riv_acopf_model(model_data, include_feasibility_slack=False):
         tx_utils.inlet_outlet_branches_by_bus(branches, buses)
     gens_by_bus = tx_utils.gens_by_bus(buses, gens)
 
-    model = pe.ConcreteModel()
+    if model is None:
+        model = pe.ConcreteModel()
 
     ### declare (and fix) the loads at the buses
     bus_p_loads, bus_q_loads = tx_utils.dict_of_bus_loads(buses, loads)
