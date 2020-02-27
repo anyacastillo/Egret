@@ -8,18 +8,18 @@
 #  ___________________________________________________________________________
 
 """
-Running the Preventive ACOPF N-1 Contingency Analysis
-
-Efficient Creation of Datasets for Data-Driven Power System Applications
-Andreas Venzke, Daniel K. Molzahn and Spyros Chatzivasileiadis
-arXiv:1910.01794v1
+This runs the ACOPF for the current operating point,
+and then for a given contingency, checks to see if the operating point
+is AC power flow feasible
 """
 
 if __name__ == '__main__':
     import os
+    import math
     from egret.parsers.matpower_parser import create_ModelData
     import random
-    from egret.models.preventive_acopf_n1 import *
+    from egret.models.acpf import *
+    from egret.models.acopf import *
     import sys
 
     random.seed(23) # repeatable
@@ -41,12 +41,8 @@ if __name__ == '__main__':
         samples += 1
 
         # N-1 contingency (line outages only
-        model_data = create_ModelData(matpower_file)
-        branches = dict(model_data.elements(element_type='branch'))
-        loads = dict(model_data.elements(element_type='load'))
-
-        for branch, branch_dict in branches.items():
-            contingency_dict = {'branches': [branch]}
+        md = create_ModelData(matpower_file)
+        loads = dict(md.elements(element_type='load'))
 
         for load, load_dict in loads.items():
             _variation_fraction = random.uniform(0.5,1.5)
@@ -54,8 +50,21 @@ if __name__ == '__main__':
             load_dict['p_load'] = _variation_fraction*load_dict['p_load']
             load_dict['q_load'] = load_dict['p_load']*math.tan(math.acos(power_factor))
 
-            # contingency_dict format example: {'branches': ['1','8','23','25','37','44']}
-            md, m, results = solve_acopf_n1(model_data, contingency_dict, "ipopt",acopf_n1_model_generator=create_psv_acopf_model, return_model=True, return_results=True, write_results=True, runid=samples)
+        kwargs = {'include_feasibility_slack': False}
+        md, m, results = solve_acopf(md, "ipopt", acopf_model_generator=create_psv_acopf_model, return_model=True,
+                                     return_results=True, **kwargs)
+
+        branches = dict(md.elements(element_type='branch'))
+        for branch, branch_dict in branches.items():
+            if branches[branch]['in_service'] == True:
+                branches[branch]['in_service'] = False
+                kwargs = {'include_feasibility_slack': True}
+                md, m, results = solve_acpf(md, "ipopt", return_model=True, return_results=True, write_results=True,
+                                            runid=samples, **kwargs)
+                branches[branch]['in_service'] = True
+
+
+
 
 
 

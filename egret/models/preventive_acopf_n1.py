@@ -221,11 +221,13 @@ def solve_acopf_n1(model_data,
         #b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
         #b_dict['qlmp'] = value(m.dual[m.eq_q_balance[b]])
         b_dict['pl'] = value(m.pl[b])
-        if acopf_n1_model_generator == create_rsv_acopf_model or acopf_n1_model_generator == create_riv_acopf_model or \
-                acopf_n1_model_generator == create_psv_acopf_model:
+        if hasattr(m,'p_slack_pos'):
             b_dict['p_slack_pos'] = value(m.p_slack_pos[b])
+        if hasattr(m, 'p_slack_neg'):
             b_dict['p_slack_neg'] = value(m.p_slack_neg[b])
+        if hasattr(m, 'q_slack_pos'):
             b_dict['q_slack_pos'] = value(m.q_slack_pos[b])
+        if hasattr(m, 'q_slack_neg'):
             b_dict['q_slack_neg'] = value(m.q_slack_neg[b])
         if hasattr(m, 'vj'):
             b_dict['vm'] = tx_calc.calculate_vm_from_vj_vr(value(m.vj[b]), value(m.vr[b]))
