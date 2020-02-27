@@ -69,7 +69,7 @@ def create_psv_acpf_model(model_data):
     ### declare the generator real and reactive power
     libgen.declare_var_pg(model, gen_attrs['names'], initialize=gen_attrs['pg'])
 
-    libgen.declare_var_qg(model, gen_attrs['names'], initialize=gen_attrs['qg'])\
+    libgen.declare_var_qg(model, gen_attrs['names'], initialize=gen_attrs['qg'])
 
 
     ### In a system with N buses and G generators, there are then 2(N-1)-(G-1) unknowns.

@@ -39,30 +39,33 @@ if __name__ == '__main__':
         filename = sys.argv[2] # argument 2: case filename
 
     while samples < max_samples:
-        samples += 1
 
         # N-1 contingency (line outages only
         md = create_ModelData(matpower_file)
         loads = dict(md.elements(element_type='load'))
 
-        for load, load_dict in loads.items():
-            _variation_fraction = random.uniform(0.85,1.15)
-            power_factor = load_dict['p_load']/math.sqrt(load_dict['p_load']**2 + load_dict['q_load']**2)
-            load_dict['p_load'] = _variation_fraction*load_dict['p_load']
-            load_dict['q_load'] = load_dict['p_load']*math.tan(math.acos(power_factor))
+        while True:
+            for load, load_dict in loads.items():
+                _variation_fraction = random.uniform(0.85,1.15)
+                power_factor = load_dict['p_load']/math.sqrt(load_dict['p_load']**2 + load_dict['q_load']**2)
+                load_dict['p_load'] = _variation_fraction*load_dict['p_load']
+                load_dict['q_load'] = load_dict['p_load']*math.tan(math.acos(power_factor))
 
-        kwargs = {'include_feasibility_slack': False}
-        md, m, results = solve_acopf(md, "ipopt", acopf_model_generator=create_psv_acopf_model, return_model=True,
-                                     return_results=True, **kwargs)
+            kwargs = {'include_feasibility_slack': False}
+            md, m, results = solve_acopf(md, "ipopt", acopf_model_generator=create_psv_acopf_model, return_model=True,
+                                         return_results=True, **kwargs)
 
-        if results is not None:
-            branches = dict(md.elements(element_type='branch'))
-            for branch, branch_dict in branches.items():
-                if branches[branch]['in_service'] == True:
-                    branches[branch]['in_service'] = False
-                    md, m, results = solve_acpf(md, "ipopt", return_model=True, return_results=True, write_results=True,
+            if results.solver.termination_condition == po.TerminationCondition.optimal:
+                samples += 1
+                break
+
+        branches = dict(md.elements(element_type='branch'))
+        for branch, branch_dict in branches.items():
+            if branches[branch]['in_service'] == True:
+                branches[branch]['in_service'] = False
+                md, m, results = solve_acpf(md, "ipopt", return_model=True, return_results=True, write_results=True,
                                                 runid=samples)
-                    branches[branch]['in_service'] = True
+                branches[branch]['in_service'] = True
 
 
 
