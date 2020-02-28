@@ -1312,11 +1312,11 @@ def submain(idx=None, show_plot=False):
 
 
     if idx is None:
-        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
+#        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
-#        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case118_ieee.m')
+        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case118_ieee.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
     else:
         test_case=idx_to_test_case(idx)
