@@ -63,7 +63,7 @@ if __name__ == '__main__':
                 bus_dict['vm'] = _variation_fraction
 
             md, m, results = solve_acpf(md, "ipopt", return_model=True, return_results=True, write_results=True,
-                                        runid=samples)
+                                        runid='sample.{}'.format(samples))
 
             if results.solver.termination_condition == po.TerminationCondition.optimal:
                 samples += 1

@@ -56,7 +56,6 @@ if __name__ == '__main__':
                                          return_results=True, **kwargs)
 
             if results.solver.termination_condition == po.TerminationCondition.optimal:
-                print('*** failed ACOPF ***', results.solver.termination_condition)
                 samples += 1
                 break
 
