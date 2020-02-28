@@ -24,11 +24,11 @@ if __name__ == '__main__':
     random.seed(23) # repeatable
 
     path = os.path.dirname(__file__)
-    filename = 'pglib_opf_case14_ieee.m'
+    filename = 'pglib_opf_case118_ieee.m'
     matpower_file = os.path.join(path, '../../../download/pglib-opf-master/', filename)
 
     samples = 1
-    max_samples = 10
+    max_samples = 100
 
     if len(sys.argv[1:]) == 1:
         max_samples = sys.argv[1] # argument 1: # of samples
