@@ -147,7 +147,8 @@ def set_acopf_basepoint_min_max(md_dict, init_min=0.9, init_max=1.1, **kwargs):
     returns AC basepoint solution and feasible min/max range
      - new min/max range b/c test case may not be feasible in [init_min to init_max]
     """
-    md = md_dict.clone_in_service()
+    model_data.return_in_service()
+    md = model_data
     loads = dict(md.elements(element_type='load'))
 
     acopf_model = create_psv_acopf_model
@@ -174,7 +175,8 @@ def multiplier_loop(model_data, init=0.9, steps=10, acopf_model=create_psv_acopf
     steps determines the increments in [init, 1] where the search is made
     '''
 
-    md = model_data.clone_in_service()
+    model_data.return_in_service()
+    md = model_data
 
     loads = dict(md.elements(element_type='load'))
 
@@ -220,7 +222,8 @@ def multiplier_loop(model_data, init=0.9, steps=10, acopf_model=create_psv_acopf
 
 
 def create_new_model_data(model_data, mult):
-    md = model_data.clone_in_service()
+    model_data.return_in_service()
+    md = model_data
 
     loads = dict(md.elements(element_type='load'))
 

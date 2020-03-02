@@ -264,6 +264,13 @@ class ModelData(object):
         """
         return ModelData(_copy_only_in_service(self.data))
 
+    def return_in_service(self):
+        """
+        Modifies the ModelData object to remove elements for which the in_service flag is set to False
+
+        """
+        _remove_not_in_service(self.data)
+        return
 
     def clone_at_timestamp(self, timestamp):
         """
@@ -369,3 +376,18 @@ def _copy_only_in_service(data_dict):
             new_dd[key] = cp.deepcopy(value)
     return new_dd
 
+
+def _remove_not_in_service(data_dict):
+    for key, value in data_dict.items():
+        if key == 'elements':
+            del_elements = dict()
+            for elements_name, elements in value.items():
+                del_elements[elements_name] = list()
+                for element_name, element in elements.items():
+                    if 'in_service' in element and (not element['in_service']):
+                        del_elements[elements_name].append(element_name)
+
+            for key,val in del_elements.items():
+                for idx in del_elements[key]:
+                    del value[key][idx]
+    return

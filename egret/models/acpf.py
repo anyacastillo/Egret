@@ -55,7 +55,8 @@ def _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_l
 
 
 def create_psv_acpf_model(model_data, include_feasibility_slack=False):
-    md = model_data.clone_in_service()
+    model_data.return_in_service()
+    md = model_data
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
     gens = dict(md.elements(element_type='generator'))
@@ -206,7 +207,8 @@ def create_psv_acpf_model(model_data, include_feasibility_slack=False):
 
 
 def create_rsv_acpf_model(model_data, include_feasibility_slack=False):
-    md = model_data.clone_in_service()
+    model_data.return_in_service()
+    md = model_data
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
     gens = dict(md.elements(element_type='generator'))
@@ -376,7 +378,8 @@ def create_rsv_acpf_model(model_data, include_feasibility_slack=False):
 
 
 def create_riv_acpf_model(model_data, include_feasibility_slack=False):
-    md = model_data.clone_in_service()
+    model_data.return_in_service()
+    md = model_data
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
     gens = dict(md.elements(element_type='generator'))

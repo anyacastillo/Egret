@@ -55,7 +55,8 @@ def _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_l
 
 
 def create_psv_acopf_model(model_data, include_feasibility_slack=False):
-    md = model_data.clone_in_service()
+    model_data.return_in_service()
+    md = model_data
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
     gens = dict(md.elements(element_type='generator'))
@@ -247,7 +248,8 @@ def create_psv_acopf_model(model_data, include_feasibility_slack=False):
 
 
 def create_rsv_acopf_model(model_data, include_feasibility_slack=False):
-    md = model_data.clone_in_service()
+    model_data.return_in_service()
+    md = model_data
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
     gens = dict(md.elements(element_type='generator'))
@@ -443,7 +445,8 @@ def create_rsv_acopf_model(model_data, include_feasibility_slack=False):
 
 
 def create_riv_acopf_model(model_data, include_feasibility_slack=False):
-    md = model_data.clone_in_service()
+    model_data.return_in_service()
+    md = model_data
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
     gens = dict(md.elements(element_type='generator'))
@@ -790,8 +793,8 @@ if __name__ == '__main__':
     from egret.parsers.matpower_parser import create_ModelData
 
     path = os.path.dirname(__file__)
-    filename = 'pglib_opf_case3_lmbd.m'
-    #filename = 'pglib_opf_case14_ieee.m'
+    #filename = 'pglib_opf_case3_lmbd.m'
+    filename = 'pglib_opf_case14_ieee.m'
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
     model_data = create_ModelData(matpower_file)
     kwargs = {'include_feasibility_slack':False}

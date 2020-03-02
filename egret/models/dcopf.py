@@ -48,7 +48,8 @@ def _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, penalty
 
 
 def create_btheta_dcopf_model(model_data, include_angle_diff_limits=False, include_feasibility_slack=False):
-    md = model_data.clone_in_service()
+    model_data.return_in_service()
+    md = model_data
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
     gens = dict(md.elements(element_type='generator'))
@@ -181,7 +182,8 @@ def create_ptdf_dcopf_model(model_data, include_feasibility_slack=False, base_po
     baseMVA = model_data.data['system']['baseMVA']
     lpu.check_and_scale_ptdf_options(ptdf_options, baseMVA)
     
-    md = model_data.clone_in_service()
+    model_data.return_in_service()
+    md = model_data
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
     data_utils_deprecated.create_dicts_of_ptdf(md, base_point=BasePointType.FLATSTART)
