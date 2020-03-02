@@ -130,6 +130,7 @@ def _solve_model(model,
     else:
         raise Exception('solver must be string or an instantiated pyomo solver')
 
+    timelimit = 3600.
     _set_options(solver, mipgap, timelimit, options)
 
     if isinstance(solver, PersistentSolver):
