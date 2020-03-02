@@ -1268,7 +1268,8 @@ def main(arg):
 
     idxA0 = case_names.index('pglib_opf_case240_pserc')  ## < 1000 buses
     idxA = case_names.index('pglib_opf_case1354_pegase')  ## < 1000 buses
-    idxB = case_names.index('pglib_opf_case2383wp_k')  ## 1354 - 2316 buses
+    #idxB = case_names.index('pglib_opf_case2383wp_k')  ## 1354 - 2316 buses
+    idxB = case_names.index('pglib_opf_case2736sp_k')  ## 1354 - 2316 buses
     idxC = case_names.index('pglib_opf_case6468_rte')  ## 2383 - 4661 buses
     idxD = case_names.index('pglib_opf_case13659_pegase')  ## 6468 - 10000 buses
     idxE = case_names.index('pglib_opf_case13659_pegase') + 1  ## 13659 buses
@@ -1316,11 +1317,11 @@ def submain(idx=None, show_plot=False):
 
 
     if idx is None:
-        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
+#        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
-#        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case118_ieee.m')
+        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case118_ieee.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
     else:
         test_case=idx_to_test_case(idx)
