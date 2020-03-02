@@ -19,6 +19,7 @@ import pandas as pd
 from egret.models.acopf import create_psv_acopf_model
 from egret.common.solver_interface import _solve_model
 from pyomo.environ import value
+import egret.data.data_utils_deprecated as data_utils_deprecated
 
 def solve_time(md):
 
@@ -340,6 +341,7 @@ def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=
     #print('...overwriting system data: {}'.format(show_me.T))
 
     if 'filename' in system_data.keys():
+        data_utils_deprecated.destroy_dicts_of_fdf(md)
         filename = system_data['filename']
         model_name = system_data['model_name']
         md.write_to_json(filename)

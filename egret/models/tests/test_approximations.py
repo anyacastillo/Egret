@@ -142,7 +142,7 @@ test_cases = [join('../../../download/pglib-opf-master/', f + '.m') for f in cas
 
 
 
-def set_acopf_basepoint_min_max(md_dict, init_min=0.9, init_max=1.1, **kwargs):
+def set_acopf_basepoint_min_max(model_data, init_min=0.9, init_max=1.1, **kwargs):
     """
     returns AC basepoint solution and feasible min/max range
      - new min/max range b/c test case may not be feasible in [init_min to init_max]
@@ -1316,7 +1316,7 @@ def submain(idx=None, show_plot=False):
 
 
     if idx is None:
-#        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
+        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
