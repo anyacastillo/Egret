@@ -1263,6 +1263,7 @@ def create_circlesize_legend(title=None, s_min=1, s_max=500, data_min=2, data_ma
 
 def main(arg):
 
+    idxA0 = case_names.index('pglib_opf_case240_pserc')  ## < 1000 buses
     idxA = case_names.index('pglib_opf_case1354_pegase')  ## < 1000 buses
     idxB = case_names.index('pglib_opf_case2383wp_k')  ## 1354 - 2316 buses
     idxC = case_names.index('pglib_opf_case6468_rte')  ## 2383 - 4661 buses
@@ -1270,7 +1271,7 @@ def main(arg):
     idxE = case_names.index('pglib_opf_case13659_pegase') + 1  ## 13659 buses
 
     if arg == 'A':
-        idx_list = list(range(0,idxA))
+        idx_list = list(range(idxA0,idxA))
     elif arg == 'B':
         idx_list = list(range(idxA,idxB))
     elif arg == 'C':
@@ -1316,7 +1317,7 @@ def submain(idx=None, show_plot=False):
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
-        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case118_ieee.m')
+#        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case118_ieee.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
     else:
         test_case=idx_to_test_case(idx)
