@@ -62,7 +62,7 @@ if __name__ == '__main__':
                 _variation_fraction = random.uniform(bus_dict['v_min'],bus_dict['v_max'])
                 bus_dict['vm'] = _variation_fraction
 
-            md, m, results = solve_acpf(md, "ipopt", return_model=True, return_results=True, write_results=True,
+            md, m, results = solve_acpf(md, "ipopt", solver_tee=False, return_model=True, return_results=True, write_results=True,
                                         runid='sample.{}'.format(samples))
 
             if results.solver.termination_condition == po.TerminationCondition.optimal:

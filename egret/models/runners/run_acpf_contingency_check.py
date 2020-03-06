@@ -55,8 +55,8 @@ if __name__ == '__main__':
                 load_dict['q_load'] = load_dict['p_load']*math.tan(math.acos(power_factor))
 
             kwargs = {'include_feasibility_slack': False}
-            md, m, results = solve_acopf(md, "ipopt", acopf_model_generator=create_psv_acopf_model, return_model=True,
-                                         return_results=True, write_results=True,
+            md, m, results = solve_acopf(md, "ipopt", acopf_model_generator=create_psv_acopf_model, solver_tee=False,
+                                         return_model=True, return_results=True, write_results=True,
                                          runid='sample.{}'.format(samples))
 
             if results.solver.termination_condition == po.TerminationCondition.optimal:
@@ -66,7 +66,7 @@ if __name__ == '__main__':
         for branch, branch_dict in branches.items():
             if branches[branch]['in_service'] == True:
                 branches[branch]['in_service'] = False
-                md, m, results = solve_acpf(md, "ipopt", return_model=True, return_results=True, write_results=True,
+                md, m, results = solve_acpf(md, "ipopt", solver_tee=False, return_model=True, return_results=True, write_results=True,
                                                 runid='sample.{}_branch.{}'.format(samples,branch))
                 branches[branch]['in_service'] = True
 

@@ -56,7 +56,7 @@ if __name__ == '__main__':
             load_dict['q_load'] = load_dict['p_load']*math.tan(math.acos(power_factor))
 
             # contingency_dict format example: {'branches': ['1','8','23','25','37','44']}
-            md, m, results = solve_acopf_n1(model_data, contingency_dict, "ipopt",acopf_n1_model_generator=create_psv_acopf_model, return_model=True, return_results=True, write_results=True, runid=samples)
+            md, m, results = solve_acopf_n1(model_data, contingency_dict, "ipopt",acopf_n1_model_generator=create_psv_acopf_model, solver_tee=False, return_model=True, return_results=True, write_results=True, runid=samples)
 
 
 
