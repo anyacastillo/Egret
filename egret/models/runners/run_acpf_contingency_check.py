@@ -40,7 +40,10 @@ if __name__ == '__main__':
 
     while samples < max_samples:
 
+        samples += 1
+
         while True:
+
             # N-1 contingency (line outages only
             md = create_ModelData(matpower_file)
             loads = dict(md.elements(element_type='load'))
@@ -57,7 +60,6 @@ if __name__ == '__main__':
                                          runid='sample.{}'.format(samples))
 
             if results.solver.termination_condition == po.TerminationCondition.optimal:
-                samples += 1
                 break
 
         branches = dict(md.elements(element_type='branch'))
