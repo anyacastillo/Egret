@@ -280,7 +280,7 @@ def solve_acpf(model_data,
             if runid is None:
                 from datetime import datetime
                 runid = datetime.now().strftime("%d-%b-%Y_%H_%M_%S")
-            filename = "%s__runid_%s.json" % (system, str(runid))
+            filename = "%s__acpf_runid_%s.json" % (system, str(runid))
             md.write(filename,file_type='json')
 
     if return_model and return_results:

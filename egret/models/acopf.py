@@ -681,6 +681,8 @@ def solve_acopf(model_data,
                 acopf_model_generator = create_psv_acopf_model,
                 return_model = False,
                 return_results = False,
+                write_results=False,
+                runid='',
                 **kwargs):
     '''
     Create and solve a new acopf model
@@ -707,6 +709,10 @@ def solve_acopf(model_data,
         If True, returns the pyomo model object
     return_results : bool (optional)
         If True, returns the pyomo results object
+    write_results : bool (optional)
+        If True, writes results of model_data object to json file
+    runid : str
+        If None, uses datetimestamp to name file when write_results is true; otherwise uses string specified here.
     kwargs : dictionary (optional)
         Additional arguments for building model
     '''
@@ -763,6 +769,14 @@ def solve_acopf(model_data,
 
 
         unscale_ModelData_to_pu(md, inplace=True)
+
+        if write_results:
+            system = model_data.data['system']['model_name']
+            if runid is None:
+                from datetime import datetime
+                runid = datetime.now().strftime("%d-%b-%Y_%H_%M_%S")
+            filename = "%s__acopf_runid_%s.json" % (system, str(runid))
+            md.write(filename,file_type='json')
 
     if return_model and return_results:
         return md, m, results

@@ -53,7 +53,8 @@ if __name__ == '__main__':
 
             kwargs = {'include_feasibility_slack': False}
             md, m, results = solve_acopf(md, "ipopt", acopf_model_generator=create_psv_acopf_model, return_model=True,
-                                         return_results=True, **kwargs)
+                                         return_results=True, write_results=True,
+                                         runid='sample.{}'.format(samples))
 
             if results.solver.termination_condition == po.TerminationCondition.optimal:
                 samples += 1
