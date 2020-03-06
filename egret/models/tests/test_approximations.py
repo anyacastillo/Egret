@@ -68,6 +68,7 @@ import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
+import matplotlib.colors as clrs
 import matplotlib.cm as cmap
 import seaborn as sns
 from cycler import cycler
@@ -838,24 +839,42 @@ def generate_speedup_data(test_model_dict, case_list=case_names, mean_data='solv
     df_data.to_csv(os.path.join(destination, filename))
 
 
-def generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='dlopf_lazy',colormap=None, show_plot=False):
+def generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='dlopf_lazy',colormap=None,
+                             xscale='linear', yscale='linear', show_plot=False):
 
     filename = "speedup_data_" + mean_data + "_" + benchmark + ".csv"
     df_data = get_data(filename,test_model_dict=test_model_dict)
+    df_data = df_data.drop(columns=benchmark)
+
+    cols = df_data.columns.to_list()
+    col_lazy=[]
+    col_alert=[]
+    for c in cols:
+        if 'lazy' in c:
+            col_lazy.append(c)
+        else:
+            col_alert.append(c)
+    cols = col_alert + col_lazy
+    df_data = df_data[cols]
 
     model_names = [c for c in df_data.columns]
-    index_names = [i for i in df_data.index]
+#    index_names = [i for i in df_data.index]
+    index_names = [i.replace('pglib_opf_','') for i in df_data.index]
     data = df_data.values
     model_num = len(model_names)
-    x = np.arange(model_num)
+
+    #   EDIT TICKS HERE IF NEEDED   #
+    cbar_dict = {'ticks' : [1e0,1e1,1e2]}
 
     ax = sns.heatmap(data,
                      linewidth=0.5,
                      xticklabels=model_names,
                      yticklabels=index_names,
-                     cmap=colormap
+                     cmap=colormap,
+                     norm=clrs.LogNorm(vmin=data.min(), vmax=data.max()),
+                     cbar_kws=cbar_dict,
                      )
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
     ax.set_title(mean_data + " speedup vs. " + benchmark)
     ax.set_xlabel("Model")
@@ -870,6 +889,8 @@ def generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', be
 
     if show_plot:
         plt.show()
+    else:
+        plt.cla()
 
 
 def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas,
@@ -1013,6 +1034,8 @@ def generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data
 
     if show_plot:
         plt.show()
+    else:
+        plt.cla()
 
 
 
@@ -1067,6 +1090,8 @@ def generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas'
     # display
     if show_plot is True:
         plt.show()
+    else:
+        plt.cla()
 
 
 def generate_case_size_plot_seaborn(test_model_dict, case_list=case_names,
@@ -1129,6 +1154,8 @@ def generate_case_size_plot_seaborn(test_model_dict, case_list=case_names,
 
     if show_plot:
         plt.show()
+    else:
+        plt.cla()
 
 
 def generate_case_size_plot(test_model_dict, case_list=case_names,
@@ -1243,6 +1270,9 @@ def generate_case_size_plot(test_model_dict, case_list=case_names,
 
     if show_plot:
         plt.show()
+    else:
+        plt.cla()
+        plt.clf()
 
 
 def create_circlesize_legend(title=None, s_min=1, s_max=500, data_min=2, data_max=1000):
@@ -1289,7 +1319,7 @@ def main(arg):
         submain(idx, show_plot=False)
 
 
-def submain(idx=None, show_plot=False):
+def submain(idx=None, show_plot=True):
     """
     solves models and generates plots for test case at test_cases[idx] or a default case
     """
@@ -1359,28 +1389,28 @@ def submain(idx=None, show_plot=False):
                       tu.model_sparsity,
                       tu.sum_infeas,
                       tu.solve_time,
-                      tu.thermal_infeas,
-                      tu.kcl_p_infeas,
-                      tu.kcl_q_infeas,
-                      tu.max_thermal_infeas,
-                      tu.max_kcl_p_infeas,
-                      tu.max_kcl_q_infeas,
+#                      tu.thermal_infeas,
+#                      tu.kcl_p_infeas,
+#                      tu.kcl_q_infeas,
+#                      tu.max_thermal_infeas,
+#                      tu.max_kcl_p_infeas,
+#                      tu.max_kcl_q_infeas,
                       ]
 
     ## Model solves
-    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate data files
     #generate_mean_data(test_case,test_model_dict)
     generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
-    generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
+#    generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
 
     ## Generate plots
     #---- Sensitivity plots: remove lazy and tolerance models
     for key, val in test_model_dict.items():
         if 'lazy' in key or '_e' in key:
             test_model_dict[key] = False
-    generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas', units='p.u.', colors=colors, show_plot=show_plot)
+#    generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas', units='p.u.', colors=colors, show_plot=show_plot)
 
     #---- Pareto plots: add lazy models
     for key, val in test_model_dict.items():
@@ -1388,23 +1418,31 @@ def submain(idx=None, show_plot=False):
             test_model_dict[key] = True
         elif 'default' in key:
             test_model_dict[key] = False
-    generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data='solve_time_geomean', y_units='p.u', x_units='s',
-                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
-                         annotate_plot=False, show_plot=show_plot)
+#    generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data='solve_time_geomean', y_units='p.u', x_units='s',
+#                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
+#                         annotate_plot=False, show_plot=show_plot)
 
     #---- Case size plots:
-    generate_case_size_plot(test_model_dict, case_list=case_names,y_data='solve_time_geomean', y_units='s',
-                            x_data='num_buses', x_units=None, s_data='con_per_bus',colors=colors,
-                            xscale='log', yscale='linear',show_plot=show_plot)
+#    generate_case_size_plot(test_model_dict, case_list=case_names,y_data='solve_time_geomean', y_units='s',
+#                            x_data='num_buses', x_units=None, s_data='con_per_bus',colors=colors,
+#                            xscale='log', yscale='linear',show_plot=show_plot)
 
     #---- Factor truncation speedup: remove all but lazy and tolerance option models
     for key, val in test_model_dict.items():
-        if 'clopf_lazy' in key or 'clopf_e' in key:
+        if 'acopf' in key \
+                or 'slopf' in key \
+                or 'dlopf_default' in key \
+                or 'dlopf_lazy' in key \
+                or 'clopf_default' in key \
+                or 'clopf_lazy' in key \
+                or 'clopf_p_default' in key \
+                or 'clopf_p_lazy' in key \
+                or 'dcopf_btheta' in key:
             test_model_dict[key] = True
         else:
             test_model_dict[key] = False
-    generate_speedup_data(test_model_dict, case_list=case_names, mean_data='solve_time_geomean', benchmark='clopf_lazy')
-    generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='clopf_lazy',colormap=None, show_plot=show_plot)
+    generate_speedup_data(test_model_dict, case_list=case_names, mean_data='solve_time_geomean', benchmark='acopf')
+    generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='acopf',colormap=None, show_plot=show_plot)
 
 
 def idx_to_test_case(s):

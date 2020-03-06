@@ -157,7 +157,7 @@ def solve_infeas_model(model_data):
 
 
     # build ACOPF model with fixed gen output, fixed voltage angle/mag, and relaxed power balance
-    md, m, results = solve_acpf(model_data, "ipopt", return_results=True, return_model=True)
+    md, m, results = solve_acpf(model_data, "ipopt", return_results=True, return_model=True, solver_tee=False)
 
     sum_infeas_expr= 0. # MW + MVAr + MVA
     m.kcl_p_infeas_expr = 0. # MW
