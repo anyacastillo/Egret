@@ -13,16 +13,16 @@ This module provides functions that create the modules for typical ACPF formulat
 #TODO: document this with examples
 """
 import pyomo.environ as pe
-import operator as op
 import egret.model_library.transmission.tx_utils as tx_utils
 import egret.model_library.transmission.tx_calc as tx_calc
 import egret.model_library.transmission.bus as libbus
 import egret.model_library.transmission.branch as libbranch
 import egret.model_library.transmission.gen as libgen
+from egret.data.data_utils import zip_items
 
-from egret.model_library.defn import FlowType, CoordinateType
-from egret.data.model_data import map_items, zip_items
+from egret.model_library.defn import CoordinateType
 from math import pi
+from collections import OrderedDict
 
 
 def _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads, penalty=1000):
@@ -90,8 +90,6 @@ def create_psv_acpf_model(model_data):
 
     ### declare the polar voltages
     libbus.declare_var_vm(model, bus_attrs['names'], initialize=bus_attrs['vm'])
-
-    libbus.declare_expr_vmsq(model=model, index_set=bus_attrs['names'], coordinate_type=CoordinateType.POLAR)
 
     va_bounds = {k: (-pi, pi) for k in bus_attrs['va']}
     libbus.declare_var_va(model, bus_attrs['names'], initialize=bus_attrs['va'])
@@ -166,15 +164,12 @@ def create_psv_acpf_model(model_data):
                              )
 
     ### declare the branch power flow constraints
-    bus_pairs = zip_items(branch_attrs['from_bus'], branch_attrs['to_bus'])
-    unique_bus_pairs = list(OrderedDict((val, None) for idx, val in bus_pairs.items()).keys())
-    libbranch.declare_expr_c(model=model, index_set=unique_bus_pairs, coordinate_type=CoordinateType.POLAR)
-    libbranch.declare_expr_s(model=model, index_set=unique_bus_pairs, coordinate_type=CoordinateType.POLAR)
     libbranch.declare_eq_branch_power(model=model,
                                       index_set=branch_attrs['names'],
-                                      branches=branches
+                                      branches=branches,
+                                      branch_attrs=branch_attrs,
+                                      coordinate_type=CoordinateType.POLAR
                                       )
-
     ### declare the pq balances
     libbus.declare_eq_p_balance(model=model,
                                 index_set=bus_attrs['names'],

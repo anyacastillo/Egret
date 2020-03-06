@@ -17,9 +17,11 @@ import egret.model_library.decl as decl
 import pyomo.environ as pe
 import pandas as pd
 from egret.models.acopf import create_psv_acopf_model
+from egret.models.acpf import create_psv_acpf_model, solve_acpf
 from egret.common.solver_interface import _solve_model
 from pyomo.environ import value
 import egret.data.data_utils_deprecated as data_utils_deprecated
+from math import sqrt
 
 def solve_time(md):
 
@@ -153,127 +155,66 @@ def vmag(md):
 
 def solve_infeas_model(model_data):
 
+
     # build ACOPF model with fixed gen output, fixed voltage angle/mag, and relaxed power balance
-    m, md = create_psv_acopf_model(model_data, include_feasibility_slack=True)
+    md, m, results = solve_acpf(model_data, "ipopt", return_results=True, return_model=True)
 
-    gens = dict(md.elements(element_type='generator'))
-    buses = dict(md.elements(element_type='bus'))
-    branches = dict(md.elements(element_type='branch'))
-    loads = dict(md.elements(element_type='load'))
-    shunts = dict(md.elements(element_type='shunt'))
-
-    gen_attrs = md.attributes(element_type='generator')
-    bus_attrs = md.attributes(element_type='bus')
-    branch_attrs = md.attributes(element_type='branch')
-    load_attrs = md.attributes(element_type='load')
-    shunt_attrs = md.attributes(element_type='shunt')
-
-    #baseMVA = float(md.data['system']['baseMVA'])
-
-    ### declare (and fix) the loads at the buses
-    bus_p_loads, bus_q_loads = tx_utils.dict_of_bus_loads(buses, loads)
-
-    # fix variables to the values in modeData object md
-    for g, pg in m.pg.items():
-        pg.value = gens[g]['pg']
-    for g, qg in m.qg.items():
-        qg.value = gens[g]['qg']
-    for b, va in m.va.items():
-        va.value = buses[b]['va']
-    for b, vm in m.vm.items():
-        vm.value = buses[b]['vm']
-
-    m.pg.fix()
-    m.qg.fix()
-    #m.va.fix()     ## not sure if it is better to fix these or not
-    #m.vm.fix()     ## b/c fixing makes the model (essentially) LP, but leads to infeasibility in some cases
-
-    # remove power flow variable bounds
-    for b, pf in m.pf.items():
-        pf.setlb(None)
-        pf.setub(None)
-    for b, pt in m.pt.items():
-        pt.setlb(None)
-        pt.setub(None)
-    for b, qf in m.qf.items():
-        qf.setlb(None)
-        qf.setub(None)
-    for b, qt in m.qt.items():
-        qt.setlb(None)
-        qt.setub(None)
-
-    # add slack variable to thermal limit constraints
-    m.del_component(m.ineq_sf_branch_thermal_limit)
-    m.del_component(m.ineq_st_branch_thermal_limit)
-    s_thermal_limits = {k: branches[k]['rating_long_term'] for k in branches.keys()}
-    slack_init = {k: 0 for k in branch_attrs['names']}
-    slack_bounds = {k: (0, s_thermal_limits[k]) for k in branches.keys()}
-
-    decl.declare_var('sf_branch_slack_pos', model=m, index_set=branch_attrs['names'],
-                     initialize=slack_init, bounds=slack_bounds
-                     )
-    decl.declare_var('st_branch_slack_pos', model=m, index_set=branch_attrs['names'],
-                     initialize=slack_init, bounds=slack_bounds
-                     )
-
-    try:
-        con_set = m._con_ineq_s_branch_thermal_limit
-    except:
-        con_set = decl.declare_set('_con_ineq_s_branch_thermal_limit', model=m, index_set=branch_attrs['names'])
-
-    m.ineq_sf_branch_thermal_limit = pe.Constraint(con_set)
-    m.ineq_st_branch_thermal_limit = pe.Constraint(con_set)
-
-    for branch_name in con_set:
-        if s_thermal_limits[branch_name] is None:
-            continue
-
-        m.ineq_sf_branch_thermal_limit[branch_name] = \
-            m.pf[branch_name] ** 2 + m.qf[branch_name] ** 2 \
-            <= s_thermal_limits[branch_name] ** 2 + m.sf_branch_slack_pos[branch_name]
-        m.ineq_st_branch_thermal_limit[branch_name] = \
-            m.pt[branch_name] ** 2 + m.qt[branch_name] ** 2 \
-            <= s_thermal_limits[branch_name] ** 2 + m.st_branch_slack_pos[branch_name]
-
-    # calculate infeasibilities
-    kcl_p_infeas_expr = sum(m.p_slack_pos[bus_name] + m.p_slack_neg[bus_name] for bus_name in bus_attrs['names'])
-    kcl_q_infeas_expr = sum(m.q_slack_pos[bus_name] + m.q_slack_neg[bus_name] for bus_name in bus_attrs['names'])
-
-    thermal_infeas_expr = sum(m.sf_branch_slack_pos[branch_name]
-                              + m.st_branch_slack_pos[branch_name]
-                              for branch_name in branch_attrs['names'])
-
-    sum_infeas_expr = kcl_p_infeas_expr + kcl_q_infeas_expr + thermal_infeas_expr
+    sum_infeas_expr= 0. # MW + MVAr + MVA
+    m.kcl_p_infeas_expr = 0. # MW
+    m.kcl_q_infeas_expr = 0. # MVAr
+    m.thermal_infeas_expr = 0. #MVA
+    # sum_infeas_expr = kcl_p_infeas_expr + kcl_q_infeas_expr + thermal_infeas_expr
 
     # set objective to sum of infeasibilities (i.e. slacks)
     m.del_component(m.obj)
     m.obj = pe.Objective(expr=sum_infeas_expr)
 
-    # solve model
-    #print('mult={}'.format(md.data['system']['mult']))
-    try:
-        m, results = _solve_model(m, "ipopt", timelimit=None, solver_tee=False)
-    except:
-        #print('Solve failed... Increasing slack variable upper bounds.')
-        for b, p_slack_pos in m.p_slack_pos.items():
-            p_slack_pos.setub(9999)
-        for b, p_slack_neg in m.p_slack_neg.items():
-            p_slack_neg.setub(9999)
-        for b, q_slack_pos in m.q_slack_pos.items():
-            q_slack_pos.setub(9999)
-        for b, q_slack_neg in m.q_slack_neg.items():
-            q_slack_neg.setub(9999)
-        for b, sf_branch_slack_pos in m.sf_branch_slack_pos.items():
-            sf_branch_slack_pos.setub(9999)
-        for b, st_branch_slack_pos in m.st_branch_slack_pos.items():
-            st_branch_slack_pos.setub(9999)
+    gens = dict(md.elements(element_type='generator'))
+    buses = dict(md.elements(element_type='bus'))
+    branches = dict(md.elements(element_type='branch'))
+    gens_by_bus = tx_utils.gens_by_bus(buses, gens)
 
-        #m.pprint()
-        m, results = _solve_model(m, "ipopt", timelimit=None, solver_tee=False)
+    m.p_slack_pos = dict()
+    m.p_slack_neg = dict()
+    m.q_slack_pos = dict()
+    m.q_slack_neg = dict()
+    ref_bus = md.data['system']['reference_bus']
+    for bus_name, bus_dict in buses.items():
+        m.p_slack_pos[bus_name] = 0.
+        m.p_slack_neg[bus_name] = 0.
+        m.q_slack_pos[bus_name] = 0.
+        m.q_slack_neg[bus_name] = 0.
+        for gen_name in gens_by_bus[bus_name]:
+            g_dict = gens[gen_name]
+            if bus_name == ref_bus:
+                if value(m.pg[gen_name]) > g_dict['p_max']:
+                    m.p_slack_pos[bus_name] += value(m.pg[gen_name]) - g_dict['p_max']
+                if value(m.pg[gen_name]) < g_dict['p_min']:
+                    m.p_slack_neg[bus_name] += g_dict['p_min']-value(m.pg[gen_name])
+                m.kcl_p_infeas_expr += m.p_slack_pos[bus_name] + m.p_slack_neg[bus_name]
+            if value(m.qg[gen_name]) > g_dict['q_max']:
+                m.q_slack_pos[bus_name] += value(m.qg[gen_name]) - g_dict['q_max']
+            if value(m.qg[gen_name]) < g_dict['q_min']:
+                m.q_slack_neg[bus_name] += g_dict['q_min'] - value(m.qg[gen_name])
+            m.kcl_q_infeas_expr += m.q_slack_pos[bus_name] + m.q_slack_neg[bus_name]
 
-    #show_me = results.Solver.status.key.__str__()
-    #print('solver status: {}'.format(show_me))
+    m.sf_branch_slack_pos = dict()
+    m.st_branch_slack_pos = dict()
+    for branch_name, branch_dict in branches.items():
+        m.sf_branch_slack_pos[branch_name] = 0.
+        m.st_branch_slack_pos[branch_name] = 0.
+        sf = sqrt(branch_dict["pf"]**2 + branch_dict["qf"]**2)
+        st = sqrt(branch_dict["pt"]**2 + branch_dict["qt"]**2)
 
+        if sf > branch_dict['rating_long_term']:
+            m.sf_branch_slack_pos[branch_name] = sf - branch_dict['rating_long_term']
+            m.thermal_infeas_expr += m.sf_branch_slack_pos[branch_name]
+        if st > branch_dict['rating_long_term']:
+            m.st_branch_slack_pos[branch_name] = st - branch_dict['rating_long_term']
+            m.thermal_infeas_expr += m.st_branch_slack_pos[branch_name]
+
+    sum_infeas_expr = m.kcl_p_infeas_expr + m.kcl_q_infeas_expr + m.thermal_infeas_expr
+    m.obj = pe.Objective(expr=sum_infeas_expr)
     return m, results
 
 def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=False):

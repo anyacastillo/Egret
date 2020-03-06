@@ -19,6 +19,11 @@ import egret.model_library.transmission.tx_calc as tx_calc
 from egret.model_library.defn import BasePointType, ApproximationType
 from math import radians
 
+def map_items(func, d):
+    return {k: func(v) for k, v in d.items()}
+
+def zip_items(dict_lb, dict_ub):
+    return {k: (dict_lb[k], dict_ub[k]) for k in dict_lb.keys()}
 
 def get_ptdf_potentially_from_file(ptdf_options, branches_keys, buses_keys):
     '''
