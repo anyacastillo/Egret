@@ -214,6 +214,7 @@ def solve_infeas_model(model_data):
             m.thermal_infeas_expr += m.st_branch_slack_pos[branch_name]
 
     sum_infeas_expr = m.kcl_p_infeas_expr + m.kcl_q_infeas_expr + m.thermal_infeas_expr
+    m.del_component('obj')
     m.obj = pe.Objective(expr=sum_infeas_expr)
     return m, results
 
