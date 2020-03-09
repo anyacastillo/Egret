@@ -31,9 +31,9 @@ if __name__ == '__main__':
     max_samples = 100
 
     if len(sys.argv[1:]) == 1:
-        max_samples = sys.argv[1] # argument 1: # of samples
+        max_samples = int(sys.argv[1]) # argument 1: # of samples
     if len(sys.argv[1:]) == 2:
-        max_samples = sys.argv[1] # argument 1: # of samples
+        max_samples = int(sys.argv[1]) # argument 1: # of samples
         filename = sys.argv[2] # argument 2: case filename
 
     while samples <= max_samples:
