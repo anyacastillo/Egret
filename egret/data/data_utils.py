@@ -244,7 +244,7 @@ class PTDFLossesMatrix(PTDFMatrix):
 
         self.phase_shift_array = phase_shift_array
 
-        ## protect the array using numpy
+        ## protect the array usi ng numpy
         self.phase_shift_array.flags.writeable = False
 
     def _calculate_losses_phase_shift(self):

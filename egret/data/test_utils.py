@@ -223,7 +223,6 @@ def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=
 
     # return data if it is already in the ModelData and an ovewrite is not desired
     if infeas_name in system_data.keys() and not overwrite_existing:
-
         return system_data[infeas_name]
 
     ## printing some status updates
@@ -305,7 +304,7 @@ def save_to_solution_directory(filename, model_name):
 
     # move to case directory
     source = os.path.join(cwd, filename + '.json')
-    destination = os.path.join('..','models','tests','transmission_test_instances','approximation_solution_files',model_name)
+    destination = os.path.join(cwd,'transmission_test_instances','approximation_solution_files',model_name)
 
     if not os.path.exists(destination):
         os.makedirs(destination)

@@ -380,14 +380,10 @@ def _copy_only_in_service(data_dict):
 def _remove_not_in_service(data_dict):
     for key, value in data_dict.items():
         if key == 'elements':
-            del_elements = dict()
             for elements_name, elements in value.items():
-                del_elements[elements_name] = list()
                 for element_name, element in elements.items():
                     if 'in_service' in element and (not element['in_service']):
-                        del_elements[elements_name].append(element_name)
+                        del elements[element_name]
+                        #elements.pop(element_name)
 
-            for key,val in del_elements.items():
-                for idx in del_elements[key]:
-                    del value[key][idx]
     return
