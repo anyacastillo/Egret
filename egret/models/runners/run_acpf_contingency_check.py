@@ -64,12 +64,11 @@ if __name__ == '__main__':
 
         branches = dict(md.elements(element_type='branch'))
         for branch, branch_dict in branches.items():
-            _tmp_md = md.clone_in_service()
             if branches[branch]['in_service'] == True:
-                _tmp_md.data['elements']['branch'][branch]['in_service'] = False
-                _, m, results = solve_acpf(_tmp_md, "ipopt", solver_tee=False, return_model=True, return_results=True, write_results=True,
+                branches[branch]['in_service'] = False
+                _, m, results = solve_acpf(md, "ipopt", solver_tee=False, return_model=True, return_results=True, write_results=True,
                                                 runid='sample.{}_branch.{}'.format(samples,branch))
-                _tmp_md.data['elements']['branch'][branch]['in_service'] = True
+                branches[branch]['in_service'] = True
 
 
 
