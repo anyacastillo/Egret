@@ -87,20 +87,22 @@ def create_acopf_n1_model(model_data, contingency_dict, model_generator=create_p
     # Generate operating model for each subproblem
     #
     for con in model.contingency_list:
-        model_generator(model_data, model.pre_contingency_problem[con], include_feasiblity_slack)
+        _tmp_md = model_data.clone_in_service()
+        model_generator(_tmp_md, model.pre_contingency_problem[con], include_feasiblity_slack)
         _type, _idx = con.split('_')
         if _type == "branch":
             if branches[_idx]['in_service'] == True:
-                branches[_idx]['in_service'] = False
-                model_generator(model_data, model.post_contingency_problem[con], include_feasiblity_slack)
+                _tmp_md.data['elements']['branch'][_idx]['in_service'] = False
+                model_generator(_tmp_md, model.post_contingency_problem[con], include_feasiblity_slack)
                 delattr(model.post_contingency_problem[con],'obj')
-                branches[_idx]['in_service'] = True
+                _tmp_md.data['elements']['branch'][_idx]['in_service'] = True
         if _type == "gen":
             if gens[_idx]['in_service'] == True:
                 gens[_idx]['in_service'] = False
-                model_generator(model_data, model.post_contingency_problem[con], include_feasiblity_slack)
+                _tmp_md.data['elements']['generator'][_idx]['in_service'] = False
+                model_generator(_tmp_md, model.post_contingency_problem[con], include_feasiblity_slack)
                 delattr(model.post_contingency_problem[con],'obj')
-                gens[_idx]['in_service'] = True
+                _tmp_md.data['elements']['generator'][_idx]['in_service'] = True
 
     #
     # Linking voltage constraints for root model to each subproblem

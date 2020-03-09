@@ -26,17 +26,17 @@ if __name__ == '__main__':
     random.seed(23) # repeatable
 
     path = os.path.dirname(__file__)
-    filename = 'pglib_opf_case14_ieee.m'
+    filename = 'pglib_opf_case5_pjm.m'
     matpower_file = os.path.join(path, '../../../download/pglib-opf-master/', filename)
 
     samples = 0
     max_samples = 10
 
-    if len(sys.argv[1:]) == 1:
-        max_samples = sys.argv[1] # argument 1: # of samples
-    if len(sys.argv[1:]) == 2:
-        max_samples = sys.argv[1] # argument 1: # of samples
-        filename = sys.argv[2] # argument 2: case filename
+    # if len(sys.argv[1:]) == 1:
+    #     max_samples = sys.argv[1] # argument 1: # of samples
+    # if len(sys.argv[1:]) == 2:
+    #     max_samples = sys.argv[1] # argument 1: # of samples
+    #     filename = sys.argv[2] # argument 2: case filename
 
     while samples < max_samples:
 
@@ -64,11 +64,12 @@ if __name__ == '__main__':
 
         branches = dict(md.elements(element_type='branch'))
         for branch, branch_dict in branches.items():
+            _tmp_md = md.clone_in_service()
             if branches[branch]['in_service'] == True:
-                branches[branch]['in_service'] = False
-                md, m, results = solve_acpf(md, "ipopt", solver_tee=False, return_model=True, return_results=True, write_results=True,
+                _tmp_md.data['elements']['branch'][branch]['in_service'] = False
+                _, m, results = solve_acpf(_tmp_md, "ipopt", solver_tee=False, return_model=True, return_results=True, write_results=True,
                                                 runid='sample.{}_branch.{}'.format(samples,branch))
-                branches[branch]['in_service'] = True
+                _tmp_md.data['elements']['branch'][branch]['in_service'] = True
 
 
 
