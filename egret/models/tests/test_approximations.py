@@ -1389,28 +1389,28 @@ def submain(idx=None, show_plot=True):
                       tu.model_sparsity,
                       tu.sum_infeas,
                       tu.solve_time,
-#                      tu.thermal_infeas,
-#                      tu.kcl_p_infeas,
-#                      tu.kcl_q_infeas,
-#                      tu.max_thermal_infeas,
-#                      tu.max_kcl_p_infeas,
-#                      tu.max_kcl_q_infeas,
+                      tu.thermal_infeas,
+                      tu.kcl_p_infeas,
+                      tu.kcl_q_infeas,
+                      tu.max_thermal_infeas,
+                      tu.max_kcl_p_infeas,
+                      tu.max_kcl_q_infeas,
                       ]
 
     ## Model solves
-    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate data files
-    #generate_mean_data(test_case,test_model_dict)
+    #generate_mean_data(test_case,test_model_dict) ## to just grab the default metrics
     generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
-#    generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
+    generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
 
     ## Generate plots
     #---- Sensitivity plots: remove lazy and tolerance models
     for key, val in test_model_dict.items():
         if 'lazy' in key or '_e' in key:
             test_model_dict[key] = False
-#    generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas', units='p.u.', colors=colors, show_plot=show_plot)
+    generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas', units='p.u.', colors=colors, show_plot=show_plot)
 
     #---- Pareto plots: add lazy models
     for key, val in test_model_dict.items():
@@ -1418,14 +1418,14 @@ def submain(idx=None, show_plot=True):
             test_model_dict[key] = True
         elif 'default' in key:
             test_model_dict[key] = False
-#    generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data='solve_time_geomean', y_units='p.u', x_units='s',
-#                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
-#                         annotate_plot=False, show_plot=show_plot)
+    generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data='solve_time_geomean', y_units='p.u', x_units='s',
+                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
+                         annotate_plot=False, show_plot=show_plot)
 
     #---- Case size plots:
-#    generate_case_size_plot(test_model_dict, case_list=case_names,y_data='solve_time_geomean', y_units='s',
-#                            x_data='num_buses', x_units=None, s_data='con_per_bus',colors=colors,
-#                            xscale='log', yscale='linear',show_plot=show_plot)
+    generate_case_size_plot(test_model_dict, case_list=case_names,y_data='solve_time_geomean', y_units='s',
+                            x_data='num_buses', x_units=None, s_data='con_per_bus',colors=colors,
+                            xscale='log', yscale='linear',show_plot=show_plot)
 
     #---- Factor truncation speedup: remove all but lazy and tolerance option models
     for key, val in test_model_dict.items():
