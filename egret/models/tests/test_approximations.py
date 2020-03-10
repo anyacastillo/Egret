@@ -148,9 +148,7 @@ def set_acopf_basepoint_min_max(model_data, init_min=0.9, init_max=1.1, **kwargs
     returns AC basepoint solution and feasible min/max range
      - new min/max range b/c test case may not be feasible in [init_min to init_max]
     """
-    model_data.return_in_service()
-    md = model_data
-    loads = dict(md.elements(element_type='load'))
+    md = model_data.clone_in_service()
 
     acopf_model = create_psv_acopf_model
 
@@ -169,15 +167,12 @@ def set_acopf_basepoint_min_max(model_data, init_min=0.9, init_max=1.1, **kwargs
     return md_basept, mult_min, mult_max
 
 
-def multiplier_loop(model_data, init=0.9, steps=10, acopf_model=create_psv_acopf_model):
+def multiplier_loop(md, init=0.9, steps=10, acopf_model=create_psv_acopf_model):
     '''
     init < 1 searches for the lowest demand multiplier >= init that has an optimal acopf solution
     init > 1 searches for the highest demand multiplier <= init that has an optimal acopf solution
     steps determines the increments in [init, 1] where the search is made
     '''
-
-    model_data.return_in_service()
-    md = model_data
 
     loads = dict(md.elements(element_type='load'))
 
@@ -208,6 +203,11 @@ def multiplier_loop(model_data, init=0.9, steps=10, acopf_model=create_psv_acopf
         try:
             md_, results = solve_acopf(md, "ipopt", acopf_model_generator=acopf_model, return_model=False,
                                        return_results=True, solver_tee=False)
+
+            for k in loads.keys(): # revert back to initial loadings
+                loads[k]['p_load'] = init_p_loads[k]
+                loads[k]['q_load'] = init_q_loads[k]
+
             final_mult = mult
             print('mult={} has an acceptable solution.'.format(mult))
             break
@@ -237,8 +237,29 @@ def create_new_model_data(model_data, mult):
         loads[k]['p_load'] = init_p_loads[k] * mult
         loads[k]['q_load'] = init_q_loads[k] * mult
 
+    buses = dict(md.elements(element_type='bus'))
+    for k in buses.keys():
+        buses[k]['vm'] = md.data['system']['_vm'][k]
+        buses[k]['va'] = md.data['system']['_va'][k]
+
     return md
 
+def revert_old_model_data(model_data, mult):
+    model_data.return_in_service()
+    md = model_data
+
+    loads = dict(md.elements(element_type='load'))
+
+    # initial loads
+    init_p_loads = {k: loads[k]['p_load'] for k in loads.keys()}
+    init_q_loads = {k: loads[k]['q_load'] for k in loads.keys()}
+
+    # multiply loads
+    for k in loads.keys():
+        loads[k]['p_load'] = init_p_loads[k] / mult
+        loads[k]['q_load'] = init_q_loads[k] / mult
+
+    return md
 
 def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
     '''
@@ -250,18 +271,20 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
     tm = test_model_dict
 
     if tm['acopf']:
-        md = create_new_model_data(md_flat, mult)
+        md_flat = create_new_model_data(md_flat, mult)
         try:
-            md_ac, m, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
+            md_ac, m, results = solve_acopf(md_flat, "ipopt", return_model=True, return_results=True, solver_tee=False)
             record_results('acopf', mult, md_ac)
+            md_flat = revert_old_model_data(md_flat, mult)
         except:
             pass
 
     if tm['slopf']:
-        md = create_new_model_data(md_basepoint, mult)
+        md_basepoint = create_new_model_data(md_basepoint, mult)
         try:
-            md_lccm, m, results = solve_lccm(md, "gurobi_direct", return_model=True, return_results=True, solver_tee=False)
+            md_lccm, m, results = solve_lccm(md_basepoint, "gurobi_direct", return_model=True, return_results=True, solver_tee=False)
             record_results('slopf', mult, md_lccm)
+            md_basepoint = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -276,6 +299,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdf, m, results = solve_fdf(md, "gurobi_direct", return_model=True, return_results=True,
                                            solver_tee=False, **kwargs)
             record_results('dlopf_default', mult, md_fdf)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -292,6 +316,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
                                            solver_tee=False, options=options, **kwargs)
             record_results('dlopf_lazy', mult, md_fdf)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -311,6 +336,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
                                            solver_tee=False, options=options, **kwargs)
             record_results('dlopf_e4', mult, md_fdf)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -330,6 +356,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
                                            solver_tee=False, options=options, **kwargs)
             record_results('dlopf_e3', mult, md_fdf)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -349,6 +376,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
                                            solver_tee=False, options=options, **kwargs)
             record_results('dlopf_e2', mult, md_fdf)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -363,6 +391,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_direct", return_model=True, return_results=True,
                                                        solver_tee=False, **kwargs)
             record_results('clopf_default', mult, md_fdfs)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -379,6 +408,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
                                                        solver_tee=False, options=options, **kwargs)
             record_results('clopf_lazy', mult, md_fdfs)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -398,6 +428,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
                                                        solver_tee=False, options=options, **kwargs)
             record_results('clopf_e4', mult, md_fdfs)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -417,6 +448,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
                                                        solver_tee=False, options=options, **kwargs)
             record_results('clopf_e3', mult, md_fdfs)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -436,6 +468,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
                                                        solver_tee=False, options=options, **kwargs)
             record_results('clopf_e2', mult, md_fdfs)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -450,6 +483,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                                       dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
                                                       return_model=True, return_results=True, solver_tee=False, **kwargs)
             record_results('clopf_p_default', mult, md_ptdfl)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -467,6 +501,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                                       return_model=True, return_results=True, solver_tee=False,
                                                       options=options, **kwargs)
             record_results('clopf_p_lazy', mult, md_ptdfl)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -485,6 +520,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                                       return_model=True, return_results=True, solver_tee=False,
                                                       options=options, **kwargs)
             record_results('clopf_p_e4', mult, md_ptdfl)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -503,6 +539,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                                       return_model=True, return_results=True, solver_tee=False,
                                                       options=options, **kwargs)
             record_results('clopf_p_e3', mult, md_ptdfl)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -521,6 +558,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                                       return_model=True, return_results=True, solver_tee=False,
                                                       options=options, **kwargs)
             record_results('clopf_p_e2', mult, md_ptdfl)
+            md = revert_old_model_data(md_basepoint, mult)
         except:
             pass
 
@@ -534,6 +572,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_ptdf, m, results = solve_dcopf(md, "gurobi_direct", dcopf_model_generator=create_ptdf_dcopf_model,
                                               return_model=True, return_results=True, solver_tee=False, **kwargs)
             record_results('dcopf_ptdf_default', mult, md_ptdf)
+            md = revert_old_model_data(md_flat, mult)
         except:
             pass
 
@@ -550,6 +589,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                               return_model=True, return_results=True, solver_tee=False,
                                               options=options, **kwargs)
             record_results('dcopf_ptdf_lazy', mult, md_ptdf)
+            md = revert_old_model_data(md_flat, mult)
         except:
             pass
 
@@ -567,6 +607,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                               return_model=True, return_results=True, solver_tee=False,
                                               options=options, **kwargs)
             record_results('dcopf_ptdf_e4', mult, md_ptdf)
+            md = revert_old_model_data(md_flat, mult)
         except:
             pass
 
@@ -584,6 +625,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                               return_model=True, return_results=True, solver_tee=False,
                                               options=options, **kwargs)
             record_results('dcopf_ptdf_e3', mult, md_ptdf)
+            md = revert_old_model_data(md_flat, mult)
         except:
             pass
 
@@ -601,6 +643,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                               return_model=True, return_results=True, solver_tee=False,
                                               options=options, **kwargs)
             record_results('dcopf_ptdf_e2', mult, md_ptdf)
+            md = revert_old_model_data(md_flat, mult)
         except:
             pass
 
@@ -611,6 +654,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                                         dcopf_losses_model_generator=create_btheta_losses_dcopf_model,
                                                         return_model=True, return_results=True, solver_tee=False)
             record_results('qcopf_btheta', mult, md_bthetal)
+            md = revert_old_model_data(md_flat, mult)
         except:
             pass
 
@@ -620,6 +664,7 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_btheta, m, results = solve_dcopf(md, "gurobi_direct", dcopf_model_generator=create_btheta_dcopf_model,
                                                 return_model=True, return_results=True, solver_tee=False)
             record_results('dcopf_btheta', mult, md_btheta)
+            md = revert_old_model_data(md_flat, mult)
         except:
             pass
 
@@ -728,8 +773,20 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
 
     md_flat = create_ModelData(test_case)
 
+    buses = dict(md_flat.elements(element_type='bus'))
+    vm_flat = {b: buses[b]['vm'] for b in buses.keys()}
+    va_flat = {b: buses[b]['va'] for b in buses.keys()}
+    md_flat.data['system']['_vm'] = vm_flat
+    md_flat.data['system']['_va'] = va_flat
+
     md_basept, min_mult, max_mult = set_acopf_basepoint_min_max(md_flat, init_min, init_max)
     test_model_dict['acopf'] = True
+
+    buses = dict(md_basept.elements(element_type='bus'))
+    vm_basepoint = {b: buses[b]['vm'] for b in buses.keys()}
+    va_basepoint = {b: buses[b]['va'] for b in buses.keys()}
+    md_basept.data['system']['_vm'] = vm_basepoint
+    md_basept.data['system']['_va'] = va_basepoint
 
     ## put the sensitivities into modeData so they don't need to be recalculated for each model
     data_utils_deprecated.create_dicts_of_fdf_simplified(md_basept)
@@ -1347,8 +1404,8 @@ def submain(idx=None, show_plot=True):
 
 
     if idx is None:
-        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
-#        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
+#        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
+        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
 #        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case118_ieee.m')
@@ -1382,6 +1439,35 @@ def submain(idx=None, show_plot=True):
          'dcopf_ptdf_e2': True,
          'dcopf_btheta': True
          }
+
+    test_model_dict = \
+        {'acopf' : True,
+         'slopf': True,
+         'dlopf_default': False,
+         'dlopf_lazy' : True,
+         'dlopf_e4': False,
+         'dlopf_e3': False,
+         'dlopf_e2': False,
+         'clopf_default': False,
+         'clopf_lazy': False,
+         'clopf_e4': False,
+         'clopf_e3': False,
+         'clopf_e2': False,
+         'clopf_p_default': False,
+         'clopf_p_lazy': False,
+         'clopf_p_e4': False,
+         'clopf_p_e3': False,
+         'clopf_p_e2': False,
+         'qcopf_btheta': False,
+         'dcopf_ptdf_default': False,
+         'dcopf_ptdf_lazy': False,
+         'dcopf_ptdf_e4': False,
+         'dcopf_ptdf_e3': False,
+         'dcopf_ptdf_e2': False,
+         'dcopf_btheta': False
+         }
+
+
     mean_functions = [tu.num_buses,
                       tu.num_branches,
                       tu.num_constraints,
