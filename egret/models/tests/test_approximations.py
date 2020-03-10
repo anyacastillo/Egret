@@ -253,7 +253,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         try:
             md_ac, m, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
             record_results('acopf', mult, md_ac)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['slopf']:
@@ -261,7 +262,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
         try:
             md_lccm, m, results = solve_lccm(md, "gurobi_direct", return_model=True, return_results=True, solver_tee=False)
             record_results('slopf', mult, md_lccm)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['dlopf_default']:
@@ -275,7 +277,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdf, m, results = solve_fdf(md, "gurobi_direct", return_model=True, return_results=True,
                                            solver_tee=False, **kwargs)
             record_results('dlopf_default', mult, md_fdf)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['dlopf_lazy']:
@@ -291,7 +294,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
                                            solver_tee=False, options=options, **kwargs)
             record_results('dlopf_lazy', mult, md_fdf)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['dlopf_e4']:
@@ -310,7 +314,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
                                            solver_tee=False, options=options, **kwargs)
             record_results('dlopf_e4', mult, md_fdf)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['dlopf_e3']:
@@ -329,7 +334,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
                                            solver_tee=False, options=options, **kwargs)
             record_results('dlopf_e3', mult, md_fdf)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['dlopf_e2']:
@@ -348,7 +354,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdf, m, results = solve_fdf(md, "gurobi_persistent", return_model=True, return_results=True,
                                            solver_tee=False, options=options, **kwargs)
             record_results('dlopf_e2', mult, md_fdf)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['clopf_default']:
@@ -362,7 +369,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_direct", return_model=True, return_results=True,
                                                        solver_tee=False, **kwargs)
             record_results('clopf_default', mult, md_fdfs)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['clopf_lazy']:
@@ -378,7 +386,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
                                                        solver_tee=False, options=options, **kwargs)
             record_results('clopf_lazy', mult, md_fdfs)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['clopf_e4']:
@@ -397,7 +406,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
                                                        solver_tee=False, options=options, **kwargs)
             record_results('clopf_e4', mult, md_fdfs)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['clopf_e3']:
@@ -416,7 +426,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
                                                        solver_tee=False, options=options, **kwargs)
             record_results('clopf_e3', mult, md_fdfs)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['clopf_e2']:
@@ -435,7 +446,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_fdfs, m, results = solve_fdf_simplified(md, "gurobi_persistent", return_model=True, return_results=True,
                                                        solver_tee=False, options=options, **kwargs)
             record_results('clopf_e2', mult, md_fdfs)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['clopf_p_default']:
@@ -449,7 +461,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                                       dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
                                                       return_model=True, return_results=True, solver_tee=False, **kwargs)
             record_results('clopf_p_default', mult, md_ptdfl)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['clopf_p_lazy']:
@@ -466,7 +479,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                                       return_model=True, return_results=True, solver_tee=False,
                                                       options=options, **kwargs)
             record_results('clopf_p_lazy', mult, md_ptdfl)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['clopf_p_e4']:
@@ -484,7 +498,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                                       return_model=True, return_results=True, solver_tee=False,
                                                       options=options, **kwargs)
             record_results('clopf_p_e4', mult, md_ptdfl)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['clopf_p_e3']:
@@ -502,7 +517,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                                       return_model=True, return_results=True, solver_tee=False,
                                                       options=options, **kwargs)
             record_results('clopf_p_e3', mult, md_ptdfl)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['clopf_p_e2']:
@@ -520,7 +536,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                                       return_model=True, return_results=True, solver_tee=False,
                                                       options=options, **kwargs)
             record_results('clopf_p_e2', mult, md_ptdfl)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['dcopf_ptdf_default']:
@@ -533,7 +550,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_ptdf, m, results = solve_dcopf(md, "gurobi_direct", dcopf_model_generator=create_ptdf_dcopf_model,
                                               return_model=True, return_results=True, solver_tee=False, **kwargs)
             record_results('dcopf_ptdf_default', mult, md_ptdf)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['dcopf_ptdf_lazy']:
@@ -549,7 +567,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                               return_model=True, return_results=True, solver_tee=False,
                                               options=options, **kwargs)
             record_results('dcopf_ptdf_lazy', mult, md_ptdf)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['dcopf_ptdf_e4']:
@@ -566,7 +585,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                               return_model=True, return_results=True, solver_tee=False,
                                               options=options, **kwargs)
             record_results('dcopf_ptdf_e4', mult, md_ptdf)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['dcopf_ptdf_e3']:
@@ -583,7 +603,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                               return_model=True, return_results=True, solver_tee=False,
                                               options=options, **kwargs)
             record_results('dcopf_ptdf_e3', mult, md_ptdf)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['dcopf_ptdf_e2']:
@@ -600,7 +621,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                               return_model=True, return_results=True, solver_tee=False,
                                               options=options, **kwargs)
             record_results('dcopf_ptdf_e2', mult, md_ptdf)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['qcopf_btheta']:
@@ -610,7 +632,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
                                                         dcopf_losses_model_generator=create_btheta_losses_dcopf_model,
                                                         return_model=True, return_results=True, solver_tee=False)
             record_results('qcopf_btheta', mult, md_bthetal)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
     if tm['dcopf_btheta']:
@@ -619,7 +642,8 @@ def inner_loop_solves(md_basepoint, md_flat, mult, test_model_dict):
             md_btheta, m, results = solve_dcopf(md, "gurobi_direct", dcopf_model_generator=create_btheta_dcopf_model,
                                                 return_model=True, return_results=True, solver_tee=False)
             record_results('dcopf_btheta', mult, md_btheta)
-        except:
+        except Exception as e:
+            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
             pass
 
 
