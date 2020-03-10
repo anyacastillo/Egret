@@ -69,7 +69,7 @@ if __name__ == '__main__':
     matpower_file = os.path.join(path, '../../../download/pglib-opf-master/', filename)
 
     samples = 0
-    max_samples = 1
+    max_samples = 10
 
     if len(sys.argv[1:]) == 1:
         max_samples = sys.argv[1] # argument 1: # of samples
