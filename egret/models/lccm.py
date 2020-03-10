@@ -415,7 +415,10 @@ def solve_lccm(model_data,
 
     if not hasattr(md,'results'):
         md.data['results'] = dict()
-    md.data['results']['time'] = results.Solver.Time
+    if solver.name == 'gurobi_direct':
+        md.data['results']['time'] = results.Solver[0]['Wallclock time']
+    else:
+        md.data['results']['time'] = results.Solver.Time
     md.data['results']['#_cons'] = results.Problem[0]['Number of constraints']
     md.data['results']['#_vars'] = results.Problem[0]['Number of variables']
     md.data['results']['#_nz'] = results.Problem[0]['Number of nonzeros']

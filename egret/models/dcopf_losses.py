@@ -407,7 +407,7 @@ def solve_dcopf_losses(model_data,
                               symbolic_solver_labels=symbolic_solver_labels,options=options, return_solver=True)
 
 
-    if persistent_solver:
+    if persistent_solver or solver.name=='gurobi_direct':
         init_solve_time = results.Solver[0]['Wallclock time']
     else:
         init_solve_time = results.Solver.Time

@@ -600,7 +600,7 @@ def solve_fdf_simplified(model_data,
                               symbolic_solver_labels=symbolic_solver_labels,options=options,return_solver=True,
                                       vars_to_load=vars_to_load)
 
-    if persistent_solver:
+    if persistent_solver or solver.name=='gurobi_direct':
         init_solve_time = results.Solver[0]['Wallclock time']
     else:
         init_solve_time = results.Solver.Time
