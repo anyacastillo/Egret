@@ -13,8 +13,45 @@ and then for a given contingency, checks to see if the operating point
 is AC power flow feasible
 """
 
+def get_graph(md):
+    G = nx.Graph()
+
+    bus_attrs = md.attributes(element_type='bus')
+    branches = dict(md.elements(element_type='branch'))
+
+    G.add_nodes_from(bus_attrs['names'])
+    G.add_edges_from([(branch['from_bus'], branch['to_bus']) for b, branch in branches.items() if branch['in_service']])
+
+    return G
+
+def solve_subgrid_acpf(md,subgrid):
+    tx_utils.scale_ModelData_to_pu(md, inplace = True)
+
+    gens = dict(md.elements(element_type='generator'))
+    buses = dict(md.elements(element_type='bus'))
+    branches = dict(md.elements(element_type='branch'))
+    gens_by_bus = tx_utils.gens_by_bus(buses, gens)
+    loads = dict(md.elements(element_type='load'))
+    bus_p_loads, bus_q_loads = tx_utils.dict_of_bus_loads(buses, loads)
+    shunts = dict(md.elements(element_type='shunt'))
+    bus_bs_fixed_shunts, bus_gs_fixed_shunts = tx_utils.dict_of_bus_fixed_shunts(buses, shunts)
+
+    if len(subgrid) == 1:
+        bus = buses[subgrid[0]]
+        p_max = sum([gens[g]['p_max'] for g in gens_by_bus[subgrid[0]]])
+        p_min = sum([gens[g]['p_min'] for g in gens_by_bus[subgrid[0]]])
+        q_max = sum([gens[g]['q_max'] for g in gens_by_bus[subgrid[0]]])
+        q_min = sum([gens[g]['q_min'] for g in gens_by_bus[subgrid[0]]])
+
+        # solve single node balancing case
+    else: pass
+        # set a slack in the island
+        # solve ACPF for the island
+        # consolidate all the output data to a model_data object
+
 if __name__ == '__main__':
     import os
+    import networkx as nx
     import math
     from egret.parsers.matpower_parser import create_ModelData
     import random
@@ -25,18 +62,20 @@ if __name__ == '__main__':
 
     random.seed(23) # repeatable
 
+    run_islands = False
+
     path = os.path.dirname(__file__)
-    filename = 'pglib_opf_case5_pjm.m'
+    filename = 'pglib_opf_case14_ieee.m'
     matpower_file = os.path.join(path, '../../../download/pglib-opf-master/', filename)
 
     samples = 0
-    max_samples = 10
+    max_samples = 1
 
-    # if len(sys.argv[1:]) == 1:
-    #     max_samples = sys.argv[1] # argument 1: # of samples
-    # if len(sys.argv[1:]) == 2:
-    #     max_samples = sys.argv[1] # argument 1: # of samples
-    #     filename = sys.argv[2] # argument 2: case filename
+    if len(sys.argv[1:]) == 1:
+        max_samples = sys.argv[1] # argument 1: # of samples
+    if len(sys.argv[1:]) == 2:
+        max_samples = sys.argv[1] # argument 1: # of samples
+        filename = sys.argv[2] # argument 2: case filename
 
     while samples < max_samples:
 
@@ -66,8 +105,18 @@ if __name__ == '__main__':
         for branch, branch_dict in branches.items():
             if branches[branch]['in_service'] == True:
                 branches[branch]['in_service'] = False
-                _, m, results = solve_acpf(md, "ipopt", solver_tee=False, return_model=True, return_results=True, write_results=True,
-                                                runid='sample.{}_branch.{}'.format(samples,branch))
+
+                # check if graph is islanded
+                graph = get_graph(md)
+                if nx.is_connected(graph):
+                    _, m, results = solve_acpf(md, "ipopt", solver_tee=False, return_model=True, return_results=True, write_results=True,
+                                                    runid='sample.{}_branch.{}'.format(samples,branch))
+                else:
+                    if run_islands:
+                        subgrids = [list(x) for x in nx.connected_components(graph)] # returns islands
+                        for subgrid in subgrids:
+                            solve_subgrid_acpf(md, subgrid)
+
                 branches[branch]['in_service'] = True
 
 
