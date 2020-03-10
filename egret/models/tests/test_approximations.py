@@ -1440,34 +1440,6 @@ def submain(idx=None, show_plot=True):
          'dcopf_btheta': True
          }
 
-    test_model_dict = \
-        {'acopf' : True,
-         'slopf': True,
-         'dlopf_default': False,
-         'dlopf_lazy' : True,
-         'dlopf_e4': False,
-         'dlopf_e3': False,
-         'dlopf_e2': False,
-         'clopf_default': False,
-         'clopf_lazy': False,
-         'clopf_e4': False,
-         'clopf_e3': False,
-         'clopf_e2': False,
-         'clopf_p_default': False,
-         'clopf_p_lazy': False,
-         'clopf_p_e4': False,
-         'clopf_p_e3': False,
-         'clopf_p_e2': False,
-         'qcopf_btheta': False,
-         'dcopf_ptdf_default': False,
-         'dcopf_ptdf_lazy': False,
-         'dcopf_ptdf_e4': False,
-         'dcopf_ptdf_e3': False,
-         'dcopf_ptdf_e2': False,
-         'dcopf_btheta': False
-         }
-
-
     mean_functions = [tu.num_buses,
                       tu.num_branches,
                       tu.num_constraints,
