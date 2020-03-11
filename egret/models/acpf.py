@@ -55,6 +55,8 @@ def _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_l
 
 
 def create_psv_acpf_model(model_data):
+    # model_data.return_in_service()
+    # md = model_data
     md = model_data.clone_in_service()
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 

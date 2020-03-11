@@ -749,9 +749,9 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
     3. record results to .json files
     '''
 
-    md_flat = create_ModelData(test_case)
+    _md_flat = create_ModelData(test_case)
 
-    md_basept, min_mult, max_mult = set_acopf_basepoint_min_max(md_flat, init_min, init_max)
+    _md_basept, min_mult, max_mult = set_acopf_basepoint_min_max(md_flat, init_min, init_max)
     test_model_dict['acopf'] = True
 
     ## put the sensitivities into modeData so they don't need to be recalculated for each model
@@ -762,6 +762,9 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
 
     for step in range(0, steps + 1):
         mult = round(min_mult + step * inc, 4)
+
+        md_basept = _md_basept.clone_in_service()
+        md_flat = _md_flat.clone_in_service()
 
         inner_loop_solves(md_basept, md_flat, mult, test_model_dict)
 

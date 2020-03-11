@@ -43,8 +43,9 @@ def _include_system_feasibility_slack(model, gen_attrs, bus_p_loads, penalty=100
 
 
 def create_copperplate_dispatch_approx_model(model_data, include_feasibility_slack=False):
-    model_data.return_in_service()
-    md = model_data
+    # model_data.return_in_service()
+    # md = model_data
+    md = model_data.clone_in_service()
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
     gens = dict(md.elements(element_type='generator'))
@@ -158,8 +159,9 @@ def solve_copperplate_dispatch(model_data,
     m, results, flag = _solve_model(m,solver,timelimit=timelimit,solver_tee=solver_tee,
                               symbolic_solver_labels=symbolic_solver_labels,options=options)
 
-    model_data.return_in_service()
-    md = model_data
+    # model_data.return_in_service()
+    # md = model_data
+    md = model_data.clone_in_service()
 
     if not hasattr(md,'results'):
         md.data['results'] = dict()

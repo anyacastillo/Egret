@@ -91,8 +91,9 @@ def create_fixed_lccm_model(model_data, **kwargs):
 
 
 def create_lccm_model(model_data, include_feasibility_slack=False, include_v_feasibility_slack=False, calculation_method=SensitivityCalculationMethod.INVERT):
-    model_data.return_in_service()
-    md = model_data
+    # model_data.return_in_service()
+    # md = model_data
+    md = model_data.clone_in_service()
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
     data_utils_deprecated.create_dicts_of_lccm(md)

@@ -116,8 +116,9 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
     baseMVA = model_data.data['system']['baseMVA']
     lpu.check_and_scale_ptdf_options(ptdf_options, baseMVA)
 
-    model_data.return_in_service()
-    md = model_data
+    # model_data.return_in_service()
+    # md = model_data
+    md = model_data.clone_in_service()
     tx_utils.scale_ModelData_to_pu(md, inplace=True)
 
     data_utils_deprecated.create_dicts_of_fdf_simplified(md)

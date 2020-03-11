@@ -35,8 +35,9 @@ from math import pi, radians
 
 
 def create_btheta_losses_dcopf_model(model_data, relaxation_type=RelaxationType.SOC, include_angle_diff_limits=False, include_feasibility_slack=False):
-    model_data.return_in_service()
-    md = model_data
+    # model_data.return_in_service()
+    # md = model_data
+    md = model_data.clone_in_service()
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
     gens = dict(md.elements(element_type='generator'))
@@ -197,8 +198,9 @@ def create_ptdf_losses_dcopf_model(model_data, include_feasibility_slack=False, 
     baseMVA = model_data.data['system']['baseMVA']
     lpu.check_and_scale_ptdf_options(ptdf_options, baseMVA)
 
-    model_data.return_in_service()
-    md = model_data
+    # model_data.return_in_service()
+    # md = model_data
+    md = model_data.clone_in_service()
     tx_utils.scale_ModelData_to_pu(md, inplace = True)
 
     ## We'll assume we have a solution to initialize from
