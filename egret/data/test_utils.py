@@ -163,9 +163,22 @@ def solve_infeas_model(model_data):
     slack_p_init = sum(gens[gen_name]['pg'] for gen_name in gens_by_bus[ref_bus])
 
     # build ACOPF model with fixed gen output, fixed voltage angle/mag, and relaxed power balance
-    md, m, results = solve_acpf(model_data, "ipopt", return_results=True, return_model=True, solver_tee=False)
+    try:
+        md, m, results = solve_acpf(model_data, "ipopt", return_results=True, return_model=True, solver_tee=False)
+        termination = results.solver.termination_condition.__str__()
+    except Exception as e:
+        message = str(e)
+        print('...EXCEPTION OCCURRED: {}'.format(message))
+        if 'infeasible' in message:
+            termination = 'infeasible'
+            slack_p = None
+            vm_UB_viol_dict = {}
+            vm_LB_viol_dict = {}
+            thermal_viol_dict = {}
+            return slack_p, vm_UB_viol_dict, vm_LB_viol_dict, thermal_viol_dict, termination
+        else:
+            raise Exception
 
-    slackbus_p_expr = 0.
     vm_UB_viol_dict = dict()
     vm_LB_viol_dict = dict()
     thermal_viol_dict = dict()
@@ -200,7 +213,7 @@ def solve_infeas_model(model_data):
         elif st > branch_dict['rating_long_term']:
             thermal_viol_dict[branch_name] = st - branch_dict['rating_long_term']
 
-    return slack_p, vm_UB_viol_dict, vm_LB_viol_dict, thermal_viol_dict, results
+    return slack_p, vm_UB_viol_dict, vm_LB_viol_dict, thermal_viol_dict, termination
 
 def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=False):
 
@@ -226,8 +239,7 @@ def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=
         #print('...existing system data: {}'.format(show_me.T))
 
     # otherwise, solve the sum_infeas model and save solution to md
-    acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, results = solve_infeas_model(md)
-    termination = results.solver.termination_condition.__str__()
+    acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, termination = solve_infeas_model(md)
     message += 'Infeasibility model returned ' + termination + '.'
     print(message)
     #m_ac.pprint()
