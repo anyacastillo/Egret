@@ -1413,7 +1413,7 @@ def submain(idx=None, show_plot=True):
                       ]
 
     ## Model solves
-    #solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate data files
     #generate_mean_data(test_case,test_model_dict) ## to just grab the default metrics
