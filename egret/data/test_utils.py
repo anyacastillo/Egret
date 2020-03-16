@@ -155,68 +155,52 @@ def vmag(md):
 
 def solve_infeas_model(model_data):
 
+    # initial reference bus dispatch
+    gens = dict(model_data.elements(element_type='generator'))
+    buses = dict(model_data.elements(element_type='bus'))
+    gens_by_bus = tx_utils.gens_by_bus(buses, gens)
+    ref_bus = model_data.data['system']['reference_bus']
+    slack_p_init = sum(gens[gen_name]['pg'] for gen_name in gens_by_bus[ref_bus])
 
     # build ACOPF model with fixed gen output, fixed voltage angle/mag, and relaxed power balance
     md, m, results = solve_acpf(model_data, "ipopt", return_results=True, return_model=True, solver_tee=False)
 
-    sum_infeas_expr= 0. # MW + MVAr + MVA
-    m.kcl_p_infeas_expr = 0. # MW
-    m.kcl_q_infeas_expr = 0. # MVAr
-    m.thermal_infeas_expr = 0. #MVA
-    # sum_infeas_expr = kcl_p_infeas_expr + kcl_q_infeas_expr + thermal_infeas_expr
-
-    # set objective to sum of infeasibilities (i.e. slacks)
-    m.del_component(m.obj)
-    m.obj = pe.Objective(expr=sum_infeas_expr)
+    slackbus_p_expr = 0.
+    vm_UB_viol_dict = dict()
+    vm_LB_viol_dict = dict()
+    thermal_viol_dict = dict()
 
     gens = dict(md.elements(element_type='generator'))
     buses = dict(md.elements(element_type='bus'))
     branches = dict(md.elements(element_type='branch'))
     gens_by_bus = tx_utils.gens_by_bus(buses, gens)
+    buses_with_gens = tx_utils.buses_with_gens(gens)
 
-    m.p_slack_pos = dict()
-    m.p_slack_neg = dict()
-    m.q_slack_pos = dict()
-    m.q_slack_neg = dict()
+    # calculate change in slackbus P dispatch
     ref_bus = md.data['system']['reference_bus']
-    for bus_name, bus_dict in buses.items():
-        m.p_slack_pos[bus_name] = 0.
-        m.p_slack_neg[bus_name] = 0.
-        m.q_slack_pos[bus_name] = 0.
-        m.q_slack_neg[bus_name] = 0.
-        for gen_name in gens_by_bus[bus_name]:
-            g_dict = gens[gen_name]
-            if bus_name == ref_bus:
-                if value(m.pg[gen_name]) > g_dict['p_max']:
-                    m.p_slack_pos[bus_name] += value(m.pg[gen_name]) - g_dict['p_max']
-                if value(m.pg[gen_name]) < g_dict['p_min']:
-                    m.p_slack_neg[bus_name] += g_dict['p_min']-value(m.pg[gen_name])
-                m.kcl_p_infeas_expr += m.p_slack_pos[bus_name] + m.p_slack_neg[bus_name]
-            if value(m.qg[gen_name]) > g_dict['q_max']:
-                m.q_slack_pos[bus_name] += value(m.qg[gen_name]) - g_dict['q_max']
-            if value(m.qg[gen_name]) < g_dict['q_min']:
-                m.q_slack_neg[bus_name] += g_dict['q_min'] - value(m.qg[gen_name])
-            m.kcl_q_infeas_expr += m.q_slack_pos[bus_name] + m.q_slack_neg[bus_name]
+    slack_p_acpf = sum(gens[gen_name]['pg'] for gen_name in gens_by_bus[ref_bus])
+    slack_p = slack_p_acpf - slack_p_init
 
-    m.sf_branch_slack_pos = dict()
-    m.st_branch_slack_pos = dict()
+    # calculate voltage infeasibilities
+    for bus_name, bus_dict in buses.items():
+        if bus_name != ref_bus and bus_name not in buses_with_gens:
+            vm = bus_dict['vm']
+            if vm > bus_dict['v_max']:
+                vm_UB_viol_dict[bus_name] = vm - bus_dict['v_max']
+            elif vm < bus_dict['v_min']:
+                vm_LB_viol_dict[bus_name] = bus_dict['v_min'] - vm
+
+    # calculate thermal infeasibilities
     for branch_name, branch_dict in branches.items():
-        m.sf_branch_slack_pos[branch_name] = 0.
-        m.st_branch_slack_pos[branch_name] = 0.
         sf = sqrt(branch_dict["pf"]**2 + branch_dict["qf"]**2)
         st = sqrt(branch_dict["pt"]**2 + branch_dict["qt"]**2)
+        if sf > st: # to avoid double counting
+            if sf > branch_dict['rating_long_term']:
+                thermal_viol_dict[branch_name] = sf - branch_dict['rating_long_term']
+        elif st > branch_dict['rating_long_term']:
+            thermal_viol_dict[branch_name] = st - branch_dict['rating_long_term']
 
-        if sf > branch_dict['rating_long_term']:
-            m.sf_branch_slack_pos[branch_name] = sf - branch_dict['rating_long_term']
-            m.thermal_infeas_expr += m.sf_branch_slack_pos[branch_name]
-        if st > branch_dict['rating_long_term']:
-            m.st_branch_slack_pos[branch_name] = st - branch_dict['rating_long_term']
-            m.thermal_infeas_expr += m.st_branch_slack_pos[branch_name]
-
-    sum_infeas_expr = m.kcl_p_infeas_expr + m.kcl_q_infeas_expr + m.thermal_infeas_expr
-    m.del_component('obj')
-    m.obj = pe.Objective(expr=sum_infeas_expr)
-    return m, results
+    return slack_p, vm_UB_viol_dict, vm_LB_viol_dict, thermal_viol_dict, results
 
 def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=False):
 
@@ -242,7 +226,7 @@ def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=
         #print('...existing system data: {}'.format(show_me.T))
 
     # otherwise, solve the sum_infeas model and save solution to md
-    m_ac, results = solve_infeas_model(md)
+    acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, results = solve_infeas_model(md)
     termination = results.solver.termination_condition.__str__()
     message += 'Infeasibility model returned ' + termination + '.'
     print(message)
@@ -250,33 +234,53 @@ def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=
 
     bus_attrs = md.attributes(element_type='bus')
     branch_attrs = md.attributes(element_type='branch')
+    num_bus = len(bus_attrs['names'])
+    num_branch = len(branch_attrs['names'])
 
-    kcl_p_list = [value(m_ac.p_slack_pos[bus_name]) + value(m_ac.p_slack_neg[bus_name])
-                  for bus_name in bus_attrs['names']]
+    vm_UB_list = list(vm_UB_viol.values())
+    vm_LB_list = list(vm_LB_viol.values())
+    vm_list = vm_UB_list + vm_LB_list
+    thermal_list = list(thermal_viol.values())
 
-    kcl_q_list = [value(m_ac.q_slack_pos[bus_name]) + value(m_ac.q_slack_neg[bus_name])
-                  for bus_name in bus_attrs['names']]
+    system_data['acpf_slack'] = acpf_p_slack
 
-    thermal_list = [value(m_ac.sf_branch_slack_pos[branch_name]) + value(m_ac.st_branch_slack_pos[branch_name])
-                    for branch_name in branch_attrs['names']]
+    system_data['sum_vm_UB_viol'] = sum(vm_UB_list)
+    system_data['sum_vm_LB_viol'] = sum(vm_LB_list)
+    system_data['sum_vm_viol'] = sum(vm_list)
+    system_data['sum_thermal_viol'] = sum(thermal_list)
 
-    kcl_p_infeas = sum(kcl_p_list)
-    kcl_q_infeas = sum(kcl_q_list)
-    thermal_infeas = sum(thermal_list)
+    if len(vm_UB_list) > 0:
+        system_data['avg_vm_UB_viol'] = sum(vm_UB_list) / len(vm_UB_list)
+        system_data['max_vm_UB_viol'] = max(vm_UB_list)
+    else:
+        system_data['avg_vm_UB_viol'] = 0
+        system_data['max_vm_UB_viol'] = 0
 
-    system_data['kcl_p_infeas'] = kcl_p_infeas
-    system_data['avg_kcl_p_infeas'] = kcl_p_infeas / len(kcl_p_list)
-    system_data['max_kcl_p_infeas'] = max(kcl_p_list)
+    if len(vm_LB_list) > 0:
+        system_data['avg_vm_LB_viol'] = sum(vm_LB_list) / len(vm_LB_list)
+        system_data['max_vm_LB_viol'] = max(vm_LB_list)
+    else:
+        system_data['avg_vm_LB_viol'] = 0
+        system_data['max_vm_LB_viol'] = 0
 
-    system_data['kcl_q_infeas'] = kcl_q_infeas
-    system_data['avg_kcl_q_infeas'] = kcl_q_infeas / len(kcl_q_list)
-    system_data['max_kcl_q_infeas'] = max(kcl_q_list)
+    if len(vm_list) > 0:
+        system_data['avg_vm_viol'] = sum(vm_list) / len(vm_list)
+        system_data['max_vm_viol'] = max(vm_list)
+    else:
+        system_data['avg_vm_viol'] = 0
+        system_data['max_vm_viol'] = 0
 
-    system_data['thermal_infeas'] = thermal_infeas
-    system_data['avg_thermal_infeas'] = thermal_infeas / len(thermal_list)
-    system_data['max_thermal_infeas'] = max(thermal_list)
+    if len(thermal_list) > 0:
+        system_data['avg_thermal_viol'] = sum(thermal_list) / len(thermal_list)
+        system_data['max_thermal_viol'] = max(thermal_list)
+    else:
+        system_data['avg_thermal_viol'] = 0
+        system_data['max_thermal_viol'] = 0
 
-    system_data['sum_infeas'] = kcl_p_infeas + kcl_q_infeas + thermal_infeas
+    system_data['pct_vm_UB_viol'] = len(vm_UB_list) / num_bus
+    system_data['pct_vm_LB_viol'] = len(vm_LB_list) / num_bus
+    system_data['pct_vm_viol'] = len(vm_list) / num_bus
+    system_data['pct_thermal_viol'] = len(thermal_list) / num_branch
 
     show_me = pd.DataFrame(system_data,index=[name])
     #print('...overwriting system data: {}'.format(show_me.T))
@@ -324,108 +328,183 @@ def save_to_solution_directory(filename, model_name):
     return destination
 
 
-def kcl_p_infeas(md):
+def sum_vm_UB_viol(md):
     '''
-    Returns sum of real power balance infeasibilites (i.e., slack variables)
+    Returns the sum of voltage upper bound infeasibilites
     Note: returned value is in p.u.
     '''
 
-    kcl_p_infeas = get_infeas_from_model_data(md, infeas_name='kcl_p_infeas')
+    sum_vm_UB_viol = get_infeas_from_model_data(md, infeas_name='sum_vm_UB_viol')
 
-    return kcl_p_infeas
+    return sum_vm_UB_viol
 
-def kcl_q_infeas(md):
+
+def sum_vm_LB_viol(md):
     '''
-    Returns sum of reactive power balance infeasibilities (i.e., slack variables)
+    Returns the sum of voltage lower bound infeasibilities
     Note: returned value is in p.u.
     '''
 
-    kcl_q_infeas = get_infeas_from_model_data(md, infeas_name='kcl_q_infeas')
+    sum_vm_LB_viol = get_infeas_from_model_data(md, infeas_name='sum_vm_LB_viol')
 
-    return kcl_q_infeas
+    return sum_vm_LB_viol
 
 
-def thermal_infeas(md):
+def sum_vm_viol(md):
     '''
-    Returns sum of thermal limit infeasibilities (i.e., slack variables)
+    Returns the sum of all voltage infeasibilities
     Note: returned value is in p.u.
     '''
 
-    thermal_infeas = get_infeas_from_model_data(md, infeas_name='thermal_infeas')
+    sum_vm_viol = get_infeas_from_model_data(md, infeas_name='sum_vm_viol')
 
-    return thermal_infeas
+    return sum_vm_viol
 
 
-def avg_kcl_p_infeas(md):
+def sum_thermal_viol(md):
     '''
-    Returns sum of real power balance infeasibilites (i.e., slack variables)
+    Returns the sum of thermal limit infeasibilites
+    Note: returned value is in MVA
+    '''
+
+    sum_thermal_viol = get_infeas_from_model_data(md, infeas_name='sum_thermal_viol')
+
+    return sum_thermal_viol
+
+
+def avg_vm_UB_viol(md):
+    '''
+    Returns the average of voltage upper bound infeasibilites
     Note: returned value is in p.u.
     '''
 
-    kcl_p_infeas = get_infeas_from_model_data(md, infeas_name='avg_kcl_p_infeas')
+    avg_vm_UB_viol = get_infeas_from_model_data(md, infeas_name='avg_vm_UB_viol')
 
-    return kcl_p_infeas
+    return avg_vm_UB_viol
 
-def avg_kcl_q_infeas(md):
+def avg_vm_LB_viol(md):
     '''
-    Returns sum of reactive power balance infeasibilities (i.e., slack variables)
+    Returns the average of voltage lower bound infeasibilities
     Note: returned value is in p.u.
     '''
 
-    kcl_q_infeas = get_infeas_from_model_data(md, infeas_name='avg_kcl_q_infeas')
+    avg_vm_LB_viol = get_infeas_from_model_data(md, infeas_name='avg_vm_LB_viol')
 
-    return kcl_q_infeas
+    return avg_vm_LB_viol
 
 
-def avg_thermal_infeas(md):
+def avg_vm_viol(md):
     '''
-    Returns sum of thermal limit infeasibilities (i.e., slack variables)
+    Returns the average of all voltage infeasibilities
     Note: returned value is in p.u.
     '''
 
-    thermal_infeas = get_infeas_from_model_data(md, infeas_name='avg_thermal_infeas')
+    avg_vm_viol = get_infeas_from_model_data(md, infeas_name='avg_vm_viol')
 
-    return thermal_infeas
+    return avg_vm_viol
 
 
-def max_kcl_p_infeas(md):
+def avg_thermal_viol(md):
     '''
-    Returns the largest real power balance violation (i.e., slack variable)
+    Returns the sum of thermal limit infeasibilites
+    Note: returned value is in MVA
+    '''
+
+    avg_thermal_viol = get_infeas_from_model_data(md, infeas_name='avg_thermal_viol')
+
+    return avg_thermal_viol
+
+
+def max_vm_UB_viol(md):
+    '''
+    Returns the maximum of voltage upper bound infeasibilites
     Note: returned value is in p.u.
     '''
 
-    max_kcl_p_infeas = get_infeas_from_model_data(md, infeas_name='max_kcl_p_infeas')
+    max_vm_UB_viol = get_infeas_from_model_data(md, infeas_name='max_vm_UB_viol')
 
-    return max_kcl_p_infeas
+    return max_vm_UB_viol
 
 
-def max_kcl_q_infeas(md):
+def max_vm_LB_viol(md):
     '''
-    Returns the largest reactive power balance violation (i.e., slack variable)
+    Returns the maximum of voltage lower bound infeasibilities
     Note: returned value is in p.u.
     '''
 
-    max_kcl_q_infeas = get_infeas_from_model_data(md, infeas_name='max_kcl_q_infeas')
+    max_vm_LB_viol = get_infeas_from_model_data(md, infeas_name='max_vm_LB_viol')
 
-    return max_kcl_q_infeas
+    return max_vm_LB_viol
 
 
-def max_thermal_infeas(md):
+def max_vm_viol(md):
     '''
-    Returns slargest thermal limit violation (i.e., slack variable)
+    Returns the maximum of all voltage infeasibilities
     Note: returned value is in p.u.
     '''
 
-    max_thermal_infeas = get_infeas_from_model_data(md, infeas_name='max_thermal_infeas')
+    max_vm_viol = get_infeas_from_model_data(md, infeas_name='max_vm_viol')
 
-    return max_thermal_infeas
+    return max_vm_viol
 
-def sum_infeas(md):
+
+def max_thermal_viol(md):
     '''
-    Returns sum of all infeasibilites (i.e., power balance and thermal limit slacks)
-    Note: returned value is in p.u.
+    Returns the maximum of thermal limit infeasibilites
+    Note: returned value is in MVA
     '''
 
-    sum_infeas = get_infeas_from_model_data(md, infeas_name='sum_infeas')
+    max_thermal_viol = get_infeas_from_model_data(md, infeas_name='max_thermal_viol')
 
-    return sum_infeas
+    return max_thermal_viol
+
+
+def pct_vm_UB_viol(md):
+    '''
+    Returns the number of voltage upper bound infeasibilites
+    '''
+
+    pct_vm_UB_viol = get_infeas_from_model_data(md, infeas_name='pct_vm_UB_viol')
+
+    return pct_vm_UB_viol
+
+
+def pct_vm_LB_viol(md):
+    '''
+    Returns the number of voltage lower bound infeasibilities
+    '''
+
+    pct_vm_LB_viol = get_infeas_from_model_data(md, infeas_name='pct_vm_LB_viol')
+
+    return pct_vm_LB_viol
+
+
+def pct_vm_viol(md):
+    '''
+    Returns the number of all voltage infeasibilities
+    '''
+
+    pct_vm_viol = get_infeas_from_model_data(md, infeas_name='pct_vm_viol')
+
+    return pct_vm_viol
+
+
+def pct_thermal_viol(md):
+    '''
+    Returns the number of thermal limit infeasibilites
+    '''
+
+    pct_thermal_viol = get_infeas_from_model_data(md, infeas_name='pct_thermal_viol')
+
+    return pct_thermal_viol
+
+
+def acpf_slack(md):
+    '''
+    Returns the change in the slack bus real power dispatch in the ACPF solution
+    '''
+
+    acpf_slack = get_infeas_from_model_data(md, infeas_name='acpf_slack')
+
+    return acpf_slack
+

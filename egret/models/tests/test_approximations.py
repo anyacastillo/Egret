@@ -36,8 +36,8 @@
 
 
  test_utils (tu) generator functions:
-    *solve_time*
-    *num_constraints*
+    solve_time
+    num_constraints
     num_variables
     num_nonzeros
     model_sparsity
@@ -49,16 +49,23 @@
     pflow
     qflow
     vmag
-    *sum_infeas*
-    kcl_p_infeas
-    kcl_q_infeas
-    thermal_infeas
-    avg_kcl_p_infeas
-    avg_kcl_q_infeas
-    avg_thermal_infeas
-    max_kcl_p_infeas
-    max_kcl_q_infeas
-    max_thermal_infeas
+    acpf_slack
+    sum_vm_UB_viol
+    sum_vm_LB_viol
+    sum_vm_viol
+    sum_thermal_viol
+    avg_vm_UB_viol
+    avg_vm_LB_viol
+    avg_vm_viol
+    avg_thermal_viol
+    max_vm_UB_viol
+    max_vm_LB_viol
+    max_vm_viol
+    max_thermal_viol
+    pct_vm_UB_viol
+    pct_vm_LB_viol
+    pct_vm_viol
+    pct_thermal_viol
 
 
 '''
@@ -765,7 +772,7 @@ def geometricMean(array):
     return geomean
 
 
-def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,tu.num_constraints,tu.sum_infeas,tu.solve_time]):
+def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,tu.num_constraints,tu.acpf_slack,tu.solve_time]):
 
     case_location = get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
@@ -897,7 +904,7 @@ def generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', be
         plt.cla()
 
 
-def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas,
+def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.acpf_slack,
                               data_is_pct=False, data_is_vector=False, vector_norm=2):
 
     case_location = get_solution_file_location(test_case)
@@ -974,7 +981,7 @@ def get_data(filename, test_model_dict):
 
     return df_data
 
-def generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data='solve_time', y_units='p.u', x_units='s',
+def generate_pareto_plot(test_case, test_model_dict, y_data='acpf_slack', x_data='solve_time', y_units='p.u', x_units='s',
                          mark_default='o', mark_lazy='D', mark_acopf='*', mark_size=36, colors=cmap.viridis,
                          annotate_plot=False, show_plot=False):
 
@@ -1043,7 +1050,7 @@ def generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data
 
 
 
-def generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas', units='p.u.',
+def generate_sensitivity_plot(test_case, test_model_dict, plot_data='acpf_slack', units='p.u.',
                               colors=cmap.viridis, show_plot=False):
 
     ## get data
@@ -1272,8 +1279,8 @@ def generate_case_size_plot(test_model_dict, case_list=case_names,
     if show_plot:
         plt.show()
     else:
-        plt.cla(fig)
-        plt.clf(fig)
+        plt.cla()
+        plt.clf()
         plt.close(fig)
 
 
@@ -1384,20 +1391,25 @@ def submain(idx=None, show_plot=True):
          'dcopf_ptdf_e2': True,
          'dcopf_btheta': True
          }
-
     mean_functions = [tu.num_buses,
                       tu.num_branches,
                       tu.num_constraints,
                       tu.num_variables,
                       tu.model_sparsity,
-                      tu.sum_infeas,
                       tu.solve_time,
-                      tu.thermal_infeas,
-                      tu.kcl_p_infeas,
-                      tu.kcl_q_infeas,
-                      tu.max_thermal_infeas,
-                      tu.max_kcl_p_infeas,
-                      tu.max_kcl_q_infeas,
+                      tu.acpf_slack,
+                      tu.avg_vm_UB_viol,
+                      tu.avg_vm_LB_viol,
+                      tu.avg_vm_viol,
+                      tu.avg_thermal_viol,
+                      tu.max_vm_UB_viol,
+                      tu.max_vm_LB_viol,
+                      tu.max_vm_viol,
+                      tu.max_thermal_viol,
+                      tu.pct_vm_UB_viol,
+                      tu.pct_vm_LB_viol,
+                      tu.pct_vm_viol,
+                      tu.pct_thermal_viol,
                       ]
 
     ## Model solves
@@ -1406,14 +1418,14 @@ def submain(idx=None, show_plot=True):
     ## Generate data files
     #generate_mean_data(test_case,test_model_dict) ## to just grab the default metrics
     generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
-    generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.sum_infeas)
+    generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.acpf_slack)
 
     ## Generate plots
     #---- Sensitivity plots: remove lazy and tolerance models
     for key, val in test_model_dict.items():
         if 'lazy' in key or '_e' in key:
             test_model_dict[key] = False
-    generate_sensitivity_plot(test_case, test_model_dict, plot_data='sum_infeas', units='p.u.', colors=colors, show_plot=show_plot)
+    generate_sensitivity_plot(test_case, test_model_dict, plot_data='acpf_slack', units='p.u.', colors=colors, show_plot=show_plot)
 
     #---- Pareto plots: add lazy models
     for key, val in test_model_dict.items():
@@ -1421,7 +1433,7 @@ def submain(idx=None, show_plot=True):
             test_model_dict[key] = True
         elif 'default' in key:
             test_model_dict[key] = False
-    generate_pareto_plot(test_case, test_model_dict, y_data='sum_infeas', x_data='solve_time_geomean', y_units='p.u', x_units='s',
+    generate_pareto_plot(test_case, test_model_dict, y_data='acpf_slack', x_data='solve_time_geomean', y_units='p.u', x_units='s',
                          mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
                          annotate_plot=False, show_plot=show_plot)
 
