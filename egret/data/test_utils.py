@@ -162,7 +162,7 @@ def solve_infeas_model(model_data):
     ref_bus = model_data.data['system']['reference_bus']
     slack_p_init = sum(gens[gen_name]['pg'] for gen_name in gens_by_bus[ref_bus])
 
-    # build ACOPF model with fixed gen output, fixed voltage angle/mag, and relaxed power balance
+    # solve ACPF or return empty results and print exception message
     try:
         md, m, results = solve_acpf(model_data, "ipopt", return_results=True, return_model=True, solver_tee=False)
         termination = results.solver.termination_condition.__str__()
@@ -215,7 +215,7 @@ def solve_infeas_model(model_data):
 
     return slack_p, vm_UB_viol_dict, vm_LB_viol_dict, thermal_viol_dict, termination
 
-def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=False):
+def get_infeas_from_model_data(md, infeas_name='acpf_slack', overwrite_existing=False, abs_tol_vm=1e-6, rel_tol_therm=0.01):
 
     system_data = md.data['system']
 
@@ -249,10 +249,17 @@ def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=
     num_bus = len(bus_attrs['names'])
     num_branch = len(branch_attrs['names'])
 
+    s_max = branch_attrs['rating_long_term']
+    thermal_list = []
+    thermal_max = []
+    for k in thermal_viol.keys():
+        thermal_list.append(thermal_viol[k])
+        thermal_max.append(s_max[k])
+
     vm_UB_list = list(vm_UB_viol.values())
     vm_LB_list = list(vm_LB_viol.values())
     vm_list = vm_UB_list + vm_LB_list
-    thermal_list = list(thermal_viol.values())
+#    thermal_list = list(thermal_viol.values())
 
     system_data['acpf_slack'] = acpf_p_slack
 
@@ -289,10 +296,11 @@ def get_infeas_from_model_data(md, infeas_name='sum_infeas', overwrite_existing=
         system_data['avg_thermal_viol'] = 0
         system_data['max_thermal_viol'] = 0
 
-    system_data['pct_vm_UB_viol'] = len(vm_UB_list) / num_bus
-    system_data['pct_vm_LB_viol'] = len(vm_LB_list) / num_bus
-    system_data['pct_vm_viol'] = len(vm_list) / num_bus
-    system_data['pct_thermal_viol'] = len(thermal_list) / num_branch
+    system_data['pct_vm_UB_viol'] = len([i for i in vm_UB_list if i > abs_tol_vm]) / num_bus
+    system_data['pct_vm_LB_viol'] = len([i for i in vm_LB_list if i > abs_tol_vm]) / num_bus
+    system_data['pct_vm_viol'] = len([i for i in vm_list if i > abs_tol_vm]) / num_bus
+    system_data['pct_thermal_viol'] = len([t for i,t in enumerate(thermal_list)
+                                           if t > rel_tol_therm * thermal_max[i]]) / num_branch
 
     show_me = pd.DataFrame(system_data,index=[name])
     #print('...overwriting system data: {}'.format(show_me.T))
@@ -513,7 +521,7 @@ def pct_thermal_viol(md):
 
 def acpf_slack(md):
     '''
-    Returns the change in the slack bus real power dispatch in the ACPF solution
+    Returns the change in the slack bus real power dispatch in the ACPF solution in MW
     '''
 
     acpf_slack = get_infeas_from_model_data(md, infeas_name='acpf_slack')
