@@ -18,8 +18,8 @@ import egret.model_library.transmission.tx_calc as tx_calc
 import egret.model_library.transmission.bus as libbus
 import egret.model_library.transmission.branch as libbranch
 import egret.model_library.transmission.gen as libgen
+from egret.model_library.defn import CoordinateType
 
-from egret.model_library.defn import ApproximationType
 from egret.data.data_utils import map_items, zip_items
 from math import pi
 
@@ -104,6 +104,93 @@ def create_copperplate_dispatch_approx_model(model_data, include_feasibility_sla
 
     return model, md
 
+# this is effectively used to do a balance for the given node
+def create_copperplate_ac_approx_model(model_data, include_feasibility_slack=False):
+    md = model_data.clone_in_service()
+    tx_utils.scale_ModelData_to_pu(md, inplace = True)
+
+    gens = dict(md.elements(element_type='generator'))
+    buses = dict(md.elements(element_type='bus'))
+    branches = dict(md.elements(element_type='branch'))
+    loads = dict(md.elements(element_type='load'))
+    shunts = dict(md.elements(element_type='shunt'))
+
+    gen_attrs = md.attributes(element_type='generator')
+    bus_attrs = md.attributes(element_type='bus')
+
+    inlet_branches_by_bus, outlet_branches_by_bus = \
+        tx_utils.inlet_outlet_branches_by_bus(branches, buses)
+    gens_by_bus = tx_utils.gens_by_bus(buses, gens)
+
+    model = pe.ConcreteModel()
+
+    ### declare (and fix) the loads at the buses
+    bus_p_loads, bus_q_loads = tx_utils.dict_of_bus_loads(buses, loads)
+
+    libbus.declare_var_pl(model, bus_attrs['names'], initialize=bus_p_loads)
+    libbus.declare_var_ql(model, bus_attrs['names'], initialize=bus_q_loads)
+    model.pl.fix()
+    model.ql.fix()
+
+    ### declare the fixed shunts at the buses
+    bus_bs_fixed_shunts, bus_gs_fixed_shunts = tx_utils.dict_of_bus_fixed_shunts(buses, shunts)
+
+    ### declare the polar voltages
+    libbus.declare_var_vm(model, bus_attrs['names'], initialize=bus_attrs['vm'])
+
+    libbus.declare_expr_vmsq(model=model, index_set=bus_attrs['names'], coordinate_type=CoordinateType.POLAR)
+
+    va_bounds = {k: (-pi, pi) for k in bus_attrs['va']}
+    libbus.declare_var_va(model, bus_attrs['names'], initialize=bus_attrs['va'])
+
+    for bus_name in bus_attrs['names']:
+        model.vm[bus_name].fixed = True
+        model.va[bus_name].fixed = True
+
+    ### declare the generator real and reactive power
+    libgen.declare_var_pg(model, gen_attrs['names'], initialize=gen_attrs['pg'])
+
+    libgen.declare_var_qg(model, gen_attrs['names'], initialize=gen_attrs['qg'])
+
+    ### include the feasibility slack for the bus balances
+    from egret.models.acopf import _include_feasibility_slack
+    p_rhs_kwargs = {}
+    q_rhs_kwargs = {}
+    if include_feasibility_slack:
+        p_rhs_kwargs, q_rhs_kwargs, penalty_expr = _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads)
+
+    ### declare the p balance
+    libbus.declare_eq_p_island_balance(model=model,
+                                       index_set=bus_attrs['names'],
+                                       bus_p_loads=bus_p_loads,
+                                       gens_by_bus=gens_by_bus,
+                                       bus_gs_fixed_shunts=bus_gs_fixed_shunts,
+                                       **p_rhs_kwargs
+                                       )
+
+    ### declare the q balance
+    libbus.declare_eq_q_island_balance(model=model,
+                                       index_set=bus_attrs['names'],
+                                       bus_q_loads=bus_q_loads,
+                                       gens_by_bus=gens_by_bus,
+                                       bus_bs_fixed_shunts=bus_bs_fixed_shunts,
+                                       **q_rhs_kwargs
+                                       )
+
+    ### declare the generator cost objective
+    libgen.declare_expression_pgqg_operating_cost(model=model,
+                                                  index_set=gen_attrs['names'],
+                                                  p_costs=gen_attrs['p_cost']
+                                                  )
+
+    obj_expr = sum(model.pg_operating_cost[gen_name] for gen_name in model.pg_operating_cost)
+    if include_feasibility_slack:
+        obj_expr += penalty_expr
+
+    model.obj = pe.Objective(expr=obj_expr)
+
+    return model, md
+
 
 def solve_copperplate_dispatch(model_data,
                 solver,
@@ -167,10 +254,17 @@ def solve_copperplate_dispatch(model_data,
 
     for g,g_dict in gens.items():
         g_dict['pg'] = value(m.pg[g])
+        if hasattr(m, 'qg'):
+            g_dict['qg'] = value(m.qg[g])
 
     for b,b_dict in buses.items():
         b_dict['pl'] = value(m.pl[b])
-        b_dict['lmp'] = value(m.dual[m.eq_p_balance])
+        b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
+        if hasattr(m, 'ql'):
+            b_dict['ql'] = value(m.ql[b])
+            b_dict['qlmp'] = value(m.dual[m.eq_q_balance[b]])
+            b_dict['vm'] = value(m.vm[b])
+            b_dict['va'] = value(m.va[b])
 
     unscale_ModelData_to_pu(md, inplace=True)
 
