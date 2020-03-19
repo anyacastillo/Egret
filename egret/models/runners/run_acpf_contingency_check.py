@@ -206,7 +206,7 @@ if __name__ == '__main__':
                 # check if graph is islanded
                 graph = get_graph(md)
                 if nx.is_connected(graph):
-                    # set the 'islanded' paramter to None since there are no islands
+                    # set the 'islanded' parameter to None since there are no islands
                     md.data['system']['islanded'] = None
                     # solve acpf for the full grid
                     _, m, results = solve_acpf(md, "ipopt", solver_tee=False, return_model=True, return_results=True, write_results=True,
