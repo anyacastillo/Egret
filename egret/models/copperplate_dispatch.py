@@ -183,11 +183,7 @@ def create_copperplate_ac_approx_model(model_data, include_feasibility_slack=Fal
                                                   p_costs=gen_attrs['p_cost']
                                                   )
 
-    obj_expr = sum(model.pg_operating_cost[gen_name] for gen_name in model.pg_operating_cost)
-    if include_feasibility_slack:
-        obj_expr += penalty_expr
-
-    model.obj = pe.Objective(expr=obj_expr)
+    model.obj = pe.Objective(expr=0.0)
 
     return model, md
 

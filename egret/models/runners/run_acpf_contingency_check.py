@@ -25,30 +25,31 @@ def get_graph(md):
     return G
 
 
-def create_fictional_slack_gen(md, _md):
+def create_fictional_slack_gen(md, _md,idx):
     # only consider buses in the subgrid, represented by _md modeldata object
     buses = dict(_md.elements(element_type='bus'))
 
-    md.data['elements']['generator']['fictitious'] = dict()
-    md.data['elements']['generator']['fictitious']['bus'] = list(buses.keys())[0]
-    md.data['elements']['generator']['fictitious']['pg'] = 0.
-    md.data['elements']['generator']['fictitious']['qg'] = 0.
-    md.data['elements']['generator']['fictitious']['vg'] = 1.0
-    md.data['elements']['generator']['fictitious']['mbase'] = 100.0
-    md.data['elements']['generator']['fictitious']['in_service'] = True
-    md.data['elements']['generator']['fictitious']['p_max'] = 0.
-    md.data['elements']['generator']['fictitious']['p_min'] = 0.
-    md.data['elements']['generator']['fictitious']['q_max'] = 0.
-    md.data['elements']['generator']['fictitious']['q_min'] = 0.
-    md.data['elements']['generator']['fictitious']['generator_type'] = 'thermal'
-    md.data['elements']['generator']['fictitious']['p_cost'] = dict()
-    md.data['elements']['generator']['fictitious']['p_cost']['data_type'] = 'cost_curve'
-    md.data['elements']['generator']['fictitious']['p_cost']['cost_curve_type'] = 'polynomial'
-    md.data['elements']['generator']['fictitious']['p_cost']['values'] = {0: 0., 1: 0., 2: 0.}
-    md.data['elements']['generator']['fictitious']['p_cost']['startup_cost'] = 0.0
-    md.data['elements']['generator']['fictitious']['p_cost']['shuhtdown_cost'] = 0.0
+    gen_name = 'fictitious_'+str(idx)
+    md.data['elements']['generator'][gen_name] = dict()
+    md.data['elements']['generator'][gen_name]['bus'] = list(buses.keys())[0]
+    md.data['elements']['generator'][gen_name]['pg'] = 0.
+    md.data['elements']['generator'][gen_name]['qg'] = 0.
+    md.data['elements']['generator'][gen_name]['vg'] = 1.0
+    md.data['elements']['generator'][gen_name]['mbase'] = 100.0
+    md.data['elements']['generator'][gen_name]['in_service'] = True
+    md.data['elements']['generator'][gen_name]['p_max'] = 0.
+    md.data['elements']['generator'][gen_name]['p_min'] = 0.
+    md.data['elements']['generator'][gen_name]['q_max'] = 0.
+    md.data['elements']['generator'][gen_name]['q_min'] = 0.
+    md.data['elements']['generator'][gen_name]['generator_type'] = 'thermal'
+    md.data['elements']['generator'][gen_name]['p_cost'] = dict()
+    md.data['elements']['generator'][gen_name]['p_cost']['data_type'] = 'cost_curve'
+    md.data['elements']['generator'][gen_name]['p_cost']['cost_curve_type'] = 'polynomial'
+    md.data['elements']['generator'][gen_name]['p_cost']['values'] = {0: 0., 1: 0., 2: 0.}
+    md.data['elements']['generator'][gen_name]['p_cost']['startup_cost'] = 0.0
+    md.data['elements']['generator'][gen_name]['p_cost']['shuhtdown_cost'] = 0.0
 
-    _md.data['elements']['generator']['fictitious'] = md.data['elements']['generator']['fictitious']
+    _md.data['elements']['generator'][gen_name] = md.data['elements']['generator'][gen_name]
 
 
 def get_modeldata_subgrid(md,subgrid):
@@ -91,22 +92,20 @@ def get_modeldata_subgrid(md,subgrid):
     return _md
 
 
-def solve_subgrid_acpf(md,_md):
-    _gens = dict(md.elements(element_type='generator'))
-    _buses = dict(md.elements(element_type='bus'))
-    _branches = dict(md.elements(element_type='branch'))
+def solve_subgrid_acpf(md,_md,idx):
 
     # first set a reference bus for the subgrid
+    _buses = dict(_md.elements(element_type='bus'))
     _bus_attrs = _md.attributes(element_type='bus')
     ref_bus = _md.data['system']['reference_bus']
     if not ref_bus in _bus_attrs['names']:
         pv_buses = [bus for bus, bus_dict in _buses.items() if bus_dict['matpower_bustype'] == 'PV']
-        if not pv_buses is None:
+        if len(pv_buses) > 0:
             # if there is a PV bus, set this as the new slack bus
             _md.data['system']['reference_bus'] = pv_buses[0]
         else:
             # if there is no PV bus (all load buses), create a fictitious generator at an arbitrary slack bus
-            create_fictional_slack_gen(md, _md)
+            create_fictional_slack_gen(md, _md,idx)
 
     if len(subgrid) == 1:
         # solve single node balancing case
@@ -119,6 +118,10 @@ def solve_subgrid_acpf(md,_md):
 
     # save results data for solving the subgrid to the md modeldata object for the full grid
     md.data['system']['total_cost'] += _md.data['system']['total_cost']
+
+    _gens = dict(_md.elements(element_type='generator'))
+    _buses = dict(_md.elements(element_type='bus'))
+    _branches = dict(_md.elements(element_type='branch'))
 
     for g,g_dict in _gens.items():
         md.data['elements']['generator'][g]['pg'] = g_dict['pg']
@@ -148,10 +151,13 @@ if __name__ == '__main__':
     from egret.models.acopf import *
     import sys
     import pyomo.opt as po
+    from itertools import combinations
 
     random.seed(23) # repeatable
 
-    run_islands = True
+    run_islands = True  # if True, then solve ACPF for islands; otherwise ignore contingency all together
+
+    choose_k_contingency = 1 # The number of contingencies to consider per sample
 
     path = os.path.dirname(__file__)
     filename = 'pglib_opf_case14_ieee.m'
@@ -165,18 +171,25 @@ if __name__ == '__main__':
     # if len(sys.argv[1:]) == 2:
     #     max_samples = sys.argv[1] # argument 1: # of samples
     #     filename = sys.argv[2] # argument 2: case filename
+    # if len(sys.argv[1:]) == 3:
+    #     max_samples = sys.argv[1] # argument 1: # of samples
+    #     filename = sys.argv[2] # argument 2: case filename
+    #     choose_k_contingency = sys.argv[3] # argument 2: case filename
+
+    model_data = create_ModelData(matpower_file)
+    branch_names = [b for b, branch in dict(model_data.elements(element_type='branch')).items() if branch['in_service']]
+    n_choose_k = list(combinations(branch_names, choose_k_contingency))
 
     while samples < max_samples:
-
         # increment samples computed and saved to json
         samples += 1
 
         while True:
+            # load the model
+            model_data = create_ModelData(matpower_file)
+            md = model_data.clone_in_service()
 
-            # N-1 contingency (line outages only)
-            md = create_ModelData(matpower_file)
             loads = dict(md.elements(element_type='load'))
-
             # randomize real (p) and reactive (q) loads, maintaining a power factor p/sqrt(p^2 + q^2)
             for load, load_dict in loads.items():
                 _variation_fraction = random.uniform(0.85,1.15)
@@ -194,45 +207,51 @@ if __name__ == '__main__':
             if results.solver.termination_condition == po.TerminationCondition.optimal:
                 break
 
-        # if the ACOPF solve was optimal, then do a full N-1 contingency analysis (on all the branches)
+        # if the ACOPF solve was optimal, then do a full N-k contingency analysis (on all the branches)
         # for this operating point
-        branches = dict(md.elements(element_type='branch'))
-        for branch, branch_dict in branches.items():
-            # if branch is in-service, then perform contingency analysis on it
-            if branches[branch]['in_service'] == True:
+        for _k in n_choose_k:
+            # set out of service each branch in the contingency set
+            for branch in _k:
                 # set contingency branch out-of-service
-                branches[branch]['in_service'] = False
+                md.data['elements']['branch'][branch]['in_service'] = False
 
-                # check if graph is islanded
-                graph = get_graph(md)
-                if nx.is_connected(graph):
-                    # set the 'islanded' parameter to None since there are no islands
-                    md.data['system']['islanded'] = None
-                    # solve acpf for the full grid
-                    _, m, results = solve_acpf(md, "ipopt", solver_tee=False, return_model=True, return_results=True, write_results=True,
-                                                    runid='sample.{}_branch.{}'.format(samples,branch))
-                else:
-                    if run_islands:
-                        # determine nodes in each subgrid
-                        subgrids = [list(x) for x in nx.connected_components(graph)] # returns islands
-                        # set system cost to 0.
-                        md.data['system']['total_cost'] = 0.
-                        # save subgrid partitions (list of lists) to modeldata object
-                        md.data['system']['islanded'] = subgrids
-                        # solve acpf/balance for each island
-                        for subgrid in subgrids:
-                            # create a _md modeldata object to represent the subgrid only
-                            _md = get_modeldata_subgrid(md, subgrid)
-                            # solve acpf/balance for _md, and store results back into md modeldata object for the full grid
-                            solve_subgrid_acpf(md, _md)
-                        # write the md modeldata object to json after all subgrids are solved
-                        system = md.data['system']['model_name']
-                        runid = 'sample.{}_branch.{}'.format(samples, branch)
-                        filename = "%s__acpf_runid_%s.json" % (system, str(runid))
-                        md.write(filename, file_type='json')
+            # create filename label that specifies branches out of service
+            if len(_k) > 1:
+                _label = '_'.join([str(elem) for elem in _k])
+            else:
+                _label = branch
 
+            # check if graph is islanded
+            graph = get_graph(md)
+            if nx.is_connected(graph):
+                # set the 'islanded' parameter to None since there are no islands
+                md.data['system']['islanded'] = None
+                # solve acpf for the full grid
+                md, m, results = solve_acpf(md, "ipopt", solver_tee=False, return_model=True, return_results=True, write_results=True,
+                                                runid='sample.{}_branch.{}'.format(samples,_label))
+            else:
+                if run_islands:
+                    # determine nodes in each subgrid
+                    subgrids = [list(x) for x in nx.connected_components(graph)] # returns islands
+                    # set system cost to 0.
+                    md.data['system']['total_cost'] = 0.
+                    # save subgrid partitions (list of lists) to modeldata object
+                    md.data['system']['islanded'] = subgrids
+                    # solve acpf/balance for each island
+                    for subgrid in subgrids:
+                        # create a _md modeldata object to represent the subgrid only
+                        _md = get_modeldata_subgrid(md, subgrid)
+                        # solve acpf/balance for _md, and store results back into md modeldata object for the full grid
+                        solve_subgrid_acpf(md, _md, subgrids.index(subgrid))
+                    # write the md modeldata object to json after all subgrids are solved
+                    system = md.data['system']['model_name']
+                    runid = 'sample.{}_branch.{}'.format(samples, _label)
+                    filename = "%s__acpf_runid_%s.json" % (system, str(runid))
+                    md.write(filename, file_type='json')
+
+            for branch in _k:
                 # set branch back to in-service
-                branches[branch]['in_service'] = True
+                md.data['elements']['branch'][branch]['in_service'] = True
 
 
 
