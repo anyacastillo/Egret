@@ -878,7 +878,7 @@ def generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', be
     cbar_dict = {'ticks' : [1e0,1e1,1e2]}
 
     ax = sns.heatmap(data,
-                     linewidth=0.5,
+                     linewidth=0.,
                      xticklabels=model_names,
                      yticklabels=index_names,
                      cmap=colormap,
@@ -1259,6 +1259,8 @@ def generate_case_size_plot(test_model_dict, case_list=case_names,
 
     plt.yscale(yscale)
     plt.xscale(xscale)
+    x1,x2 = ax.get_xlim()
+    ax.set_xlim([2,x2])
     plt.tight_layout()
 
     box = ax.get_position()
@@ -1370,26 +1372,26 @@ def submain(idx=None, show_plot=True):
          'slopf': True,
          'dlopf_default': True,
          'dlopf_lazy' : True,
-         'dlopf_e4': True,
-         'dlopf_e3': True,
-         'dlopf_e2': True,
-         'clopf_default': True,
-         'clopf_lazy': True,
-         'clopf_e4': True,
-         'clopf_e3': True,
-         'clopf_e2': True,
-         'clopf_p_default': True,
-         'clopf_p_lazy': True,
-         'clopf_p_e4': True,
-         'clopf_p_e3': True,
-         'clopf_p_e2': True,
-         'qcopf_btheta': True,
-         'dcopf_ptdf_default': True,
-         'dcopf_ptdf_lazy': True,
-         'dcopf_ptdf_e4': True,
-         'dcopf_ptdf_e3': True,
-         'dcopf_ptdf_e2': True,
-         'dcopf_btheta': True
+         'dlopf_e4': False,
+         'dlopf_e3': False,
+         'dlopf_e2': False,
+         'clopf_default': False,
+         'clopf_lazy': False,
+         'clopf_e4': False,
+         'clopf_e3': False,
+         'clopf_e2': False,
+         'clopf_p_default': False,
+         'clopf_p_lazy': False,
+         'clopf_p_e4': False,
+         'clopf_p_e3': False,
+         'clopf_p_e2': False,
+         'qcopf_btheta': False,
+         'dcopf_ptdf_default': False,
+         'dcopf_ptdf_lazy': False,
+         'dcopf_ptdf_e4': False,
+         'dcopf_ptdf_e3': False,
+         'dcopf_ptdf_e2': False,
+         'dcopf_btheta': False
          }
     mean_functions = [tu.num_buses,
                       tu.num_branches,
@@ -1416,16 +1418,18 @@ def submain(idx=None, show_plot=True):
     solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate data files
-    #generate_mean_data(test_case,test_model_dict) ## to just grab the default metrics
-    generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
+    generate_mean_data(test_case,test_model_dict) ## to just grab the default metrics
+    #generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
     generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.acpf_slack)
 
     ## Generate plots
     #---- Sensitivity plots: remove lazy and tolerance models
-    for key, val in test_model_dict.items():
-        if 'lazy' in key or '_e' in key:
-            test_model_dict[key] = False
-    generate_sensitivity_plot(test_case, test_model_dict, plot_data='acpf_slack', units='p.u.', colors=colors, show_plot=show_plot)
+    #for key, val in test_model_dict.items():
+    #    if 'lazy' in key or '_e' in key:
+    #        test_model_dict[key] = False
+    generate_sensitivity_plot(test_case, test_model_dict, plot_data='acpf_slack', units='MW', colors=colors, show_plot=show_plot)
+
+    return
 
     #---- Pareto plots: add lazy models
     for key, val in test_model_dict.items():
@@ -1433,7 +1437,7 @@ def submain(idx=None, show_plot=True):
             test_model_dict[key] = True
         elif 'default' in key:
             test_model_dict[key] = False
-    generate_pareto_plot(test_case, test_model_dict, y_data='acpf_slack', x_data='solve_time_geomean', y_units='p.u', x_units='s',
+    generate_pareto_plot(test_case, test_model_dict, y_data='acpf_slack', x_data='solve_time_geomean', y_units='MW', x_units='s',
                          mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
                          annotate_plot=False, show_plot=show_plot)
 
