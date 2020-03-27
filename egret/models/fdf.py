@@ -721,6 +721,9 @@ def _load_solution_to_model_data(m, md, results):
         b_dict['va'] = THETA[i]
         b_dict['vm'] = VMAG[i]
 
+        if b_dict['vm'] < b_dict['v_min'] or b_dict['vm'] > b_dict['v_max']:
+            print('BAD vm DATA-------: bus {}, vm {}'.format(b, b_dict['vm']))
+
     ## generator data
     for g,g_dict in gens.items():
         g_dict['pg'] = value(m.pg[g])
@@ -808,9 +811,20 @@ def solve_fdf(model_data,
                                            symbolic_solver_labels=symbolic_solver_labels,iteration_limit=iter_limit,
                                            vars_to_load = vars_to_load)
 
+    from egret.common.lazy_ptdf_utils import LazyPTDFTerminationCondition
+    if term_cond == LazyPTDFTerminationCondition.INFEASIBLE:
+        print('BAD news, infeasible model.... what now?')
+    elif term_cond == LazyPTDFTerminationCondition.NORMAL:
+        print('great news, proceed')
+    elif term_cond == LazyPTDFTerminationCondition.ITERATION_LIMIT:
+        print('hit iteration limit')
+    elif term_cond == LazyPTDFTerminationCondition.FLOW_VIOLATION:
+        print('hit flow violation')
+
     loop_time = time.time() - start_loop_time
     total_time = init_solve_time + loop_time
 
+    ### Note this results has nothing to do with that solved on line 810 in the _lazy_model_solve_loop
     if not hasattr(md,'results'):
         md.data['results'] = dict()
     md.data['results']['time'] = total_time
