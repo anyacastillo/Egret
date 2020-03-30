@@ -13,6 +13,20 @@ This file includes the solver interfaces for EGRET.
 import pyomo.opt as po
 from pyomo.solvers.plugins.solvers.persistent_solver import PersistentSolver
 
+## termination conditions which are acceptable
+safe_termination_conditions = [
+                               po.TerminationCondition.maxTimeLimit,
+                               po.TerminationCondition.maxIterations,
+                               po.TerminationCondition.minFunctionValue,
+                               po.TerminationCondition.minStepLength,
+                               po.TerminationCondition.globallyOptimal,
+                               po.TerminationCondition.locallyOptimal,
+                               po.TerminationCondition.feasible,
+                               po.TerminationCondition.optimal,
+                               po.TerminationCondition.maxEvaluations,
+                               po.TerminationCondition.other,
+                              ]
+
 
 def _set_options(solver, mipgap=None, timelimit=None, other_options=None):
     '''
@@ -109,20 +123,6 @@ def _solve_model(model,
 
     results = None
 
-    ## termination conditions which are acceptable
-    safe_termination_conditions = [
-                                   po.TerminationCondition.maxTimeLimit,
-                                   po.TerminationCondition.maxIterations,
-                                   po.TerminationCondition.minFunctionValue,
-                                   po.TerminationCondition.minStepLength,
-                                   po.TerminationCondition.globallyOptimal,
-                                   po.TerminationCondition.locallyOptimal,
-                                   po.TerminationCondition.feasible,
-                                   po.TerminationCondition.optimal,
-                                   po.TerminationCondition.maxEvaluations,
-                                   po.TerminationCondition.other,
-                                  ]
-
     if isinstance(solver, str):
         solver = po.SolverFactory(solver)
     elif isinstance(solver, po.base.OptSolver):
@@ -142,8 +142,6 @@ def _solve_model(model,
 
     flag = True
     if results.solver.termination_condition not in safe_termination_conditions:
-        if hasattr(model, '_ptdf_options') and model._ptdf_options["lazy"]:
-            return model, results, solver
         raise Exception('Problem encountered during solve, termination_condition {}'.format(results.solver.termination_condition))
 
     if isinstance(solver, PersistentSolver):

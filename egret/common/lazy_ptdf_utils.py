@@ -11,6 +11,7 @@
 from pyomo.solvers.plugins.solvers.persistent_solver import PersistentSolver
 from egret.model_library.defn import ApproximationType
 from egret.common.log import logger
+from egret.common.solver_interface import safe_termination_conditions
 import egret.model_library.transmission.branch as libbranch
 import egret.model_library.transmission.bus as libbus
 import egret.model_library.transmission.tx_calc as tx_calc
@@ -454,9 +455,8 @@ def _lazy_model_solve_loop(m, md, solver, timelimit, solver_tee=True, symbolic_s
             results = solver.solve(m, tee=solver_tee, load_solutions=False, save_results=False)
         else:
             results = solver.solve(m, tee=solver_tee, symbolic_solver_labels=symbolic_solver_labels)
-        if results.solver.termination_condition == pe.TerminationCondition.infeasible:
-            logger.warning('WARNING: Solution infeasible.')
-            return LazyPTDFTerminationCondition.INFEASIBLE, results, i
+        if results.solver.termination_condition not in safe_termination_conditions:
+            raise Exception('Problem encountered during solve, termination_condition {}'.format(results.solver.termination_condition))
         if persistent_solver: ## load the vars
             solver.load_vars(vars_to_load=vars_to_load)
 
