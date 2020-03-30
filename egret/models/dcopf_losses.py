@@ -418,10 +418,17 @@ def solve_dcopf_losses(model_data,
     start_loop_time = time.time()
     term_cond = 0
     if dcopf_losses_model_generator == create_ptdf_losses_dcopf_model and m._ptdf_options['lazy']:
+        ## cache the results object from the first solve
+        results_init = results
+
         iter_limit = m._ptdf_options['iteration_limit']
-        term_cond = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee,
+        term_cond, results, iterations = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee,
                                            symbolic_solver_labels=symbolic_solver_labels,iteration_limit=iter_limit,
                                            vars_to_load = vars_to_load)
+        ## in this case, either we're not using lazy or
+        ## we never re-solved
+        if results is None:
+            results = results_init
 
     loop_time = time.time() - start_loop_time
     total_time = init_solve_time + loop_time
@@ -433,6 +440,8 @@ def solve_dcopf_losses(model_data,
     md.data['results']['#_vars'] = results.Problem[0]['Number of variables']
     md.data['results']['#_nz'] = results.Problem[0]['Number of nonzeros']
     md.data['results']['termination'] = results.solver.termination_condition.__str__()
+    if dcopf_losses_model_generator == create_ptdf_losses_dcopf_model and m._ptdf_options['lazy']:
+        md.data['results']['iterations'] = iterations
 
     from egret.common.lazy_ptdf_utils import LazyPTDFTerminationCondition
     if not results.Solver.status.key == 'ok' or term_cond == LazyPTDFTerminationCondition.INFEASIBLE:

@@ -408,6 +408,9 @@ def _lazy_model_solve_loop(m, md, solver, timelimit, solver_tee=True, symbolic_s
     branch_limits = branch_attrs['rating_long_term']
     #branch_limits = PTDF.branch_limits_array
 
+    ## for the solver results object
+    results = None
+
     ## only enforce the relative and absolute, within tollerance
     #PTDF.enforced_branch_limits = np.maximum(branch_limits*(1+rel_flow_tol), branch_limits+abs_flow_tol)
 
@@ -431,12 +434,12 @@ def _lazy_model_solve_loop(m, md, solver, timelimit, solver_tee=True, symbolic_s
         if viol_num <= 0:
             ## in this case, there are no violations!
             ## load the duals now too, if we're using a persistent solver
-            return LazyPTDFTerminationCondition.NORMAL
+            return LazyPTDFTerminationCondition.NORMAL, results, i
 
         elif viol_num == mon_viol_num:
             logger.warning('WARNING: Terminating with monitored violations!')
             logger.warning('         Result is not transmission feasible.')
-            return LazyPTDFTerminationCondition.FLOW_VIOLATION
+            return LazyPTDFTerminationCondition.FLOW_VIOLATION, results, i
 
 
         add_thermal_violations(thermal_viol_lazy, SV, m, md, solver, ptdf_options, branch_attrs)
@@ -453,7 +456,7 @@ def _lazy_model_solve_loop(m, md, solver, timelimit, solver_tee=True, symbolic_s
             results = solver.solve(m, tee=solver_tee, symbolic_solver_labels=symbolic_solver_labels)
         if results.solver.termination_condition == pe.TerminationCondition.infeasible:
             logger.warning('WARNING: Solution infeasible.')
-            return LazyPTDFTerminationCondition.INFEASIBLE
+            return LazyPTDFTerminationCondition.INFEASIBLE, results, i
         if persistent_solver: ## load the vars
             solver.load_vars(vars_to_load=vars_to_load)
 
@@ -461,7 +464,7 @@ def _lazy_model_solve_loop(m, md, solver, timelimit, solver_tee=True, symbolic_s
     else: # we hit the iteration limit
         logger.warning('WARNING: Exiting on maximum iterations for lazy PTDF model.')
         logger.warning('         Result is not transmission feasible.')
-        return LazyPTDFTerminationCondition.ITERATION_LIMIT
+        return LazyPTDFTerminationCondition.ITERATION_LIMIT, results, i
 
 
 

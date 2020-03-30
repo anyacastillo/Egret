@@ -776,7 +776,7 @@ def solve_fdf(model_data,
     import pyomo.environ as pe
     import time
     from egret.common.solver_interface import _solve_model
-    from egret.common.lazy_ptdf_utils import _lazy_model_solve_loop
+    from egret.common.lazy_ptdf_utils import _lazy_model_solve_loop, LazyPTDFTerminationCondition
     from pyomo.solvers.plugins.solvers.persistent_solver import PersistentSolver
 
     m, md = fdf_model_generator(model_data, **kwargs)
@@ -806,20 +806,27 @@ def solve_fdf(model_data,
 
     start_loop_time = time.time()
     if fdf_model_generator == create_fdf_model and m._ptdf_options['lazy']:
+        ## cache the results object from the first solve
+        results_init = results
+
         iter_limit = m._ptdf_options['iteration_limit']
-        term_cond = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee,
+        term_cond, results, iterations = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee,
                                            symbolic_solver_labels=symbolic_solver_labels,iteration_limit=iter_limit,
                                            vars_to_load = vars_to_load)
 
-    from egret.common.lazy_ptdf_utils import LazyPTDFTerminationCondition
-    if term_cond == LazyPTDFTerminationCondition.INFEASIBLE:
-        print('BAD news, infeasible model.... what now?')
-    elif term_cond == LazyPTDFTerminationCondition.NORMAL:
-        print('great news, proceed')
-    elif term_cond == LazyPTDFTerminationCondition.ITERATION_LIMIT:
-        print('hit iteration limit')
-    elif term_cond == LazyPTDFTerminationCondition.FLOW_VIOLATION:
-        print('hit flow violation')
+        if term_cond == LazyPTDFTerminationCondition.INFEASIBLE:
+            print('BAD news, infeasible model.... what now?')
+        elif term_cond == LazyPTDFTerminationCondition.NORMAL:
+            print('great news, proceed')
+        elif term_cond == LazyPTDFTerminationCondition.ITERATION_LIMIT:
+            print('hit iteration limit')
+        elif term_cond == LazyPTDFTerminationCondition.FLOW_VIOLATION:
+            print('hit flow violation')
+
+        ## in this case, either we're not using lazy or
+        ## we never re-solved
+        if results is None:
+            results = results_init
 
     loop_time = time.time() - start_loop_time
     total_time = init_solve_time + loop_time
@@ -832,6 +839,8 @@ def solve_fdf(model_data,
     md.data['results']['#_vars'] = results.Problem[0]['Number of variables']
     md.data['results']['#_nz'] = results.Problem[0]['Number of nonzeros']
     md.data['results']['termination'] = results.solver.termination_condition.__str__()
+    if fdf_model_generator == create_fdf_model and m._ptdf_options['lazy']:
+        md.data['results']['iterations'] = iterations
 
     if persistent_solver:
         solver.load_vars()
