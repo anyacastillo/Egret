@@ -721,7 +721,8 @@ def _load_solution_to_model_data(m, md, results):
         b_dict['va'] = THETA[i]
         b_dict['vm'] = VMAG[i]
 
-        if b_dict['vm'] < b_dict['v_min'] or b_dict['vm'] > b_dict['v_max']:
+        tol = 1e-6
+        if b_dict['vm'] < b_dict['v_min'] - tol or b_dict['vm'] > b_dict['v_max'] + tol:
             print('BAD vm DATA-------: bus {}, vm {}'.format(b, b_dict['vm']))
 
     ## generator data
@@ -813,15 +814,6 @@ def solve_fdf(model_data,
         term_cond, results, iterations = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee,
                                            symbolic_solver_labels=symbolic_solver_labels,iteration_limit=iter_limit,
                                            vars_to_load = vars_to_load)
-
-        if term_cond == LazyPTDFTerminationCondition.INFEASIBLE:
-            print('BAD news, infeasible model.... what now?')
-        elif term_cond == LazyPTDFTerminationCondition.NORMAL:
-            print('great news, proceed')
-        elif term_cond == LazyPTDFTerminationCondition.ITERATION_LIMIT:
-            print('hit iteration limit')
-        elif term_cond == LazyPTDFTerminationCondition.FLOW_VIOLATION:
-            print('hit flow violation')
 
         ## in this case, either we're not using lazy or
         ## we never re-solved
@@ -975,6 +967,10 @@ def compare_fdf_options(md):
 
     from egret.data.test_utils import solve_infeas_model
     from egret.models.tests.test_approximations import create_new_model_data
+
+    import logging
+    logger = logging.getLogger('egret')
+    logger.setLevel(logging.ERROR)
 
     # initialize solution dicts
     pg_dict = dict()

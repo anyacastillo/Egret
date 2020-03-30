@@ -81,6 +81,7 @@ import seaborn as sns
 from cycler import cycler
 import math
 import unittest
+import logging
 import egret.data.test_utils as tu
 from pyomo.opt import SolverFactory, TerminationCondition
 from egret.models.acopf import *
@@ -743,14 +744,16 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
     data_utils_deprecated.create_dicts_of_fdf_simplified(_md_basept)
     data_utils_deprecated.create_dicts_of_ptdf(_md_flat)
 
+    # Calculate sensitivity multiplers, and make sure the base case mult=1 is included
     inc = (max_mult - min_mult) / steps
+    multipliers = [round(min_mult + step * inc, 4) for step in range(0, steps + 1)]
+    if 1.0 not in multipliers:
+        multipliers.append(1.0)
+        multipliers.sort()
 
-    for step in range(0, steps + 1):
-        mult = round(min_mult + step * inc, 4)
-
+    for mult in multipliers:
         md_basept = create_new_model_data(_md_basept, mult)
         md_flat = create_new_model_data(_md_flat, mult)
-
         inner_loop_solves(md_basept, md_flat, test_model_dict)
 
     create_testcase_directory(test_case)
@@ -1327,10 +1330,10 @@ def main(arg):
         idx_list = list(range(idxD,idxE))
 
     for idx in idx_list:
-        submain(idx, show_plot=False)
+        submain(idx, show_plot=False, log_level=logging.INFO)
 
 
-def submain(idx=None, show_plot=True):
+def submain(idx=None, show_plot=True, log_level=logging.ERROR):
     """
     solves models and generates plots for test case at test_cases[idx] or a default case
     """
@@ -1355,7 +1358,8 @@ def submain(idx=None, show_plot=True):
     #colors = cmap.jet
     #colors = cmap.nipy_spectral #*****#
 
-
+    logger = logging.getLogger('egret')
+    logger.setLevel(log_level)
 
     if idx is None:
 #        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
@@ -1372,26 +1376,26 @@ def submain(idx=None, show_plot=True):
          'slopf': True,
          'dlopf_default': True,
          'dlopf_lazy' : True,
-         'dlopf_e4': False,
-         'dlopf_e3': False,
-         'dlopf_e2': False,
-         'clopf_default': False,
-         'clopf_lazy': False,
-         'clopf_e4': False,
-         'clopf_e3': False,
-         'clopf_e2': False,
-         'clopf_p_default': False,
-         'clopf_p_lazy': False,
-         'clopf_p_e4': False,
-         'clopf_p_e3': False,
-         'clopf_p_e2': False,
-         'qcopf_btheta': False,
-         'dcopf_ptdf_default': False,
-         'dcopf_ptdf_lazy': False,
-         'dcopf_ptdf_e4': False,
-         'dcopf_ptdf_e3': False,
-         'dcopf_ptdf_e2': False,
-         'dcopf_btheta': False
+         'dlopf_e4': True,
+         'dlopf_e3': True,
+         'dlopf_e2': True,
+         'clopf_default': True,
+         'clopf_lazy': True,
+         'clopf_e4': True,
+         'clopf_e3': True,
+         'clopf_e2': True,
+         'clopf_p_default': True,
+         'clopf_p_lazy': True,
+         'clopf_p_e4': True,
+         'clopf_p_e3': True,
+         'clopf_p_e2': True,
+         'qcopf_btheta': True,
+         'dcopf_ptdf_default': True,
+         'dcopf_ptdf_lazy': True,
+         'dcopf_ptdf_e4': True,
+         'dcopf_ptdf_e3': True,
+         'dcopf_ptdf_e2': True,
+         'dcopf_btheta': True
          }
     mean_functions = [tu.num_buses,
                       tu.num_branches,
@@ -1418,18 +1422,16 @@ def submain(idx=None, show_plot=True):
     solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate data files
-    generate_mean_data(test_case,test_model_dict) ## to just grab the default metrics
-    #generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
+    #generate_mean_data(test_case,test_model_dict) ## to just grab the default metrics
+    generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
     generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.acpf_slack)
 
     ## Generate plots
     #---- Sensitivity plots: remove lazy and tolerance models
-    #for key, val in test_model_dict.items():
-    #    if 'lazy' in key or '_e' in key:
-    #        test_model_dict[key] = False
+    for key, val in test_model_dict.items():
+        if 'lazy' in key or '_e' in key:
+            test_model_dict[key] = False
     generate_sensitivity_plot(test_case, test_model_dict, plot_data='acpf_slack', units='MW', colors=colors, show_plot=show_plot)
-
-    return
 
     #---- Pareto plots: add lazy models
     for key, val in test_model_dict.items():
