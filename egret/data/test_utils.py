@@ -177,7 +177,7 @@ def solve_infeas_model(model_data):
             thermal_viol_dict = {}
             return slack_p, vm_UB_viol_dict, vm_LB_viol_dict, thermal_viol_dict, termination
         else:
-            raise Exception
+            raise e
 
     vm_UB_viol_dict = dict()
     vm_LB_viol_dict = dict()

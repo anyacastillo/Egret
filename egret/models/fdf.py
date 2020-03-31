@@ -1029,7 +1029,7 @@ def compare_fdf_options(md):
     print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
     print(results.Solver)
 
-    md_ac = create_new_model_data(md_ac,1.019)
+    md_ac = create_new_model_data(md_ac,0.900)
     termination={}
 
     #solve D-LOPF default
@@ -1044,7 +1044,7 @@ def compare_fdf_options(md):
         print('Default cost: $%3.2f' % md.data['system']['total_cost'])
         print(results.Solver)
         update_solution_dicts(md,'default')
-        termination['default'] = results['termination']
+        termination['default'] = md.data['results']['termination']
     except Exception as e:
         message = str(e)
         print(message)
@@ -1052,26 +1052,28 @@ def compare_fdf_options(md):
         termination['default'] = m_list[-1]
 
 
-    #solve D-LOPF lazy
-    print('Solve D-LOPF (lazy options)....')
+    #solve D-LOPF tolerances
+    print('Solve D-LOPF (tolerance options)....')
     kwargs = {}
-    options = {}
-    options['method'] = 1
     ptdf_options = {}
-    ptdf_options['lazy'] = True
-    ptdf_options['lazy_voltage'] = True
+    ptdf_options['lazy'] = False
+    ptdf_options['lazy_voltage'] = False
+    ptdf_options['abs_ptdf_tol'] = 1e-5
+    ptdf_options['abs_qtdf_tol'] = 5e-5
+    ptdf_options['rel_vdf_tol'] = 10e-5
     kwargs['ptdf_options'] = ptdf_options
     try:
         md, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True,return_results=True, solver_tee=False,
-                                   options=options, **kwargs)
-        print('Lazy cost: $%3.2f' % md.data['system']['total_cost'])
+                                   **kwargs)
+        print('Tolerance cost: $%3.2f' % md.data['system']['total_cost'])
         print(results.Solver)
-        update_solution_dicts(md,'lazy')
+        update_solution_dicts(md,'tolerance')
+        termination['tolerance'] = md.data['results']['termination']
     except Exception as e:
         message = str(e)
         print(message)
         m_list = message.split()
-        termination['lazy'] = m_list[-1]
+        termination['tolerance'] = m_list[-1]
 
     from egret.models.lccm import solve_lccm
     try:
@@ -1079,6 +1081,7 @@ def compare_fdf_options(md):
         print('S-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
         print(results.Solver)
         update_solution_dicts(md,'slopf')
+        termination['slopf'] = md.data['results']['termination']
     except Exception as e:
         message = str(e)
         print(message)

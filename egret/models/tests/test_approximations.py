@@ -310,6 +310,27 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
             else:
                 raise e
 
+    if tm['dlopf_e5']:
+        kwargs = {}
+        options = {}
+        #options['method'] = 1
+        ptdf_options = {}
+        ptdf_options['lazy'] = False
+        ptdf_options['lazy_voltage'] = False
+        ptdf_options['abs_ptdf_tol'] = 1e-5
+        ptdf_options['abs_qtdf_tol'] = 5e-5
+        ptdf_options['rel_vdf_tol'] = 10e-5
+        kwargs['ptdf_options'] = ptdf_options
+        try:
+            md_fdf, m, results = solve_fdf(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
+                                           solver_tee=False, options=options, **kwargs)
+            record_results('dlopf_e5', md_fdf)
+        except Exception as e:
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
+
     if tm['dlopf_e4']:
         kwargs = {}
         options = {}
@@ -401,6 +422,27 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
             md_fdfs, m, results = solve_fdf_simplified(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
                                                        solver_tee=False, options=options, **kwargs)
             record_results('clopf_lazy', md_fdfs)
+        except Exception as e:
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
+
+    if tm['clopf_e5']:
+        kwargs = {}
+        options = {}
+        #options['method'] = 1
+        ptdf_options = {}
+        ptdf_options['lazy'] = False
+        ptdf_options['lazy_voltage'] = False
+        ptdf_options['abs_ptdf_tol'] = 1e-5
+        ptdf_options['abs_qtdf_tol'] = 5e-5
+        ptdf_options['rel_vdf_tol'] = 10e-5
+        kwargs['ptdf_options'] = ptdf_options
+        try:
+            md_fdfs, m, results = solve_fdf_simplified(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
+                                                       solver_tee=False, options=options, **kwargs)
+            record_results('clopf_e5', md_fdfs)
         except Exception as e:
             if 'infeasible' in str(e):
                 print('...EXCEPTION OCCURRED: {}'.format(str(e)))
@@ -505,6 +547,26 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
             else:
                 raise e
 
+    if tm['clopf_p_e5']:
+        kwargs = {}
+        ptdf_options = {}
+        options = {}
+        #options['method'] = 1
+        ptdf_options['lazy'] = False
+        ptdf_options['abs_ptdf_tol'] = 1e-5
+        kwargs['ptdf_options'] = ptdf_options
+        try:
+            md_ptdfl, m, results = solve_dcopf_losses(md_basepoint, "gurobi_persistent",
+                                                      dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
+                                                      return_model=True, return_results=True, solver_tee=False,
+                                                      options=options, **kwargs)
+            record_results('clopf_p_e5', md_ptdfl)
+        except Exception as e:
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
+
     if tm['clopf_p_e4']:
         kwargs = {}
         ptdf_options = {}
@@ -592,6 +654,25 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                               return_model=True, return_results=True, solver_tee=False,
                                               options=options, **kwargs)
             record_results('dcopf_ptdf_lazy', md_ptdf)
+        except Exception as e:
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
+
+    if tm['dcopf_ptdf_e5']:
+        kwargs = {}
+        ptdf_options = {}
+        options = {}
+        #options['method'] = 1
+        ptdf_options['lazy'] = False
+        ptdf_options['abs_ptdf_tol'] = 1e-5
+        kwargs['ptdf_options'] = ptdf_options
+        try:
+            md_ptdf, m, results = solve_dcopf(md_flat, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
+                                              return_model=True, return_results=True, solver_tee=False,
+                                              options=options, **kwargs)
+            record_results('dcopf_ptdf_e5', md_ptdf)
         except Exception as e:
             if 'infeasible' in str(e):
                 print('...EXCEPTION OCCURRED: {}'.format(str(e)))
@@ -900,7 +981,7 @@ def generate_speedup_data(test_model_dict, case_list=case_names, mean_data='solv
 
 
 def generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='dlopf_lazy',colormap=None,
-                             xscale='linear', yscale='linear', include_benchmark=False, show_plot=False):
+                             cscale='linear', include_benchmark=False, show_plot=False):
 
     filename = "speedup_data_" + mean_data + "_" + benchmark + ".csv"
     df_data = get_data(filename,test_model_dict=test_model_dict)
@@ -925,14 +1006,19 @@ def generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', be
     model_num = len(model_names)
 
     #   EDIT TICKS HERE IF NEEDED   #
-    cbar_dict = {'ticks' : [1e0,1e1,1e2]}
+    if cscale == 'log':
+        cbar_dict = {'ticks' : [1e0,1e1,1e2]}
+        cbar_norm = clrs.LogNorm(vmin=data.min(), vmax=data.max())
+    else:
+        cbar_dict = None
+        cbar_norm = None
 
     ax = sns.heatmap(data,
                      linewidth=0.,
                      xticklabels=model_names,
                      yticklabels=index_names,
                      cmap=colormap,
-                     norm=clrs.LogNorm(vmin=data.min(), vmax=data.max()),
+                     norm=cbar_norm,
                      cbar_kws=cbar_dict,
                      )
     ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
@@ -952,6 +1038,7 @@ def generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', be
         plt.show()
     else:
         plt.cla()
+        plt.clf()
 
 
 def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.acpf_slack,
@@ -1423,25 +1510,29 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
          'slopf': True,
          'dlopf_default': True,
          'dlopf_lazy' : True,
+         'dlopf_e5': True,
          'dlopf_e4': True,
          'dlopf_e3': True,
-         'dlopf_e2': True,
+         'dlopf_e2': False,
          'clopf_default': True,
          'clopf_lazy': True,
+         'clopf_e5': True,
          'clopf_e4': True,
          'clopf_e3': True,
-         'clopf_e2': True,
+         'clopf_e2': False,
          'clopf_p_default': True,
          'clopf_p_lazy': True,
+         'clopf_p_e5': True,
          'clopf_p_e4': True,
          'clopf_p_e3': True,
-         'clopf_p_e2': True,
+         'clopf_p_e2': False,
          'qcopf_btheta': True,
          'dcopf_ptdf_default': True,
          'dcopf_ptdf_lazy': True,
+         'dcopf_ptdf_e5': True,
          'dcopf_ptdf_e4': True,
          'dcopf_ptdf_e3': True,
-         'dcopf_ptdf_e2': True,
+         'dcopf_ptdf_e2': False,
          'dcopf_btheta': True
          }
     mean_functions = [tu.num_buses,
@@ -1510,7 +1601,8 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
         else:
             test_model_dict[key] = False
     generate_speedup_data(test_model_dict, case_list=case_names, mean_data='solve_time_geomean', benchmark='acopf')
-    generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='acopf',colormap=None, show_plot=show_plot)
+    generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='acopf',
+                             colormap=None, cscale='log', show_plot=show_plot)
 
     # ---- Factor truncation speedup: remove all but default and tolerance option models
     for key, val in test_model_dict.items():
@@ -1521,9 +1613,11 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
             test_model_dict[key] = True
         else:
             test_model_dict[key] = False
+        if '_e2' in key:
+            test_model_dict[key] = False
     generate_speedup_data(test_model_dict, case_list=case_names, mean_data='solve_time_geomean', benchmark='dlopf_default')
     generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='dlopf_default',colormap=None,
-                             include_benchmark=True, show_plot=show_plot)
+                             cscale='linear', include_benchmark=True, show_plot=show_plot)
 
     #---- Model sparsity plot
     for key, val in test_model_dict.items():
@@ -1539,6 +1633,8 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
                 or 'dcopf_btheta' in key:
             test_model_dict[key] = True
         else:
+            test_model_dict[key] = False
+        if '_e2' in key:
             test_model_dict[key] = False
     generate_pareto_plot(test_case, test_model_dict, y_data='solve_time_geomean', x_data='model_density', y_units='s', x_units='%',
                          mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,

@@ -396,14 +396,14 @@ def solve_dcopf_losses(model_data,
 
     persistent_solver = isinstance(solver, PersistentSolver) or 'persistent' in solver
 
-
-    if persistent_solver:
-        vars_to_load = list()
-        vars_to_load.extend(m.p_nw.values())
-        vars_to_load.extend(m.pf.values())
-        vars_to_load.extend(m.ploss.values())
-    else:
-        vars_to_load = None
+    if hasattr(m,"_ptdf_options"):
+        if persistent_solver and m._ptdf_options['lazy']:
+            vars_to_load = list()
+            vars_to_load.extend(m.p_nw.values())
+            vars_to_load.extend(m.pf.values())
+            vars_to_load.extend(m.ploss.values())
+        else:
+            vars_to_load = None
 
     m, results, solver = _solve_model(m,solver,timelimit=timelimit,solver_tee=solver_tee,
                               symbolic_solver_labels=symbolic_solver_labels,options=options, return_solver=True)
