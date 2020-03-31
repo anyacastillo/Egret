@@ -40,7 +40,7 @@
     num_constraints
     num_variables
     num_nonzeros
-    model_sparsity
+    model_density
     total_cost
     ploss
     qloss
@@ -268,11 +268,13 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
 
     if tm['slopf']:
         try:
-            md_lccm, m, results = solve_lccm(md_basepoint, "gurobi_direct", return_model=True, return_results=True, solver_tee=False)
+            md_lccm, m, results = solve_lccm(md_basepoint, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False)
             record_results('slopf', md_lccm)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['dlopf_default']:
         kwargs = {}
@@ -281,17 +283,19 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
         ptdf_options['lazy_voltage'] = False
         kwargs['ptdf_options'] = ptdf_options
         try:
-            md_fdf, m, results = solve_fdf(md_basepoint, "gurobi_direct", return_model=True, return_results=True,
+            md_fdf, m, results = solve_fdf(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
                                            solver_tee=False, **kwargs)
             record_results('dlopf_default', md_fdf)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['dlopf_lazy']:
         kwargs = {}
         options = {}
-        options['method'] = 1
+        #options['method'] = 1
         ptdf_options = {}
         ptdf_options['lazy'] = True
         ptdf_options['lazy_voltage'] = True
@@ -301,16 +305,18 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                            solver_tee=False, options=options, **kwargs)
             record_results('dlopf_lazy', md_fdf)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['dlopf_e4']:
         kwargs = {}
         options = {}
-        options['method'] = 1
+        #options['method'] = 1
         ptdf_options = {}
-        ptdf_options['lazy'] = True
-        ptdf_options['lazy_voltage'] = True
+        ptdf_options['lazy'] = False
+        ptdf_options['lazy_voltage'] = False
         ptdf_options['abs_ptdf_tol'] = 1e-4
         ptdf_options['abs_qtdf_tol'] = 5e-4
         ptdf_options['rel_vdf_tol'] = 10e-4
@@ -320,16 +326,18 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                            solver_tee=False, options=options, **kwargs)
             record_results('dlopf_e4', md_fdf)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['dlopf_e3']:
         kwargs = {}
         options = {}
-        options['method'] = 1
+        #options['method'] = 1
         ptdf_options = {}
-        ptdf_options['lazy'] = True
-        ptdf_options['lazy_voltage'] = True
+        ptdf_options['lazy'] = False
+        ptdf_options['lazy_voltage'] = False
         ptdf_options['abs_ptdf_tol'] = 1e-3
         ptdf_options['abs_qtdf_tol'] = 5e-3
         ptdf_options['rel_vdf_tol'] = 10e-3
@@ -339,16 +347,18 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                            solver_tee=False, options=options, **kwargs)
             record_results('dlopf_e3', md_fdf)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['dlopf_e2']:
         kwargs = {}
         options = {}
-        options['method'] = 1
+        #options['method'] = 1
         ptdf_options = {}
-        ptdf_options['lazy'] = True
-        ptdf_options['lazy_voltage'] = True
+        ptdf_options['lazy'] = False
+        ptdf_options['lazy_voltage'] = False
         ptdf_options['abs_ptdf_tol'] = 1e-2
         ptdf_options['abs_qtdf_tol'] = 5e-2
         ptdf_options['rel_vdf_tol'] = 10e-2
@@ -358,8 +368,10 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                            solver_tee=False, options=options, **kwargs)
             record_results('dlopf_e2', md_fdf)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['clopf_default']:
         kwargs = {}
@@ -368,17 +380,19 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
         ptdf_options['lazy_voltage'] = False
         kwargs['ptdf_options'] = ptdf_options
         try:
-            md_fdfs, m, results = solve_fdf_simplified(md_basepoint, "gurobi_direct", return_model=True, return_results=True,
+            md_fdfs, m, results = solve_fdf_simplified(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
                                                        solver_tee=False, **kwargs)
             record_results('clopf_default', md_fdfs)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['clopf_lazy']:
         kwargs = {}
         options = {}
-        options['method'] = 1
+        #options['method'] = 1
         ptdf_options = {}
         ptdf_options['lazy'] = True
         ptdf_options['lazy_voltage'] = True
@@ -388,16 +402,18 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                                        solver_tee=False, options=options, **kwargs)
             record_results('clopf_lazy', md_fdfs)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['clopf_e4']:
         kwargs = {}
         options = {}
-        options['method'] = 1
+        #options['method'] = 1
         ptdf_options = {}
-        ptdf_options['lazy'] = True
-        ptdf_options['lazy_voltage'] = True
+        ptdf_options['lazy'] = False
+        ptdf_options['lazy_voltage'] = False
         ptdf_options['abs_ptdf_tol'] = 1e-4
         ptdf_options['abs_qtdf_tol'] = 5e-4
         ptdf_options['rel_vdf_tol'] = 10e-4
@@ -407,16 +423,18 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                                        solver_tee=False, options=options, **kwargs)
             record_results('clopf_e4', md_fdfs)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['clopf_e3']:
         kwargs = {}
         options = {}
-        options['method'] = 1
+        #options['method'] = 1
         ptdf_options = {}
-        ptdf_options['lazy'] = True
-        ptdf_options['lazy_voltage'] = True
+        ptdf_options['lazy'] = False
+        ptdf_options['lazy_voltage'] = False
         ptdf_options['abs_ptdf_tol'] = 1e-3
         ptdf_options['abs_qtdf_tol'] = 5e-3
         ptdf_options['rel_vdf_tol'] = 10e-3
@@ -426,16 +444,18 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                                        solver_tee=False, options=options, **kwargs)
             record_results('clopf_e3', md_fdfs)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['clopf_e2']:
         kwargs = {}
         options = {}
-        options['method'] = 1
+        #options['method'] = 1
         ptdf_options = {}
-        ptdf_options['lazy'] = True
-        ptdf_options['lazy_voltage'] = True
+        ptdf_options['lazy'] = False
+        ptdf_options['lazy_voltage'] = False
         ptdf_options['abs_ptdf_tol'] = 1e-2
         ptdf_options['abs_qtdf_tol'] = 5e-2
         ptdf_options['rel_vdf_tol'] = 10e-2
@@ -445,8 +465,10 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                                        solver_tee=False, options=options, **kwargs)
             record_results('clopf_e2', md_fdfs)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['clopf_p_default']:
         kwargs = {}
@@ -454,19 +476,21 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
         ptdf_options['lazy'] = False
         kwargs['ptdf_options'] = ptdf_options
         try:
-            md_ptdfl, m, results = solve_dcopf_losses(md_basepoint, "gurobi_direct",
+            md_ptdfl, m, results = solve_dcopf_losses(md_basepoint, "gurobi_persistent",
                                                       dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
                                                       return_model=True, return_results=True, solver_tee=False, **kwargs)
             record_results('clopf_p_default', md_ptdfl)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['clopf_p_lazy']:
         kwargs = {}
         ptdf_options = {}
         options = {}
-        options['method'] = 1
+        #options['method'] = 1
         ptdf_options['lazy'] = True
         kwargs['ptdf_options'] = ptdf_options
         try:
@@ -476,15 +500,17 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                                       options=options, **kwargs)
             record_results('clopf_p_lazy', md_ptdfl)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['clopf_p_e4']:
         kwargs = {}
         ptdf_options = {}
         options = {}
-        options['method'] = 1
-        ptdf_options['lazy'] = True
+        #options['method'] = 1
+        ptdf_options['lazy'] = False
         ptdf_options['abs_ptdf_tol'] = 1e-4
         kwargs['ptdf_options'] = ptdf_options
         try:
@@ -494,15 +520,17 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                                       options=options, **kwargs)
             record_results('clopf_p_e4', md_ptdfl)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['clopf_p_e3']:
         kwargs = {}
         ptdf_options = {}
         options = {}
-        options['method'] = 1
-        ptdf_options['lazy'] = True
+        #options['method'] = 1
+        ptdf_options['lazy'] = False
         ptdf_options['abs_ptdf_tol'] = 1e-3
         kwargs['ptdf_options'] = ptdf_options
         try:
@@ -512,15 +540,17 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                                       options=options, **kwargs)
             record_results('clopf_p_e3', md_ptdfl)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['clopf_p_e2']:
         kwargs = {}
         ptdf_options = {}
         options = {}
-        options['method'] = 1
-        ptdf_options['lazy'] = True
+        #options['method'] = 1
+        ptdf_options['lazy'] = False
         ptdf_options['abs_ptdf_tol'] = 1e-2
         kwargs['ptdf_options'] = ptdf_options
         try:
@@ -530,8 +560,10 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                                       options=options, **kwargs)
             record_results('clopf_p_e2', md_ptdfl)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['dcopf_ptdf_default']:
         kwargs = {}
@@ -539,18 +571,20 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
         ptdf_options['lazy'] = False
         kwargs['ptdf_options'] = ptdf_options
         try:
-            md_ptdf, m, results = solve_dcopf(md_flat, "gurobi_direct", dcopf_model_generator=create_ptdf_dcopf_model,
+            md_ptdf, m, results = solve_dcopf(md_flat, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
                                               return_model=True, return_results=True, solver_tee=False, **kwargs)
             record_results('dcopf_ptdf_default', md_ptdf)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['dcopf_ptdf_lazy']:
         kwargs = {}
         ptdf_options = {}
         options = {}
-        options['method'] = 1
+        #options['method'] = 1
         ptdf_options['lazy'] = True
         kwargs['ptdf_options'] = ptdf_options
         try:
@@ -559,15 +593,17 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                               options=options, **kwargs)
             record_results('dcopf_ptdf_lazy', md_ptdf)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['dcopf_ptdf_e4']:
         kwargs = {}
         ptdf_options = {}
         options = {}
-        options['method'] = 1
-        ptdf_options['lazy'] = True
+        #options['method'] = 1
+        ptdf_options['lazy'] = False
         ptdf_options['abs_ptdf_tol'] = 1e-4
         kwargs['ptdf_options'] = ptdf_options
         try:
@@ -576,15 +612,17 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                               options=options, **kwargs)
             record_results('dcopf_ptdf_e4', md_ptdf)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['dcopf_ptdf_e3']:
         kwargs = {}
         ptdf_options = {}
         options = {}
-        options['method'] = 1
-        ptdf_options['lazy'] = True
+        #options['method'] = 1
+        ptdf_options['lazy'] = False
         ptdf_options['abs_ptdf_tol'] = 1e-3
         kwargs['ptdf_options'] = ptdf_options
         try:
@@ -593,15 +631,17 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                               options=options, **kwargs)
             record_results('dcopf_ptdf_e3', md_ptdf)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['dcopf_ptdf_e2']:
         kwargs = {}
         ptdf_options = {}
         options = {}
-        options['method'] = 1
-        ptdf_options['lazy'] = True
+        #options['method'] = 1
+        ptdf_options['lazy'] = False
         ptdf_options['abs_ptdf_tol'] = 1e-2
         kwargs['ptdf_options'] = ptdf_options
         try:
@@ -610,27 +650,33 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
                                               options=options, **kwargs)
             record_results('dcopf_ptdf_e2', md_ptdf)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['qcopf_btheta']:
         try:
-            md_bthetal, m, results = solve_dcopf_losses(md_flat, "gurobi_direct",
+            md_bthetal, m, results = solve_dcopf_losses(md_flat, "gurobi_persistent",
                                                         dcopf_losses_model_generator=create_btheta_losses_dcopf_model,
                                                         return_model=True, return_results=True, solver_tee=False)
             record_results('qcopf_btheta', md_bthetal)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
     if tm['dcopf_btheta']:
         try:
-            md_btheta, m, results = solve_dcopf(md_flat, "gurobi_direct", dcopf_model_generator=create_btheta_dcopf_model,
+            md_btheta, m, results = solve_dcopf(md_flat, "gurobi_persistent", dcopf_model_generator=create_btheta_dcopf_model,
                                                 return_model=True, return_results=True, solver_tee=False)
             record_results('dcopf_btheta', md_btheta)
         except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
+            if 'infeasible' in str(e):
+                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            else:
+                raise e
 
 
 def record_results(idx, md):
@@ -775,7 +821,7 @@ def geometricMean(array):
     return geomean
 
 
-def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,tu.num_constraints,tu.acpf_slack,tu.solve_time]):
+def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,tu.num_constraints,tu.model_density,tu.acpf_slack,tu.solve_time]):
 
     case_location = get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
@@ -854,11 +900,12 @@ def generate_speedup_data(test_model_dict, case_list=case_names, mean_data='solv
 
 
 def generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='dlopf_lazy',colormap=None,
-                             xscale='linear', yscale='linear', show_plot=False):
+                             xscale='linear', yscale='linear', include_benchmark=False, show_plot=False):
 
     filename = "speedup_data_" + mean_data + "_" + benchmark + ".csv"
     df_data = get_data(filename,test_model_dict=test_model_dict)
-    df_data = df_data.drop(columns=benchmark)
+    if not include_benchmark:
+        df_data = df_data.drop(columns=benchmark)
 
     cols = df_data.columns.to_list()
     col_lazy=[]
@@ -1401,7 +1448,7 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
                       tu.num_branches,
                       tu.num_constraints,
                       tu.num_variables,
-                      tu.model_sparsity,
+                      tu.model_density,
                       tu.solve_time,
                       tu.acpf_slack,
                       tu.avg_vm_UB_viol,
@@ -1436,9 +1483,9 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
     #---- Pareto plots: add lazy models
     for key, val in test_model_dict.items():
         if 'lazy' in key:
-            test_model_dict[key] = True
-        elif 'default' in key:
             test_model_dict[key] = False
+        elif 'default' in key:
+            test_model_dict[key] = True
     generate_pareto_plot(test_case, test_model_dict, y_data='acpf_slack', x_data='solve_time_geomean', y_units='MW', x_units='s',
                          mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
                          annotate_plot=False, show_plot=show_plot)
@@ -1448,7 +1495,7 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
                             x_data='num_buses', x_units=None, s_data='con_per_bus',colors=colors,
                             xscale='log', yscale='linear',show_plot=show_plot)
 
-    #---- Factor truncation speedup: remove all but lazy and tolerance option models
+    #---- Lazy model speedup: remove all but default and lazy models
     for key, val in test_model_dict.items():
         if 'acopf' in key \
                 or 'slopf' in key \
@@ -1465,6 +1512,37 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
     generate_speedup_data(test_model_dict, case_list=case_names, mean_data='solve_time_geomean', benchmark='acopf')
     generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='acopf',colormap=None, show_plot=show_plot)
 
+    # ---- Factor truncation speedup: remove all but default and tolerance option models
+    for key, val in test_model_dict.items():
+        if 'dlopf_default' in key \
+                or 'dlopf_e' in key \
+                or 'clopf_default' in key \
+                or 'clopf_e' in key:
+            test_model_dict[key] = True
+        else:
+            test_model_dict[key] = False
+    generate_speedup_data(test_model_dict, case_list=case_names, mean_data='solve_time_geomean', benchmark='dlopf_default')
+    generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='dlopf_default',colormap=None,
+                             include_benchmark=True, show_plot=show_plot)
+
+    #---- Model sparsity plot
+    for key, val in test_model_dict.items():
+        if 'slopf' in key \
+                or 'dlopf_default' in key \
+                or 'dlopf_e' in key \
+                or 'clopf_default' in key \
+                or 'clopf_e' in key \
+                or 'clopf_p_default' in key \
+                or 'clopf_p_e' in key \
+                or 'dcopf_ptdf_default' in key \
+                or 'dcopf_ptdf_e' in key \
+                or 'dcopf_btheta' in key:
+            test_model_dict[key] = True
+        else:
+            test_model_dict[key] = False
+    generate_pareto_plot(test_case, test_model_dict, y_data='solve_time_geomean', x_data='model_density', y_units='s', x_units='%',
+                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
+                         annotate_plot=False, show_plot=show_plot)
 
 def idx_to_test_case(s):
     try:

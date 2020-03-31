@@ -64,24 +64,24 @@ def num_nonzeros(md):
 
     results = md.data['results']
 
-    if hasattr(results, '#_nz'):
+    if '#_nz' in results:
         val = results['#_nz']
         return val
 
     return None
 
-def model_sparsity(md):
+def model_density(md):
 
     results = md.data['results']
 
-    try:
+    if '#_nz' in results:
         nc = results['#_cons']
         nv = results['#_vars']
         nz = results['#_nz']
         val = nz / ( nc * nv )
         return val
-    except:
-        return None
+
+    return None
 
 
 def total_cost(md):

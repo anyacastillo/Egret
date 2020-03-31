@@ -402,12 +402,9 @@ def solve_lccm(model_data,
 
     import pyomo.environ as pe
     from egret.common.solver_interface import _solve_model
+    from pyomo.solvers.plugins.solvers.persistent_solver import PersistentSolver
 
     m, md = lccm_model_generator(model_data, **kwargs)
-
-    # for debugging purposes
-    #m.pg.fix()
-    #m.qg.fix()
 
     m.dual = pe.Suffix(direction=pe.Suffix.IMPORT)
 
@@ -416,7 +413,7 @@ def solve_lccm(model_data,
 
     if not hasattr(md,'results'):
         md.data['results'] = dict()
-    if solver.name == 'gurobi_direct':
+    if solver.name == 'gurobi_direct' or solver.name == 'gurobi_persistent':
         md.data['results']['time'] = results.Solver[0]['Wallclock time']
     else:
         md.data['results']['time'] = results.Solver.Time
