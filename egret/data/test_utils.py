@@ -23,6 +23,14 @@ from pyomo.environ import value
 import egret.data.data_utils_deprecated as data_utils_deprecated
 from math import sqrt
 
+
+def termination_condition(md):
+
+    val = md.data['results']['termination']
+
+    return val
+
+
 def solve_time(md):
 
     val = md.data['results']['time']
