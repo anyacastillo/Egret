@@ -30,6 +30,48 @@ def termination_condition(md):
 
     return val
 
+def optimal(md):
+
+    tc = md.data['results']['termination']
+    if tc == 'optimal':
+        return 1
+    return 0
+
+def infeasible(md):
+
+    tc = md.data['results']['termination']
+    if tc == 'infeasible':
+        return 1
+    return 0
+
+def maxTimeLimit(md):
+
+    tc = md.data['results']['termination']
+    if tc == 'maxTimeLimit':
+        return 1
+    return 0
+
+def maxIterations(md):
+
+    tc = md.data['results']['termination']
+    if tc == 'maxIterations':
+        return 1
+    return 0
+
+def solverFailure(md):
+
+    tc = md.data['results']['termination']
+    if tc == 'solverFailure':
+        return 1
+    return 0
+
+def internalSolverError(md):
+
+    tc = md.data['results']['termination']
+    if tc == 'internalSolverError':
+        return 1
+    return 0
+
 
 def solve_time(md):
 

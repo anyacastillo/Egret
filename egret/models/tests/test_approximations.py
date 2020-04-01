@@ -149,7 +149,8 @@ case_names = ['pglib_opf_case3_lmbd',
 test_cases = [join('../../../download/pglib-opf-master/', f + '.m') for f in case_names]
 #test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
 
-
+def get_case_names():
+    return case_names
 
 
 def set_acopf_basepoint_min_max(model_data, init_min=0.9, init_max=1.1, **kwargs):
@@ -784,6 +785,15 @@ def get_solution_file_location(test_case):
 
     return solution_location
 
+def get_summary_file_location(folder):
+    current_dir, current_file = os.path.split(os.path.realpath(__file__))
+    location = os.path.join(current_dir, 'transmission_test_instances','approximation_summary_files', folder)
+
+    if not os.path.exists(location):
+        os.makedirs(location)
+
+    return location
+
 
 def create_testcase_directory(test_case):
     # directory locations
@@ -925,7 +935,7 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
     solve_approximation_models(test_case, test_model_dict, init_min=0.97, init_max=1.03, steps=6)
 
     ## Generate summary data
-    #spu.create_full summary(test_case, test_model_dict)
+    spu.create_full_summary(test_case, test_model_dict)
 
 
 def idx_to_test_case(s):
