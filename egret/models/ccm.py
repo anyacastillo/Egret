@@ -357,6 +357,10 @@ def solve_ccm(model_data,
     md.data['results']['#_nz'] = results.Problem[0]['Number of nonzeros']
     md.data['results']['termination'] = results.solver.termination_condition.__str__()
 
+    ## if there's an issue loading dual values, this
+    ## attribute won't be on the model
+    md.data['results']['duals'] = hasattr(m, 'dual')
+
     if results.Solver.status.key == 'ok':
         _load_solution_to_model_data(m, md, results)
         #m.vm.pprint()
@@ -376,6 +380,8 @@ def _load_solution_to_model_data(m, md,results):
     from pyomo.environ import value
     from egret.model_library.transmission.tx_utils import unscale_ModelData_to_pu
 
+    duals = md.data['results']['duals']
+
     # save results data to ModelData object
     gens = dict(md.elements(element_type='generator'))
     buses = dict(md.elements(element_type='bus'))
@@ -390,8 +396,9 @@ def _load_solution_to_model_data(m, md,results):
         g_dict['qg'] = value(m.qg[g])
 
     for b,b_dict in buses.items():
-        b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
-        b_dict['qlmp'] = value(m.dual[m.eq_q_balance[b]])
+        if duals:
+            b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
+            b_dict['qlmp'] = value(m.dual[m.eq_q_balance[b]])
         b_dict['pl'] = value(m.pl[b])
         b_dict['ql'] = value(m.ql[b])
         if hasattr(m, 'vj'):

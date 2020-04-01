@@ -72,6 +72,9 @@ def internalSolverError(md):
         return 1
     return 0
 
+def duals(md):
+    val = md.data['results']['duals']
+    return val
 
 def solve_time(md):
 

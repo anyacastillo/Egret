@@ -682,6 +682,9 @@ def _load_solution_to_model_data(m, md, results):
     #md.data['results']['#_nz'] = results.Problem[0]['Number of nonzeros']
     md.data['results']['termination'] = results.solver.termination_condition.__str__()
 
+    duals = hasattr(m, 'dual')
+    md.data['results']['duals'] = duals
+
     # save results data to ModelData object
     gens = dict(md.elements(element_type='generator'))
     buses = dict(md.elements(element_type='bus'))
@@ -694,8 +697,9 @@ def _load_solution_to_model_data(m, md, results):
         g_dict['qg'] = value(m.qg[g])
 
     for b,b_dict in buses.items():
-        b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
-        b_dict['qlmp'] = value(m.dual[m.eq_q_balance[b]])
+        if duals:
+            b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
+            b_dict['qlmp'] = value(m.dual[m.eq_q_balance[b]])
         b_dict['pl'] = value(m.pl[b])
         b_dict['ql'] = value(m.ql[b])
         if hasattr(m, 'vj'):
@@ -713,8 +717,9 @@ def _load_solution_to_model_data(m, md, results):
             k_dict['qt'] = value(m.qt[k])
             k_dict['pfl'] = value(m.pf[k]) + value(m.pt[k])
             k_dict['qfl'] = value(m.qf[k]) + value(m.qt[k])
-            k_dict['pf_dual'] = value(m.dual[m.eq_pf_branch[k]])
-            k_dict['qf_dual'] = value(m.dual[m.eq_qf_branch[k]])
+            if duals:
+                k_dict['pf_dual'] = value(m.dual[m.eq_pf_branch[k]])
+                k_dict['qf_dual'] = value(m.dual[m.eq_qf_branch[k]])
 
         if hasattr(m,'irf'):
             b = k_dict['from_bus']

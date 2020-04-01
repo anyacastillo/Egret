@@ -171,6 +171,9 @@ def solve_copperplate_dispatch(model_data,
     md.data['results']['#_nz'] = results.Problem[0]['Number of nonzeros']
     md.data['results']['termination'] = results.solver.termination_condition.__str__()
 
+    duals = hasattr(m, 'dual')
+    md.data['results']['duals'] = duals
+
     # save results data to ModelData object
     gens = dict(md.elements(element_type='generator'))
     buses = dict(md.elements(element_type='bus'))
@@ -182,7 +185,8 @@ def solve_copperplate_dispatch(model_data,
 
     for b,b_dict in buses.items():
         b_dict['pl'] = value(m.pl[b])
-        b_dict['lmp'] = value(m.dual[m.eq_p_balance])
+        if duals:
+            b_dict['lmp'] = value(m.dual[m.eq_p_balance])
 
     unscale_ModelData_to_pu(md, inplace=True)
 

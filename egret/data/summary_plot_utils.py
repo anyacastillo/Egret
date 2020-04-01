@@ -688,7 +688,7 @@ def create_full_summary(test_case, test_model_dict, show_plot=True):
                      tu.maxIterations,
                      tu.solverFailure,
                      tu.internalSolverError,
-    #                 tu.dualfailed,
+                     tu.duals,
                      ]
 
     ## Generate data files

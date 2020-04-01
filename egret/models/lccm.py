@@ -325,6 +325,8 @@ def _load_solution_to_model_data(m, md, results):
     from pyomo.environ import value
     from egret.model_library.transmission.tx_utils import unscale_ModelData_to_pu
 
+    duals = md.data['results']['duals']
+
     # save results data to ModelData object
     gens = dict(md.elements(element_type='generator'))
     buses = dict(md.elements(element_type='bus'))
@@ -342,16 +344,18 @@ def _load_solution_to_model_data(m, md, results):
         b_dict['vm'] = value(m.vm[b])
         b_dict['va'] = value(m.va[b])
 
-        b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
-        b_dict['qlmp'] = value(m.dual[m.eq_q_balance[b]])
+        if duals:
+            b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
+            b_dict['qlmp'] = value(m.dual[m.eq_q_balance[b]])
 
     for k, k_dict in branches.items():
         k_dict['pf'] = value(m.pf[k])
         k_dict['qf'] = value(m.qf[k])
         k_dict['pfl'] = value(m.pfl[k])
         k_dict['qfl'] = value(m.qfl[k])
-        k_dict['pf_dual'] = value(m.dual[m.eq_pf_branch[k]])
-        k_dict['qf_dual'] = value(m.dual[m.eq_qf_branch[k]])
+        if duals:
+            k_dict['pf_dual'] = value(m.dual[m.eq_pf_branch[k]])
+            k_dict['qf_dual'] = value(m.dual[m.eq_qf_branch[k]])
 
     md.data['system']['ploss'] = sum(k_dict['pfl'] for k, k_dict in branches.items())
     md.data['system']['qloss'] = sum(k_dict['qfl'] for k, k_dict in branches.items())
@@ -421,6 +425,8 @@ def solve_lccm(model_data,
     md.data['results']['#_vars'] = results.Problem[0]['Number of variables']
     md.data['results']['#_nz'] = results.Problem[0]['Number of nonzeros']
     md.data['results']['termination'] = results.solver.termination_condition.__str__()
+    duals = hasattr(m, 'dual')
+    md.data['results']['duals'] = duals
 
     if results.Solver.status.key == 'ok':
         _load_solution_to_model_data(m, md, results)

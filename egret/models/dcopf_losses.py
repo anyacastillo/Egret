@@ -383,7 +383,7 @@ def solve_dcopf_losses(model_data,
     import numpy as np
     import time
     from pyomo.environ import value
-    from egret.common.solver_interface import _solve_model
+    from egret.common.solver_interface import _solve_model, _load_persistent
     from egret.model_library.transmission.tx_utils import \
         scale_ModelData_to_pu, unscale_ModelData_to_pu
     from egret.common.lazy_ptdf_utils import _lazy_model_solve_loop
@@ -417,7 +417,9 @@ def solve_dcopf_losses(model_data,
 
     start_loop_time = time.time()
     term_cond = 0
-    if dcopf_losses_model_generator == create_ptdf_losses_dcopf_model and m._ptdf_options['lazy']:
+    lazy_solve_loop = dcopf_losses_model_generator == create_ptdf_losses_dcopf_model \
+                        and m._ptdf_options['lazy']
+    if lazy_solve_loop:
         ## cache the results object from the first solve
         results_init = results
 
@@ -440,7 +442,7 @@ def solve_dcopf_losses(model_data,
     md.data['results']['#_vars'] = results.Problem[0]['Number of variables']
     md.data['results']['#_nz'] = results.Problem[0]['Number of nonzeros']
     md.data['results']['termination'] = results.solver.termination_condition.__str__()
-    if dcopf_losses_model_generator == create_ptdf_losses_dcopf_model and m._ptdf_options['lazy']:
+    if lazy_solve_loop:
         md.data['results']['iterations'] = iterations
 
     from egret.common.lazy_ptdf_utils import LazyPTDFTerminationCondition
@@ -454,8 +456,13 @@ def solve_dcopf_losses(model_data,
         return md
 
     if persistent_solver:
-        solver.load_vars()
-        solver.load_duals()
+        _load_persistent(solver, m)
+
+    ## if there's an issue loading dual values,
+    ## the _load_persistent call above will remove
+    ## the dual attribute in place of raising an Exception
+    duals = hasattr(m, 'dual')
+    md.data['results']['duals'] = duals
 
     # save results data to ModelData object
     gens = dict(md.elements(element_type='generator'))
@@ -476,13 +483,15 @@ def solve_dcopf_losses(model_data,
         for b,b_dict in buses.items():
             b_dict['pl'] = value(m.pl[b])
             b_dict.pop('qlmp',None)
-            b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
+            if duals:
+                b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
             b_dict['va'] = value(m.va[b])
             b_dict['vm'] = 1.0
 
         for k, k_dict in branches.items():
             k_dict['pf'] = value(m.pf[k])
-            k_dict['pf_dual'] = value(m.dual[m.eq_pf_branch[k]])
+            if duals:
+                k_dict['pf_dual'] = value(m.dual[m.eq_pf_branch[k]])
 
 
     elif dcopf_losses_model_generator == create_ptdf_losses_dcopf_model:
@@ -493,16 +502,17 @@ def solve_dcopf_losses(model_data,
         ft_c = md.data['system']['ft_c']
         PFV = Ft.dot(THETA) + ft_c
 
-        LMPE = value(m.dual[m.eq_p_balance])
-        LMPL = np.zeros(len(buses_idx))
-        LMPC = np.zeros(len(buses_idx))
+        if duals:
+            LMPE = value(m.dual[m.eq_p_balance])
+            LMPL = np.zeros(len(buses_idx))
+            LMPC = np.zeros(len(buses_idx))
 
         for i,branch_name in enumerate(branches_idx):
 
             branch = branches[branch_name]
             branch['pf'] = PFV[i]
 
-            if branch_name in m.eq_pf_branch:
+            if duals and  branch_name in m.eq_pf_branch:
                 PFD = value(m.dual[m.eq_pf_branch[branch_name]])
                 branch['pf_dual'] = PFD
                 if PFD != 0:
@@ -511,10 +521,12 @@ def solve_dcopf_losses(model_data,
                         LMPC[j] += ptdf[bus_name] * PFD
 
         for i,b in enumerate(buses_idx):
-            PLD = value(m.dual[m.eq_ploss])
+            if duals:
+                PLD = value(m.dual[m.eq_ploss])
             b_dict = buses[b]
-            LMPL[i] = PLD * b_dict['ploss_sens']
-            b_dict['lmp'] = LMPE + LMPL[i] + LMPC[i]
+            if duals:
+                LMPL[i] = PLD * b_dict['ploss_sens']
+                b_dict['lmp'] = LMPE + LMPL[i] + LMPC[i]
             b_dict['pl'] = value(m.pl[b])
             b_dict['va'] = THETA[i]
             b_dict['vm'] = 1.0

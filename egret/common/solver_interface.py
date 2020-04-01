@@ -12,6 +12,7 @@ This file includes the solver interfaces for EGRET.
 """
 import pyomo.opt as po
 from pyomo.solvers.plugins.solvers.persistent_solver import PersistentSolver
+from egret.common.log import logger
 
 ## termination conditions which are acceptable
 safe_termination_conditions = [
@@ -26,6 +27,19 @@ safe_termination_conditions = [
                                po.TerminationCondition.maxEvaluations,
                                po.TerminationCondition.other,
                               ]
+
+def _load_persistent(solver, model, vars_to_load=None):
+    assert isinstance(solver, PersistentSolver)
+    solver.load_vars(vars_to_load)
+    if vars_to_load is None:
+        if hasattr(model, "slack"):
+            solver.load_slacks()
+        if hasattr(model, 'dual'):
+            try:
+                solver.load_duals()
+            except: ## this will be the sign that there's no dual information
+                del model.dual
+                logger.warn("WARNING: Issue calculating shadow prices; continuing...")
 
 
 def _set_options(solver, mipgap=None, timelimit=None, other_options=None):
@@ -145,12 +159,7 @@ def _solve_model(model,
         raise Exception('Problem encountered during solve, termination_condition {}'.format(results.solver.termination_condition))
 
     if isinstance(solver, PersistentSolver):
-        solver.load_vars(vars_to_load)
-        if vars_to_load is None:
-            if hasattr(model, "dual"):
-                solver.load_duals()
-            if hasattr(model, "slack"):
-                solver.load_slacks()
+        _load_persistent(solver, model, vars_to_load)
     else:
         model.solutions.load_from(results)
 

@@ -350,7 +350,7 @@ def solve_dcopf(model_data,
     import pyomo.opt as po
     import time
     from pyomo.environ import value
-    from egret.common.solver_interface import _solve_model
+    from egret.common.solver_interface import _solve_model, _load_persistent
     from egret.model_library.transmission.tx_utils import \
         scale_ModelData_to_pu, unscale_ModelData_to_pu
     from egret.model_library.transmission.tx_calc import linsolve_theta_fdf
@@ -383,7 +383,9 @@ def solve_dcopf(model_data,
 
     start_loop_time = time.time()
     term_cond = 0
-    if dcopf_model_generator == create_ptdf_dcopf_model and m._ptdf_options['lazy']:
+    lazy_solve_loop = dcopf_model_generator == create_ptdf_dcopf_model \
+                        and m._ptdf_options['lazy']
+    if lazy_solve_loop: 
         ## cache the results object from the first solve
         results_init = results
 
@@ -405,7 +407,7 @@ def solve_dcopf(model_data,
     md.data['results']['#_vars'] = results.Problem[0]['Number of variables']
     md.data['results']['#_nz'] = results.Problem[0]['Number of nonzeros']
     md.data['results']['termination'] = results.solver.termination_condition.__str__()
-    if dcopf_model_generator == create_ptdf_dcopf_model and m._ptdf_options['lazy']:
+    if lazy_solve_loop:
         md.data['results']['iterations'] = iterations
 
     from egret.common.lazy_ptdf_utils import LazyPTDFTerminationCondition
@@ -419,8 +421,13 @@ def solve_dcopf(model_data,
         return md
 
     if persistent_solver:
-        solver.load_vars()
-        solver.load_duals()
+        _load_persistent(solver, m)
+
+    ## if there's an issue loading dual values,
+    ## the _load_persistent call above will remove
+    ## the dual attribute in place of raising an Exception
+    duals = hasattr(m, 'dual')
+    md.data['results']['duals'] = duals
 
     # save results data to ModelData object
     gens = dict(md.elements(element_type='generator'))
@@ -458,11 +465,12 @@ def solve_dcopf(model_data,
             branch['pf'] = PFV[i]
 
             if branch_name in m.eq_pf_branch:
-                PFD = value(m.dual[m.eq_pf_branch[branch_name]])
-                if PFD != 0:
-                    ptdf = branch['ptdf']
-                    for j,bus_name in enumerate(buses_idx):
-                        LMPC[j] += ptdf[bus_name] * PFD
+                if duals:
+                    PFD = value(m.dual[m.eq_pf_branch[branch_name]])
+                    if PFD != 0:
+                        ptdf = branch['ptdf']
+                        for j,bus_name in enumerate(buses_idx):
+                            LMPC[j] += ptdf[bus_name] * PFD
 
     # otherwise LMP congestion comes direct from bus-balance constraints
     else:
@@ -470,10 +478,12 @@ def solve_dcopf(model_data,
             k_dict['pf'] = value(m.pf[k])
 
     if dcopf_model_generator == create_ptdf_dcopf_model:
-        LMPE = value(m.dual[m.eq_p_balance])
+        if duals:
+            LMPE = value(m.dual[m.eq_p_balance])
         for i,b in enumerate(buses_idx):
             b_dict = buses[b]
-            b_dict['lmp'] = LMPE + LMPC[i]
+            if duals:
+                b_dict['lmp'] = LMPE + LMPC[i]
             b_dict['pl'] = value(m.pl[b])
             b_dict['va'] = THETA[i]
             b_dict['vm'] = 1.0
@@ -481,7 +491,8 @@ def solve_dcopf(model_data,
         for b,b_dict in buses.items():
             b_dict['pl'] = value(m.pl[b])
             if dcopf_model_generator == create_btheta_dcopf_model:
-                b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
+                if duals:
+                    b_dict['lmp'] = value(m.dual[m.eq_p_balance[b]])
                 b_dict['va'] = value(m.va[b])
                 b_dict['vm'] = 1.0
             else:
