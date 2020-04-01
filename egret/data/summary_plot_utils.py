@@ -683,14 +683,14 @@ def create_full_summary(test_case, test_model_dict, show_plot=True):
                       tu.pct_thermal_viol,
                       ]
 
-    sum_functions = [tu.optimal,
-                     tu.infeasible,
-                     tu.maxTimeLimit,
-                     tu.maxIterations,
-                     tu.solverFailure,
-                     tu.internalSolverError,
-    #                 tu.dualfailed,
-                     ]
+    #sum_functions = [tu.optimal,
+    #                 tu.infeasible,
+    #                 tu.maxTimeLimit,
+    #                 tu.maxIterations,
+    #                 tu.solverFailure,
+    #                 tu.internalSolverError,
+    ##                 tu.dualfailed,
+    #                 ]
 
     ## Generate data files
     #generate_mean_data(test_case,test_model_dict) ## to just grab the default metrics
