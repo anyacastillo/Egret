@@ -25,7 +25,7 @@ import math
 import unittest
 import logging
 import egret.data.test_utils as tu
-import egret.models.tests.test_approximations as ta
+import egret.models.tests.ta_utils as tau
 from pyomo.opt import SolverFactory, TerminationCondition
 from egret.models.lccm import *
 from egret.models.dcopf_losses import *
@@ -89,7 +89,7 @@ def geometricMean(array):
 
 def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,tu.num_constraints,tu.model_density,tu.acpf_slack,tu.solve_time]):
 
-    case_location = ta.get_solution_file_location(test_case)
+    case_location = tau.get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
 
@@ -131,7 +131,7 @@ def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,t
         df_data[func_name] = df_func
 
     ## save DATA to csv
-    destination = ta.get_summary_file_location('data')
+    destination = tau.get_summary_file_location('data')
     filename = "mean_data_" + case_name + ".csv"
     df_data.to_csv(os.path.join(destination, filename))
 
@@ -140,7 +140,7 @@ def generate_speedup_data(test_model_dict, case_list=None, mean_data='solve_time
 
     ## get data
     if case_list is None:
-        case_list = ta.get_case_names()
+        case_list = tau.case_names[:]
 
     data_dict = {}
     cases = []
@@ -163,7 +163,7 @@ def generate_speedup_data(test_model_dict, case_list=None, mean_data='solve_time
     df_data.loc['AVERAGE'] = df_data.mean()
 
     ## save DATA to csv
-    destination = ta.get_summary_file_location('data')
+    destination = tau.get_summary_file_location('data')
     filename = "speedup_data_" + mean_data + "_" + benchmark + ".csv"
     df_data.to_csv(os.path.join(destination, filename))
 
@@ -219,7 +219,7 @@ def generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', be
 
     ## save FIGURE as png
     filename = "speedupplot_v_" + benchmark + "_" + mean_data + ".png"
-    destination = ta.get_summary_file_location('figures')
+    destination = tau.get_summary_file_location('figures')
     plt.savefig(os.path.join(destination, filename))
 
     if show_plot:
@@ -232,7 +232,7 @@ def generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', be
 def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.acpf_slack,
                               data_is_pct=False, data_is_vector=False, vector_norm=2):
 
-    case_location = get_solution_file_location(test_case)
+    case_location = tau.get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
 
@@ -280,7 +280,7 @@ def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.acpf
     ## save DATA as csv
     y_axis_data = data_generator.__name__
     df_data = df_data.T
-    destination = ta.get_summary_file_location('data')
+    destination = tau.get_summary_file_location('data')
     filename = "sensitivity_data_" + case_name + "_" + y_axis_data + ".csv"
     df_data.to_csv(os.path.join(destination, filename))
 
@@ -290,7 +290,7 @@ def get_data(filename, test_model_dict):
     print(filename)
 
     ## get data from CSV
-    source = ta.get_summary_file_location('data')
+    source = tau.get_summary_file_location('data')
     df_data = pd.read_csv(os.path.join(source,filename), index_col=0)
 
     remove_list = []
@@ -364,7 +364,7 @@ def generate_pareto_plot(test_case, test_model_dict, y_data='acpf_slack', x_data
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
     ## save FIGURE to png
-    figure_dest = ta.get_summary_file_location('figures')
+    figure_dest = tau.get_summary_file_location('figures')
     filename = "paretoplot_" + case_name + "_" + y_data + "_v_" + x_data + ".png"
     plt.savefig(os.path.join(figure_dest, filename))
 
@@ -419,7 +419,7 @@ def generate_sensitivity_plot(test_case, test_model_dict, plot_data='acpf_slack'
     ax.set_ylabel(plot_data + " (" +  units + ")")
 
     ## save FIGURE as png
-    destination = ta.get_summary_file_location('figures')
+    destination = tau.get_summary_file_location('figures')
     filename = "sensitivityplot_" + case_name + "_" + plot_data + ".png"
     plt.savefig(os.path.join(destination, filename))
 
@@ -440,7 +440,7 @@ def generate_case_size_plot_seaborn(test_model_dict, case_list=None,
 
     ## get data
     if case_list is None:
-        case_list = ta.get_case_names()
+        case_list = tau.case_names[:]
     if s_data is None:
         var_names = ['model',x_data,y_data]
     else:
@@ -484,7 +484,7 @@ def generate_case_size_plot_seaborn(test_model_dict, case_list=None,
 
 
     ## save FIGURE to png
-    figure_dest = ta.get_summary_file_location('figures')
+    figure_dest = tau.get_summary_file_location('figures')
     filename = "casesizeplot_" + y_data + "_v_" + x_data + ".png"
     plt.savefig(os.path.join(figure_dest, filename))
 
@@ -503,7 +503,7 @@ def generate_case_size_plot(test_model_dict, case_list=None,
 
     ## get data
     if case_list is None:
-        case_list = ta.get_case_names()
+        case_list = tau.case_names[:]
     y_dict = {}
     x_dict = {}
     s_dict = {}
@@ -602,7 +602,7 @@ def generate_case_size_plot(test_model_dict, case_list=None,
 
 
     ## save FIGURE to png
-    figure_dest = ta.get_summary_file_location('figures')
+    figure_dest = tau.get_summary_file_location('figures')
     filename = "casesizeplot_" + y_data + "_v_" + x_data + ".png"
     plt.savefig(os.path.join(figure_dest, filename))
 
@@ -632,14 +632,6 @@ def create_circlesize_legend(title=None, s_min=1, s_max=500, data_min=2, data_ma
     new_legend = plt.legend(dots, labels,title=title, bbox_to_anchor=(1.05,0.35), loc='upper left')
     plt.gca().add_artist(new_legend)
 
-
-def get_solution_file_location(test_case):
-    _, case = os.path.split(test_case)
-    case, _ = os.path.splitext(case)
-    current_dir, current_file = os.path.split(os.path.realpath(__file__))
-    solution_location = os.path.join(current_dir, 'transmission_test_instances', 'approximation_solution_files', case)
-
-    return solution_location
 
 
 def create_full_summary(test_case, test_model_dict, show_plot=True):
@@ -783,7 +775,7 @@ def create_full_summary(test_case, test_model_dict, show_plot=True):
 
 
 if __name__ == '__main__':
-    test_case = ta.idx_to_test_case(0)
+    test_case = tau.idx_to_test_case(0)
     test_model_dict = \
         {'acopf' : True,
          'slopf': True,
