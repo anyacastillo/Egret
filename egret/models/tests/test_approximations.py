@@ -104,6 +104,199 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 # test_cases = [join('../../../download/pglib-opf-master/', f) for f in listdir('../../../download/pglib-opf-master/') if isfile(join('../../../download/pglib-opf-master/', f)) and f.endswith('.m')]
 #test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
 
+_kwargs = {'return_model' :True, 'return_results' : True, 'solver_tee' : False}
+e5_options = {'abs_ptdf_tol' : 1e-5, 'abs_qtdf_tol' : 5e-5, 'rel_vdf_tol' : 10e-5}
+e4_options = {'abs_ptdf_tol' : 1e-4, 'abs_qtdf_tol' : 5e-4, 'rel_vdf_tol' : 10e-4}
+e3_options = {'abs_ptdf_tol' : 1e-3, 'abs_qtdf_tol' : 5e-3, 'rel_vdf_tol' : 10e-3}
+e2_options = {'abs_ptdf_tol' : 1e-2, 'abs_qtdf_tol' : 5e-2, 'rel_vdf_tol' : 10e-2}
+
+test_model_dict = {}
+tmd = test_model_dict
+
+tmd['acopf'] = {}
+tmd['acopf']['solve_func'] = solve_acopf
+tmd['acopf']['intial_solution'] = 'flat'
+tmd['acopf']['solver'] = 'ipopt'
+tmd['acopf']['kwargs'] = _kwargs
+
+tmd['slopf'] = {}
+tmd['slopf']['solve_func'] = solve_lccm
+tmd['slopf']['intial_solution'] = 'basepoint'
+tmd['slopf']['solver'] = 'gurobi_persistent'
+tmd['slopf']['kwargs'] = _kwargs
+
+tmd['dlopf_default'] = {}
+tmd['dlopf_default']['solve_func'] = solve_fdf
+tmd['dlopf_default']['intial_solution'] = 'basepoint'
+tmd['dlopf_default']['solver'] = 'gurobi_persistent'
+tmd['dlopf_default']['kwargs'] = _kwargs
+
+tmd['dlopf_lazy'] = {}
+tmd['dlopf_lazy']['solve_func'] = solve_fdf
+tmd['dlopf_lazy']['intial_solution'] = 'basepoint'
+tmd['dlopf_lazy']['solver'] = 'gurobi_persistent'
+tmd['dlopf_lazy']['kwargs'] = {**_kwargs, 'ptdf_options':{'lazy' : True, 'lazy_voltage' : True} }
+
+tmd['dlopf_e5'] = {}
+tmd['dlopf_e5']['solve_func'] = solve_fdf
+tmd['dlopf_e5']['intial_solution'] = 'basepoint'
+tmd['dlopf_e5']['solver'] = 'gurobi_persistent'
+tmd['dlopf_e5']['kwargs'] = {**_kwargs, 'ptdf_options' : e5_options}
+
+tmd['dlopf_e4'] = {}
+tmd['dlopf_e4']['solve_func'] = solve_fdf
+tmd['dlopf_e4']['intial_solution'] = 'basepoint'
+tmd['dlopf_e4']['solver'] = 'gurobi_persistent'
+tmd['dlopf_e4']['kwargs'] = {**_kwargs, 'ptdf_options' : e4_options}
+
+tmd['dlopf_e3'] = {}
+tmd['dlopf_e3']['solve_func'] = solve_fdf
+tmd['dlopf_e3']['intial_solution'] = 'basepoint'
+tmd['dlopf_e3']['solver'] = 'gurobi_persistent'
+tmd['dlopf_e3']['kwargs'] = {**_kwargs, 'ptdf_options' : e3_options}
+
+tmd['dlopf_e2'] = {}
+tmd['dlopf_e2']['solve_func'] = solve_fdf
+tmd['dlopf_e2']['intial_solution'] = 'basepoint'
+tmd['dlopf_e2']['solver'] = 'gurobi_persistent'
+tmd['dlopf_e2']['kwargs'] = {**_kwargs, 'ptdf_options' : e2_options}
+
+tmd['clopf_default'] = {}
+tmd['clopf_default']['solve_func'] = solve_fdf_simplified
+tmd['clopf_default']['intial_solution'] = 'basepoint'
+tmd['clopf_default']['solver'] = 'gurobi_persistent'
+tmd['clopf_default']['kwargs'] = _kwargs
+
+tmd['clopf_lazy'] = {}
+tmd['clopf_lazy']['solve_func'] = solve_fdf_simplified
+tmd['clopf_lazy']['intial_solution'] = 'basepoint'
+tmd['clopf_lazy']['solver'] = 'gurobi_persistent'
+tmd['clopf_lazy']['kwargs'] = {**_kwargs, 'ptdf_options':{'lazy' : True, 'lazy_voltage' : True} }
+
+tmd['clopf_e5'] = {}
+tmd['clopf_e5']['solve_func'] = solve_fdf_simplified
+tmd['clopf_e5']['intial_solution'] = 'basepoint'
+tmd['clopf_e5']['solver'] = 'gurobi_persistent'
+tmd['clopf_e5']['kwargs'] = {**_kwargs, 'ptdf_options' : e5_options}
+
+tmd['clopf_e4'] = {}
+tmd['clopf_e4']['solve_func'] = solve_fdf_simplified
+tmd['clopf_e4']['intial_solution'] = 'basepoint'
+tmd['clopf_e4']['solver'] = 'gurobi_persistent'
+tmd['clopf_e4']['kwargs'] = {**_kwargs, 'ptdf_options' : e4_options}
+
+tmd['clopf_e3'] = {}
+tmd['clopf_e3']['solve_func'] = solve_fdf_simplified
+tmd['clopf_e3']['intial_solution'] = 'basepoint'
+tmd['clopf_e3']['solver'] = 'gurobi_persistent'
+tmd['clopf_e3']['kwargs'] = {**_kwargs, 'ptdf_options' : e3_options}
+
+tmd['clopf_e2'] = {}
+tmd['clopf_e2']['solve_func'] = solve_fdf_simplified
+tmd['clopf_e2']['intial_solution'] = 'basepoint'
+tmd['clopf_e2']['solver'] = 'gurobi_persistent'
+tmd['clopf_e2']['kwargs'] = {**_kwargs, 'ptdf_options' : e2_options}
+
+tmd['clopf_p_default'] = {}
+tmd['clopf_p_default']['solve_func'] = solve_dcopf_losses
+tmd['clopf_p_default']['intial_solution'] = 'basepoint'
+tmd['clopf_p_default']['solver'] = 'gurobi_persistent'
+tmd['clopf_p_default']['kwargs'] = {**_kwargs,
+                                    'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
+
+tmd['clopf_p_lazy'] = {}
+tmd['clopf_p_lazy']['solve_func'] = solve_dcopf_losses
+tmd['clopf_p_lazy']['intial_solution'] = 'basepoint'
+tmd['clopf_p_lazy']['solver'] = 'gurobi_persistent'
+tmd['clopf_p_lazy']['kwargs'] = {**_kwargs, 'ptdf_options':{'lazy' : True, 'lazy_voltage' : True} ,
+                               'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
+
+tmd['clopf_p_e5'] = {}
+tmd['clopf_p_e5']['solve_func'] = solve_dcopf_losses
+tmd['clopf_p_e5']['intial_solution'] = 'basepoint'
+tmd['clopf_p_e5']['solver'] = 'gurobi_persistent'
+tmd['clopf_p_e5']['kwargs'] = {**_kwargs, 'ptdf_options' : e5_options,
+                               'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
+
+tmd['clopf_p_e4'] = {}
+tmd['clopf_p_e4']['solve_func'] = solve_dcopf_losses
+tmd['clopf_p_e4']['intial_solution'] = 'basepoint'
+tmd['clopf_p_e4']['solver'] = 'gurobi_persistent'
+tmd['clopf_p_e4']['kwargs'] = {**_kwargs, 'ptdf_options' : e4_options,
+                               'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
+
+tmd['clopf_p_e3'] = {}
+tmd['clopf_p_e3']['solve_func'] = solve_dcopf_losses
+tmd['clopf_p_e3']['intial_solution'] = 'basepoint'
+tmd['clopf_p_e3']['solver'] = 'gurobi_persistent'
+tmd['clopf_p_e3']['kwargs'] = {**_kwargs, 'ptdf_options' : e3_options,
+                               'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
+
+tmd['clopf_p_e2'] = {}
+tmd['clopf_p_e2']['solve_func'] = solve_dcopf_losses
+tmd['clopf_p_e2']['intial_solution'] = 'basepoint'
+tmd['clopf_p_e2']['solver'] = 'gurobi_persistent'
+tmd['clopf_p_e2']['kwargs'] = {**_kwargs, 'ptdf_options' : e2_options,
+                               'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model }
+
+tmd['qcopf_btheta'] = {}
+tmd['qcopf_btheta']['solve_func'] = solve_dcopf_losses
+tmd['qcopf_btheta']['intial_solution'] = 'flat'
+tmd['qcopf_btheta']['solver'] = 'gurobi_persistent'
+tmd['qcopf_btheta']['kwargs'] = {**_kwargs,
+                               'dcopf_losses_model_generator' : create_btheta_losses_dcopf_model }
+
+tmd['dcopf_ptdf_default'] = {}
+tmd['dcopf_ptdf_default']['solve_func'] = solve_dcopf
+tmd['dcopf_ptdf_default']['intial_solution'] = 'flat'
+tmd['dcopf_ptdf_default']['solver'] = 'gurobi_persistent'
+tmd['dcopf_ptdf_default']['kwargs'] = {**_kwargs,
+                               'dcopf_model_generator' : create_ptdf_dcopf_model }
+
+tmd['dcopf_ptdf_lazy'] = {}
+tmd['dcopf_ptdf_lazy']['solve_func'] = solve_dcopf
+tmd['dcopf_ptdf_lazy']['intial_solution'] = 'flat'
+tmd['dcopf_ptdf_lazy']['solver'] = 'gurobi_persistent'
+tmd['dcopf_ptdf_lazy']['kwargs'] = {**_kwargs, 'ptdf_options':{'lazy' : True},
+                               'dcopf_model_generator' : create_ptdf_dcopf_model }
+
+tmd['dcopf_ptdf_e5'] = {}
+tmd['dcopf_ptdf_e5']['solve_func'] = solve_dcopf
+tmd['dcopf_ptdf_e5']['intial_solution'] = 'flat'
+tmd['dcopf_ptdf_e5']['solver'] = 'gurobi_persistent'
+tmd['dcopf_ptdf_e5']['kwargs'] = {**_kwargs, 'ptdf_options' : e5_options,
+                               'dcopf_model_generator' : create_ptdf_dcopf_model }
+
+tmd['dcopf_ptdf_e4'] = {}
+tmd['dcopf_ptdf_e4']['solve_func'] = solve_dcopf
+tmd['dcopf_ptdf_e4']['intial_solution'] = 'flat'
+tmd['dcopf_ptdf_e4']['solver'] = 'gurobi_persistent'
+tmd['dcopf_ptdf_e4']['kwargs'] = {**_kwargs, 'ptdf_options' : e4_options,
+                               'dcopf_model_generator' : create_ptdf_dcopf_model }
+
+tmd['dcopf_ptdf_e3'] = {}
+tmd['dcopf_ptdf_e3']['solve_func'] = solve_dcopf
+tmd['dcopf_ptdf_e3']['intial_solution'] = 'flat'
+tmd['dcopf_ptdf_e3']['solver'] = 'gurobi_persistent'
+tmd['dcopf_ptdf_e3']['kwargs'] = {**_kwargs, 'ptdf_options' : e3_options,
+                               'dcopf_model_generator' : create_ptdf_dcopf_model }
+
+tmd['dcopf_ptdf_e2'] = {}
+tmd['dcopf_ptdf_e2']['solve_func'] = solve_dcopf
+tmd['dcopf_ptdf_e2']['intial_solution'] = 'flat'
+tmd['dcopf_ptdf_e2']['solver'] = 'gurobi_persistent'
+tmd['dcopf_ptdf_e2']['kwargs'] = {**_kwargs, 'ptdf_options' : e2_options,
+                               'dcopf_model_generator' : create_ptdf_dcopf_model }
+
+tmd['dcopf_btheta'] = {}
+tmd['dcopf_btheta']['solve_func'] = solve_dcopf
+tmd['dcopf_btheta']['intial_solution'] = 'flat'
+tmd['dcopf_btheta']['solver'] = 'gurobi_persistent'
+tmd['dcopf_btheta']['kwargs'] = {**_kwargs,
+                               'dcopf_model_generator' : create_btheta_losses_dcopf_model }
+
+
+
 def get_case_names():
     return case_names
 
@@ -206,514 +399,41 @@ def create_new_model_data(model_data, mult):
     return md
 
 
-def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
+def inner_loop_solves(md_basepoint, md_flat, test_model_list):
     '''
     solve models in test_model_dict (ideally, only one model is passed here)
     loads are multiplied by mult
     sensitivities from md_basepoint or md_flat as appropriate for the model being solved
     '''
 
-    tm = test_model_dict
+    for tm in test_model_list:
 
-    if tm['acopf']:
-        try:
-            md_ac, m, results = solve_acopf(md_flat, "ipopt", return_model=True, return_results=True, solver_tee=False)
-            record_results('acopf', md_ac)
-        except Exception as e:
-            print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+        tm_dict = test_model_dict[tm]
 
-    if tm['slopf']:
+        solve_func = tm_dict['solve_func']
+        intial_solution = tm_dict['intial_solution']
+        solver = tm_dict['solver']
+        kwargs = tm_dict['kwargs']
+
+        if intial_solution == 'flat':
+            md_input = md_flat
+        elif intial_solution == 'basepoint':
+            md_input = md_basepoint
+        else:
+            raise Exception('test_model_dict must provide valid inital_solution')
+
         try:
-            md_lccm, m, results = solve_lccm(md_basepoint, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False)
-            record_results('slopf', md_lccm)
+            md_out,m,results = solve_func(md_input, solver, **kwargs)
         except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
+            md_out = md_input.clone()
+            message = str(e)
+            print('...EXCEPTION OCCURRED: {}'.format(message))
+            if 'infeasible' in message:
+                md_out.data['system']['termination'] = 'infeasible'
             else:
-                raise e
+                md_out.data['system']['termination'] = 'other'
 
-    if tm['dlopf_default']:
-        kwargs = {}
-        ptdf_options = {}
-        ptdf_options['lazy'] = False
-        ptdf_options['lazy_voltage'] = False
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_fdf, m, results = solve_fdf(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
-                                           solver_tee=False, **kwargs)
-            record_results('dlopf_default', md_fdf)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['dlopf_lazy']:
-        kwargs = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options = {}
-        ptdf_options['lazy'] = True
-        ptdf_options['lazy_voltage'] = True
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_fdf, m, results = solve_fdf(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
-                                           solver_tee=False, options=options, **kwargs)
-            record_results('dlopf_lazy', md_fdf)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['dlopf_e5']:
-        kwargs = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options = {}
-        ptdf_options['lazy'] = False
-        ptdf_options['lazy_voltage'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-5
-        ptdf_options['abs_qtdf_tol'] = 5e-5
-        ptdf_options['rel_vdf_tol'] = 10e-5
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_fdf, m, results = solve_fdf(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
-                                           solver_tee=False, options=options, **kwargs)
-            record_results('dlopf_e5', md_fdf)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['dlopf_e4']:
-        kwargs = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options = {}
-        ptdf_options['lazy'] = False
-        ptdf_options['lazy_voltage'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-4
-        ptdf_options['abs_qtdf_tol'] = 5e-4
-        ptdf_options['rel_vdf_tol'] = 10e-4
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_fdf, m, results = solve_fdf(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
-                                           solver_tee=False, options=options, **kwargs)
-            record_results('dlopf_e4', md_fdf)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['dlopf_e3']:
-        kwargs = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options = {}
-        ptdf_options['lazy'] = False
-        ptdf_options['lazy_voltage'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-3
-        ptdf_options['abs_qtdf_tol'] = 5e-3
-        ptdf_options['rel_vdf_tol'] = 10e-3
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_fdf, m, results = solve_fdf(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
-                                           solver_tee=False, options=options, **kwargs)
-            record_results('dlopf_e3', md_fdf)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['dlopf_e2']:
-        kwargs = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options = {}
-        ptdf_options['lazy'] = False
-        ptdf_options['lazy_voltage'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-2
-        ptdf_options['abs_qtdf_tol'] = 5e-2
-        ptdf_options['rel_vdf_tol'] = 10e-2
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_fdf, m, results = solve_fdf(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
-                                           solver_tee=False, options=options, **kwargs)
-            record_results('dlopf_e2', md_fdf)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['clopf_default']:
-        kwargs = {}
-        ptdf_options = {}
-        ptdf_options['lazy'] = False
-        ptdf_options['lazy_voltage'] = False
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_fdfs, m, results = solve_fdf_simplified(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
-                                                       solver_tee=False, **kwargs)
-            record_results('clopf_default', md_fdfs)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['clopf_lazy']:
-        kwargs = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options = {}
-        ptdf_options['lazy'] = True
-        ptdf_options['lazy_voltage'] = True
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_fdfs, m, results = solve_fdf_simplified(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
-                                                       solver_tee=False, options=options, **kwargs)
-            record_results('clopf_lazy', md_fdfs)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['clopf_e5']:
-        kwargs = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options = {}
-        ptdf_options['lazy'] = False
-        ptdf_options['lazy_voltage'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-5
-        ptdf_options['abs_qtdf_tol'] = 5e-5
-        ptdf_options['rel_vdf_tol'] = 10e-5
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_fdfs, m, results = solve_fdf_simplified(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
-                                                       solver_tee=False, options=options, **kwargs)
-            record_results('clopf_e5', md_fdfs)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['clopf_e4']:
-        kwargs = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options = {}
-        ptdf_options['lazy'] = False
-        ptdf_options['lazy_voltage'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-4
-        ptdf_options['abs_qtdf_tol'] = 5e-4
-        ptdf_options['rel_vdf_tol'] = 10e-4
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_fdfs, m, results = solve_fdf_simplified(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
-                                                       solver_tee=False, options=options, **kwargs)
-            record_results('clopf_e4', md_fdfs)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['clopf_e3']:
-        kwargs = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options = {}
-        ptdf_options['lazy'] = False
-        ptdf_options['lazy_voltage'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-3
-        ptdf_options['abs_qtdf_tol'] = 5e-3
-        ptdf_options['rel_vdf_tol'] = 10e-3
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_fdfs, m, results = solve_fdf_simplified(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
-                                                       solver_tee=False, options=options, **kwargs)
-            record_results('clopf_e3', md_fdfs)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['clopf_e2']:
-        kwargs = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options = {}
-        ptdf_options['lazy'] = False
-        ptdf_options['lazy_voltage'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-2
-        ptdf_options['abs_qtdf_tol'] = 5e-2
-        ptdf_options['rel_vdf_tol'] = 10e-2
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_fdfs, m, results = solve_fdf_simplified(md_basepoint, "gurobi_persistent", return_model=True, return_results=True,
-                                                       solver_tee=False, options=options, **kwargs)
-            record_results('clopf_e2', md_fdfs)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['clopf_p_default']:
-        kwargs = {}
-        ptdf_options = {}
-        ptdf_options['lazy'] = False
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_ptdfl, m, results = solve_dcopf_losses(md_basepoint, "gurobi_persistent",
-                                                      dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
-                                                      return_model=True, return_results=True, solver_tee=False, **kwargs)
-            record_results('clopf_p_default', md_ptdfl)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['clopf_p_lazy']:
-        kwargs = {}
-        ptdf_options = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options['lazy'] = True
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_ptdfl, m, results = solve_dcopf_losses(md_basepoint, "gurobi_persistent",
-                                                      dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
-                                                      return_model=True, return_results=True, solver_tee=False,
-                                                      options=options, **kwargs)
-            record_results('clopf_p_lazy', md_ptdfl)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['clopf_p_e5']:
-        kwargs = {}
-        ptdf_options = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options['lazy'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-5
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_ptdfl, m, results = solve_dcopf_losses(md_basepoint, "gurobi_persistent",
-                                                      dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
-                                                      return_model=True, return_results=True, solver_tee=False,
-                                                      options=options, **kwargs)
-            record_results('clopf_p_e5', md_ptdfl)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['clopf_p_e4']:
-        kwargs = {}
-        ptdf_options = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options['lazy'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-4
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_ptdfl, m, results = solve_dcopf_losses(md_basepoint, "gurobi_persistent",
-                                                      dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
-                                                      return_model=True, return_results=True, solver_tee=False,
-                                                      options=options, **kwargs)
-            record_results('clopf_p_e4', md_ptdfl)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['clopf_p_e3']:
-        kwargs = {}
-        ptdf_options = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options['lazy'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-3
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_ptdfl, m, results = solve_dcopf_losses(md_basepoint, "gurobi_persistent",
-                                                      dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
-                                                      return_model=True, return_results=True, solver_tee=False,
-                                                      options=options, **kwargs)
-            record_results('clopf_p_e3', md_ptdfl)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['clopf_p_e2']:
-        kwargs = {}
-        ptdf_options = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options['lazy'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-2
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_ptdfl, m, results = solve_dcopf_losses(md_basepoint, "gurobi_persistent",
-                                                      dcopf_losses_model_generator=create_ptdf_losses_dcopf_model,
-                                                      return_model=True, return_results=True, solver_tee=False,
-                                                      options=options, **kwargs)
-            record_results('clopf_p_e2', md_ptdfl)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['dcopf_ptdf_default']:
-        kwargs = {}
-        ptdf_options = {}
-        ptdf_options['lazy'] = False
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_ptdf, m, results = solve_dcopf(md_flat, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
-                                              return_model=True, return_results=True, solver_tee=False, **kwargs)
-            record_results('dcopf_ptdf_default', md_ptdf)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['dcopf_ptdf_lazy']:
-        kwargs = {}
-        ptdf_options = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options['lazy'] = True
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_ptdf, m, results = solve_dcopf(md_flat, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
-                                              return_model=True, return_results=True, solver_tee=False,
-                                              options=options, **kwargs)
-            record_results('dcopf_ptdf_lazy', md_ptdf)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['dcopf_ptdf_e5']:
-        kwargs = {}
-        ptdf_options = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options['lazy'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-5
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_ptdf, m, results = solve_dcopf(md_flat, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
-                                              return_model=True, return_results=True, solver_tee=False,
-                                              options=options, **kwargs)
-            record_results('dcopf_ptdf_e5', md_ptdf)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['dcopf_ptdf_e4']:
-        kwargs = {}
-        ptdf_options = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options['lazy'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-4
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_ptdf, m, results = solve_dcopf(md_flat, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
-                                              return_model=True, return_results=True, solver_tee=False,
-                                              options=options, **kwargs)
-            record_results('dcopf_ptdf_e4', md_ptdf)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['dcopf_ptdf_e3']:
-        kwargs = {}
-        ptdf_options = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options['lazy'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-3
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_ptdf, m, results = solve_dcopf(md_flat, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
-                                              return_model=True, return_results=True, solver_tee=False,
-                                              options=options, **kwargs)
-            record_results('dcopf_ptdf_e3', md_ptdf)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['dcopf_ptdf_e2']:
-        kwargs = {}
-        ptdf_options = {}
-        options = {}
-        #options['method'] = 1
-        ptdf_options['lazy'] = False
-        ptdf_options['abs_ptdf_tol'] = 1e-2
-        kwargs['ptdf_options'] = ptdf_options
-        try:
-            md_ptdf, m, results = solve_dcopf(md_flat, "gurobi_persistent", dcopf_model_generator=create_ptdf_dcopf_model,
-                                              return_model=True, return_results=True, solver_tee=False,
-                                              options=options, **kwargs)
-            record_results('dcopf_ptdf_e2', md_ptdf)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['qcopf_btheta']:
-        try:
-            md_bthetal, m, results = solve_dcopf_losses(md_flat, "gurobi_persistent",
-                                                        dcopf_losses_model_generator=create_btheta_losses_dcopf_model,
-                                                        return_model=True, return_results=True, solver_tee=False)
-            record_results('qcopf_btheta', md_bthetal)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
-
-    if tm['dcopf_btheta']:
-        try:
-            md_btheta, m, results = solve_dcopf(md_flat, "gurobi_persistent", dcopf_model_generator=create_btheta_dcopf_model,
-                                                return_model=True, return_results=True, solver_tee=False)
-            record_results('dcopf_btheta', md_btheta)
-        except Exception as e:
-            if 'infeasible' in str(e):
-                print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            else:
-                raise e
+        record_results(tm, md_out)
 
 
 def record_results(idx, md):

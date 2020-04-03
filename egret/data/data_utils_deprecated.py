@@ -532,7 +532,6 @@ def destroy_dicts_of_fdf(md):
             if s in branch:
                 del branch[s]
 
-
     # delete sensitivities from 'bus'
     sensi = ['vdf', 'vdf_c', 'phi_from', 'phi_to', 'phi_loss_from', 'phi_loss_to',
              'phi_q_from', 'phi_q_to', 'phi_loss_q_from', 'phi_loss_q_to','ploss_sens','qloss_sens']
@@ -541,5 +540,8 @@ def destroy_dicts_of_fdf(md):
             if s in bus:
                 del bus[s]
 
-
     return
+
+def destroy_solution_data_of_md(md):
+    del md.elements
+    del md.data['system']['total_cost']
