@@ -588,10 +588,10 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
          }
 
     ## Model solves
-    solve_approximation_models(test_case, test_model_dict, init_min=0.97, init_max=1.03, steps=6)
+    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate summary data
-    spu.create_full_summary(test_case, test_model_dict, show_plot=show_plot)
+    #spu.create_full_summary(test_case, test_model_dict, show_plot=show_plot)
 
 
 if __name__ == '__main__':
