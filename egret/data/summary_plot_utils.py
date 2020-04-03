@@ -37,6 +37,65 @@ from egret.parsers.matpower_parser import create_ModelData
 from os import listdir
 from os.path import isfile, join
 
+# Functions to be summarized by averaging
+mean_functions = [tu.num_buses,
+                  tu.num_branches,
+                  tu.num_constraints,
+                  tu.num_variables,
+                  tu.model_density,
+                  tu.solve_time,
+                  tu.acpf_slack,
+                  tu.avg_vm_UB_viol,
+                  tu.avg_vm_LB_viol,
+                  tu.avg_vm_viol,
+                  tu.avg_thermal_viol,
+                  tu.max_vm_UB_viol,
+                  tu.max_vm_LB_viol,
+                  tu.max_vm_viol,
+                  tu.max_thermal_viol,
+                  tu.pct_vm_UB_viol,
+                  tu.pct_vm_LB_viol,
+                  tu.pct_vm_viol,
+                  tu.pct_thermal_viol,
+                  ]
+
+#Functions to be summarized by summation
+sum_functions = [tu.optimal,
+                 tu.infeasible,
+                 tu.maxTimeLimit,
+                 tu.maxIterations,
+                 tu.solverFailure,
+                 tu.internalSolverError,
+                 tu.duals,
+                 ]
+
+def choose_colors(map_name=None):
+
+    if map_name is None:
+        map_name = 'gnuplot'
+
+    color_dict = {'viridis' : cmap.viridis, #*****#
+                  'cividis' : cmap.cividis,
+                  'magma' : cmap.magma,
+                  'plasma' : cmap.plasma, #*****#
+                  'Spectral' : cmap.Spectral, #*****#
+                  'coolwarm' : cmap.coolwarm, #*****#
+                  'twilight' : cmap.twilight,
+                  'twilight_shifted' : cmap.twilight_shifted,
+                  'hsv' : cmap.hsv,
+                  'Paired' : cmap.Paired,
+                  'Accent' : cmap.Accent,
+                  'Set3' : cmap.Set3,
+                  'gnuplot' : cmap.gnuplot, #*****#
+                  'jet' : cmap.jet,
+                  'nipy_spectral' : cmap.nipy_spectral #*****#
+                  }
+
+    try:
+        colors = color_dict[map_name]
+        return colors
+    except KeyError:
+        raise KeyError('{} not found in available color maps.'.format(map_name))
 
 def read_sensitivity_data(case_folder, test_model, data_generator=tu.total_cost):
     parent, case = os.path.split(case_folder)
@@ -76,13 +135,17 @@ def geometricMean(array):
     geomean = list()
 
     for row in array:
+        row = row[~np.isnan(row)]
         n = len(row)
-        sum = 0
-        for i in range(n):
-            sum += math.log(row[i])
-        sum = sum / n
-        gm = math.exp(sum)
-        geomean.append(gm)
+        if n>0:
+            sum = 0
+            for i in range(n):
+                sum += math.log(row[i])
+            sum = sum / n
+            gm = math.exp(sum)
+            geomean.append(gm)
+        else:
+            geomean.append(np.nan)
 
     return geomean
 
@@ -133,6 +196,40 @@ def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,t
     ## save DATA to csv
     destination = tau.get_summary_file_location('data')
     filename = "mean_data_" + case_name + ".csv"
+    df_data.to_csv(os.path.join(destination, filename))
+
+
+def generate_sum_data(test_case, test_model_dict, function_list=sum_functions):
+
+    case_location = tau.get_solution_file_location(test_case)
+    src_folder, case_name = os.path.split(test_case)
+    case_name, ext = os.path.splitext(case_name)
+
+    ## include acopf results
+    test_model_dict['acopf'] = True
+
+    df_data = pd.DataFrame(data=None, index=test_model_dict.keys())
+
+    for func in function_list:
+        ## put data into blank DataFrame
+        df_func = pd.DataFrame(data=None)
+
+        for test_model, val in test_model_dict.items():
+            # read data and place in df_func
+            df_raw = read_sensitivity_data(case_location, test_model, data_generator=func)
+            df_func = pd.concat([df_func , df_raw], sort=True)
+
+        func_name = func.__name__
+
+        df_func = df_func.sum(axis=1)
+        df_func = pd.DataFrame(data=df_func.values, index=df_func.index, columns=[func_name])
+
+        #df_data = pd.concat([df_data, df_func])
+        df_data[func_name] = df_func
+
+    ## save DATA to csv
+    destination = tau.get_summary_file_location('data')
+    filename = "sum_data_" + case_name + ".csv"
     df_data.to_csv(os.path.join(destination, filename))
 
 
@@ -633,63 +730,19 @@ def create_circlesize_legend(title=None, s_min=1, s_max=500, data_min=2, data_ma
     plt.gca().add_artist(new_legend)
 
 
-def create_full_summary(test_case, test_model_dict, show_plot=True):
+def create_full_summary(test_case, test_model_dict, show_plot=True, colormap='gnuplot'):
     """
     solves generates plots for test_case
     """
 
-    ## Sequential colors: lightness value increases monotonically
-    #colors = cmap.viridis #*****#
-    #colors = cmap.cividis
-    #colors = cmap.magma
-    #colors = cmap.plasma #*****#
-    ## Diverging/cyclic colors: monotonically increasing lightness followed by monotonically decreasing lightness
-    #colors = cmap.Spectral #*****#
-    #colors = cmap.coolwarm #*****#
-    #colors = cmap.twilight
-    #colors = cmap.twilight_shifted
-    #colors = cmap.hsv
-    ## Qualitative colors: not perceptual
-    #colors = cmap.Paired
-    #colors = cmap.Accent
-    #colors = cmap.Set3
-    ## Miscellaneous colors:
-    colors = cmap.gnuplot #*****#
-    #colors = cmap.jet
-    #colors = cmap.nipy_spectral #*****#
-
     # remove unused models from reporting
     test_model_dict = {key:val for key,val in test_model_dict.items() if val}
 
-    mean_functions = [tu.num_buses,
-                      tu.num_branches,
-                      tu.num_constraints,
-                      tu.num_variables,
-                      tu.model_density,
-                      tu.solve_time,
-                      tu.acpf_slack,
-                      tu.avg_vm_UB_viol,
-                      tu.avg_vm_LB_viol,
-                      tu.avg_vm_viol,
-                      tu.avg_thermal_viol,
-                      tu.max_vm_UB_viol,
-                      tu.max_vm_LB_viol,
-                      tu.max_vm_viol,
-                      tu.max_thermal_viol,
-                      tu.pct_vm_UB_viol,
-                      tu.pct_vm_LB_viol,
-                      tu.pct_vm_viol,
-                      tu.pct_thermal_viol,
-                      ]
+    if colormap is not None:
+        colors = choose_colors(colormap)
+    else:
+        colors = None
 
-    sum_functions = [tu.optimal,
-                     tu.infeasible,
-                     tu.maxTimeLimit,
-                     tu.maxIterations,
-                     tu.solverFailure,
-                     tu.internalSolverError,
-                     tu.duals,
-                     ]
 
     ## Generate data files
     #generate_mean_data(test_case,test_model_dict) ## to just grab the default metrics
@@ -745,36 +798,14 @@ def create_full_summary(test_case, test_model_dict, show_plot=True):
             test_model_dict[key] = True
         else:
             test_model_dict[key] = False
-        if '_e2' in key:
-            test_model_dict[key] = False
     generate_speedup_data(test_model_dict, mean_data='solve_time_geomean', benchmark='dlopf_default')
     generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='dlopf_default',colormap=None,
                              cscale='linear', include_benchmark=True, show_plot=show_plot)
 
-    #---- Model sparsity plot
-    for key, val in test_model_dict.items():
-        if 'slopf' in key \
-                or 'dlopf_default' in key \
-                or 'dlopf_e' in key \
-                or 'clopf_default' in key \
-                or 'clopf_e' in key \
-                or 'clopf_p_default' in key \
-                or 'clopf_p_e' in key \
-                or 'dcopf_ptdf_default' in key \
-                or 'dcopf_ptdf_e' in key \
-                or 'dcopf_btheta' in key:
-            test_model_dict[key] = True
-        else:
-            test_model_dict[key] = False
-        if '_e2' in key:
-            test_model_dict[key] = False
-    generate_pareto_plot(test_case, test_model_dict, y_data='solve_time_geomean', x_data='model_density', y_units='s', x_units='%',
-                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
-                         annotate_plot=False, show_plot=show_plot)
 
 
 if __name__ == '__main__':
-    test_case = tau.idx_to_test_case(0)
+    test_case = tau.idx_to_test_case(16)
     test_model_dict = \
         {'acopf' : True,
          'slopf': True,
@@ -806,4 +837,5 @@ if __name__ == '__main__':
          'dcopf_btheta': True
          }
 
-    create_full_summary(test_case,test_model_dict)
+    generate_sum_data(test_case,test_model_dict)
+    #create_full_summary(test_case,test_model_dict)

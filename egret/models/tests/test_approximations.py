@@ -794,16 +794,16 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
 
 def main(arg):
 
-    #idxA0 = case_names.index('pglib_opf_case240_pserc')  ## < 1000 buses
+    idxA0 = 0
+    #idxA0 = case_names.index('pglib_opf_case89_pegase')  ## redefine first case of A
     idxA = case_names.index('pglib_opf_case1354_pegase')  ## < 1000 buses
-    idxB = case_names.index('pglib_opf_case2383wp_k')  ## 1354 - 2316 buses
-    idxB = case_names.index('pglib_opf_case2736sp_k')  ## 1354 - 2316 buses
+    idxB = case_names.index('pglib_opf_case2736sp_k')  ## 1354 - 2383 buses
     idxC = case_names.index('pglib_opf_case6468_rte')  ## 2383 - 4661 buses
     idxD = case_names.index('pglib_opf_case13659_pegase')  ## 6468 - 10000 buses
     idxE = case_names.index('pglib_opf_case13659_pegase') + 1  ## 13659 buses
 
     if arg == 'A':
-        idx_list = list(range(0,idxA))
+        idx_list = list(range(idxA0,idxA))
     elif arg == 'B':
         idx_list = list(range(idxA,idxB))
     elif arg == 'C':
@@ -872,7 +872,7 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
     solve_approximation_models(test_case, test_model_dict, init_min=0.97, init_max=1.03, steps=6)
 
     ## Generate summary data
-    spu.create_full_summary(test_case, test_model_dict)
+    spu.create_full_summary(test_case, test_model_dict, show_plot=show_plot)
 
 
 if __name__ == '__main__':
