@@ -221,7 +221,6 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_dict):
             record_results('acopf', md_ac)
         except Exception as e:
             print('...EXCEPTION OCCURRED: {}'.format(str(e)))
-            pass
 
     if tm['slopf']:
         try:

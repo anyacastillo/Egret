@@ -78,10 +78,10 @@ def duals(md):
 
 def solve_time(md):
 
+    if not optimal(md):
+        return None
     val = md.data['results']['time']
-
     return val
-
 
 def num_buses(md):
 
@@ -101,20 +101,22 @@ def num_branches(md):
 
 def num_constraints(md):
 
+    if not optimal(md):
+        return None
     val = md.data['results']['#_cons']
-
     return val
-
 
 def num_variables(md):
 
+    if not optimal(md):
+        return None
     val = md.data['results']['#_vars']
-
     return val
-
 
 def num_nonzeros(md):
 
+    if not optimal(md):
+        return None
     results = md.data['results']
 
     if '#_nz' in results:
@@ -125,6 +127,8 @@ def num_nonzeros(md):
 
 def model_density(md):
 
+    if not optimal(md):
+        return None
     results = md.data['results']
 
     if '#_nz' in results:
@@ -139,24 +143,32 @@ def model_density(md):
 
 def total_cost(md):
 
+    if not optimal(md):
+        return None
     val = md.data['system']['total_cost']
 
     return val
 
 def ploss(md):
 
+    if not optimal(md):
+        return None
     val = md.data['system']['ploss']
 
     return val
 
 def qloss(md):
 
+    if not optimal(md):
+        return None
     val = md.data['system']['qloss']
 
     return val
 
 def pgen(md):
 
+    if not optimal(md):
+        return None
     gens = dict(md.elements(element_type='generator'))
     dispatch = {}
 
@@ -167,6 +179,8 @@ def pgen(md):
 
 def qgen(md):
 
+    if not optimal(md):
+        return None
     gens = dict(md.elements(element_type='generator'))
     dispatch = {}
 
@@ -177,6 +191,8 @@ def qgen(md):
 
 def pflow(md):
 
+    if not optimal(md):
+        return None
     branches = dict(md.elements(element_type='branch'))
     flow = {}
 
@@ -187,6 +203,8 @@ def pflow(md):
 
 def qflow(md):
 
+    if not optimal(md):
+        return None
     branches = dict(md.elements(element_type='branch'))
     flow = {}
 
@@ -197,6 +215,8 @@ def qflow(md):
 
 def vmag(md):
 
+    if not optimal(md):
+        return None
     buses = dict(md.elements(element_type='bus'))
     vm = {}
 
@@ -407,6 +427,8 @@ def sum_vm_UB_viol(md):
     Note: returned value is in p.u.
     '''
 
+    if not optimal(md):
+        return None
     sum_vm_UB_viol = get_infeas_from_model_data(md, infeas_name='sum_vm_UB_viol')
 
     return sum_vm_UB_viol
@@ -418,6 +440,8 @@ def sum_vm_LB_viol(md):
     Note: returned value is in p.u.
     '''
 
+    if not optimal(md):
+        return None
     sum_vm_LB_viol = get_infeas_from_model_data(md, infeas_name='sum_vm_LB_viol')
 
     return sum_vm_LB_viol
@@ -429,6 +453,8 @@ def sum_vm_viol(md):
     Note: returned value is in p.u.
     '''
 
+    if not optimal(md):
+        return None
     sum_vm_viol = get_infeas_from_model_data(md, infeas_name='sum_vm_viol')
 
     return sum_vm_viol
@@ -440,6 +466,8 @@ def sum_thermal_viol(md):
     Note: returned value is in MVA
     '''
 
+    if not optimal(md):
+        return None
     sum_thermal_viol = get_infeas_from_model_data(md, infeas_name='sum_thermal_viol')
 
     return sum_thermal_viol
@@ -451,6 +479,8 @@ def avg_vm_UB_viol(md):
     Note: returned value is in p.u.
     '''
 
+    if not optimal(md):
+        return None
     avg_vm_UB_viol = get_infeas_from_model_data(md, infeas_name='avg_vm_UB_viol')
 
     return avg_vm_UB_viol
@@ -461,6 +491,8 @@ def avg_vm_LB_viol(md):
     Note: returned value is in p.u.
     '''
 
+    if not optimal(md):
+        return None
     avg_vm_LB_viol = get_infeas_from_model_data(md, infeas_name='avg_vm_LB_viol')
 
     return avg_vm_LB_viol
@@ -472,6 +504,8 @@ def avg_vm_viol(md):
     Note: returned value is in p.u.
     '''
 
+    if not optimal(md):
+        return None
     avg_vm_viol = get_infeas_from_model_data(md, infeas_name='avg_vm_viol')
 
     return avg_vm_viol
@@ -483,6 +517,8 @@ def avg_thermal_viol(md):
     Note: returned value is in MVA
     '''
 
+    if not optimal(md):
+        return None
     avg_thermal_viol = get_infeas_from_model_data(md, infeas_name='avg_thermal_viol')
 
     return avg_thermal_viol
@@ -494,6 +530,8 @@ def max_vm_UB_viol(md):
     Note: returned value is in p.u.
     '''
 
+    if not optimal(md):
+        return None
     max_vm_UB_viol = get_infeas_from_model_data(md, infeas_name='max_vm_UB_viol')
 
     return max_vm_UB_viol
@@ -505,6 +543,8 @@ def max_vm_LB_viol(md):
     Note: returned value is in p.u.
     '''
 
+    if not optimal(md):
+        return None
     max_vm_LB_viol = get_infeas_from_model_data(md, infeas_name='max_vm_LB_viol')
 
     return max_vm_LB_viol
@@ -516,6 +556,8 @@ def max_vm_viol(md):
     Note: returned value is in p.u.
     '''
 
+    if not optimal(md):
+        return None
     max_vm_viol = get_infeas_from_model_data(md, infeas_name='max_vm_viol')
 
     return max_vm_viol
@@ -527,6 +569,8 @@ def max_thermal_viol(md):
     Note: returned value is in MVA
     '''
 
+    if not optimal(md):
+        return None
     max_thermal_viol = get_infeas_from_model_data(md, infeas_name='max_thermal_viol')
 
     return max_thermal_viol
@@ -537,6 +581,8 @@ def pct_vm_UB_viol(md):
     Returns the number of voltage upper bound infeasibilites
     '''
 
+    if not optimal(md):
+        return None
     pct_vm_UB_viol = get_infeas_from_model_data(md, infeas_name='pct_vm_UB_viol')
 
     return pct_vm_UB_viol
@@ -547,6 +593,8 @@ def pct_vm_LB_viol(md):
     Returns the number of voltage lower bound infeasibilities
     '''
 
+    if not optimal(md):
+        return None
     pct_vm_LB_viol = get_infeas_from_model_data(md, infeas_name='pct_vm_LB_viol')
 
     return pct_vm_LB_viol
@@ -557,6 +605,8 @@ def pct_vm_viol(md):
     Returns the number of all voltage infeasibilities
     '''
 
+    if not optimal(md):
+        return None
     pct_vm_viol = get_infeas_from_model_data(md, infeas_name='pct_vm_viol')
 
     return pct_vm_viol
@@ -567,6 +617,8 @@ def pct_thermal_viol(md):
     Returns the number of thermal limit infeasibilites
     '''
 
+    if not optimal(md):
+        return None
     pct_thermal_viol = get_infeas_from_model_data(md, infeas_name='pct_thermal_viol')
 
     return pct_thermal_viol
@@ -577,6 +629,8 @@ def acpf_slack(md):
     Returns the change in the slack bus real power dispatch in the ACPF solution in MW
     '''
 
+    if not optimal(md):
+        return None
     acpf_slack = get_infeas_from_model_data(md, infeas_name='acpf_slack')
 
     return acpf_slack
