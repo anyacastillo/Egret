@@ -208,7 +208,7 @@ tmd['clopf_p_lazy'] = {}
 tmd['clopf_p_lazy']['solve_func'] = solve_dcopf_losses
 tmd['clopf_p_lazy']['intial_solution'] = 'basepoint'
 tmd['clopf_p_lazy']['solver'] = 'gurobi_persistent'
-tmd['clopf_p_lazy']['kwargs'] = {**_kwargs, 'ptdf_options':{'lazy' : True, 'lazy_voltage' : True} ,
+tmd['clopf_p_lazy']['kwargs'] = {**_kwargs, 'ptdf_options':{'lazy' : True},
                                'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
 
 tmd['clopf_p_e5'] = {}
@@ -293,7 +293,7 @@ tmd['dcopf_btheta']['solve_func'] = solve_dcopf
 tmd['dcopf_btheta']['intial_solution'] = 'flat'
 tmd['dcopf_btheta']['solver'] = 'gurobi_persistent'
 tmd['dcopf_btheta']['kwargs'] = {**_kwargs,
-                               'dcopf_model_generator' : create_btheta_losses_dcopf_model }
+                               'dcopf_model_generator' : create_btheta_dcopf_model }
 
 
 
@@ -479,7 +479,7 @@ def create_testcase_directory(test_case):
     return destination
 
 
-def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20):
+def solve_approximation_models(test_case, test_model_list, init_min=0.9, init_max=1.1, steps=20):
     '''
     1. initialize base case and demand range
     2. loop over demand values
@@ -489,7 +489,8 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
     _md_flat = create_ModelData(test_case)
 
     _md_basept, min_mult, max_mult = set_acopf_basepoint_min_max(_md_flat, init_min, init_max)
-    test_model_dict['acopf'] = True
+    if 'acopf' not in test_model_list:
+        test_model_list.append('acopf')
 
     ## put the sensitivities into modeData so they don't need to be recalculated for each model
     data_utils_deprecated.create_dicts_of_fdf_simplified(_md_basept)
@@ -505,7 +506,7 @@ def solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_ma
     for mult in multipliers:
         md_basept = create_new_model_data(_md_basept, mult)
         md_flat = create_new_model_data(_md_flat, mult)
-        inner_loop_solves(md_basept, md_flat, test_model_dict)
+        inner_loop_solves(md_basept, md_flat, test_model_list)
 
     create_testcase_directory(test_case)
 
@@ -556,39 +557,39 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
         test_case=idx_to_test_case(idx)
 
     # Select models to run
-    test_model_dict = \
-        {'acopf' : True,
-         'slopf': True,
-         'dlopf_default': True,
-         'dlopf_lazy' : True,
-         'dlopf_e5': True,
-         'dlopf_e4': True,
-         'dlopf_e3': True,
-         'dlopf_e2': False,
-         'clopf_default': True,
-         'clopf_lazy': True,
-         'clopf_e5': True,
-         'clopf_e4': True,
-         'clopf_e3': True,
-         'clopf_e2': False,
-         'clopf_p_default': True,
-         'clopf_p_lazy': True,
-         'clopf_p_e5': True,
-         'clopf_p_e4': True,
-         'clopf_p_e3': True,
-         'clopf_p_e2': False,
-         'qcopf_btheta': True,
-         'dcopf_ptdf_default': True,
-         'dcopf_ptdf_lazy': True,
-         'dcopf_ptdf_e5': True,
-         'dcopf_ptdf_e4': True,
-         'dcopf_ptdf_e3': True,
-         'dcopf_ptdf_e2': False,
-         'dcopf_btheta': True
-         }
+    test_model_list = [
+         'acopf',
+         'slopf',
+         'dlopf_default',
+         'dlopf_lazy',
+         'dlopf_e5',
+         'dlopf_e4',
+         'dlopf_e3',
+         #'dlopf_e2',
+         'clopf_default',
+         'clopf_lazy',
+         'clopf_e5',
+         'clopf_e4',
+         'clopf_e3',
+         #'clopf_e2',
+         'clopf_p_default',
+         'clopf_p_lazy',
+         'clopf_p_e5',
+         'clopf_p_e4',
+         'clopf_p_e3',
+         #'clopf_p_e2',
+         'qcopf_btheta',
+         'dcopf_ptdf_default',
+         'dcopf_ptdf_lazy',
+         'dcopf_ptdf_e5',
+         'dcopf_ptdf_e4',
+         'dcopf_ptdf_e3',
+         #'dcopf_ptdf_e2',
+         'dcopf_btheta'
+         ]
 
     ## Model solves
-    solve_approximation_models(test_case, test_model_dict, init_min=0.9, init_max=1.1, steps=20)
+    solve_approximation_models(test_case, test_model_list, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate summary data
     #spu.create_full_summary(test_case, test_model_dict, show_plot=show_plot)
