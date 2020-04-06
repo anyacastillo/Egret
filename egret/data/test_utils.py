@@ -13,6 +13,7 @@ modifying the data dictionary
 """
 import os, shutil, glob, json
 import egret.model_library.transmission.tx_utils as tx_utils
+import egret.models.tests.ta_utils as tau
 import egret.model_library.decl as decl
 import pyomo.environ as pe
 import pandas as pd
@@ -398,11 +399,8 @@ def save_to_solution_directory(filename, model_name):
 
     # directory locations
     cwd = os.getcwd()
-    current_dir, current_file = os.path.split(os.path.realpath(__file__))
-
-    # move to case directory
     source = os.path.join(cwd, filename + '.json')
-    destination = os.path.join(cwd,'transmission_test_instances','approximation_solution_files',model_name)
+    destination = tau.get_solution_file_location(model_name)
 
     if not os.path.exists(destination):
         os.makedirs(destination)

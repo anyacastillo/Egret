@@ -92,3 +92,47 @@ def get_summary_file_location(folder):
         os.makedirs(location)
 
     return location
+
+def get_sensitivity_dict(test_model_list):
+
+    tm_dict = {}
+    for key in test_model_list:
+        if '_lazy' in key or '_e' in key:
+            tm_dict[key] = False
+        else:
+            tm_dict[key] = True
+
+    return tm_dict
+
+def get_pareto_dict(test_model_list):
+    tm_dict = get_sensitivity_dict(test_model_list)
+    return tm_dict
+
+def get_case_size_dict(test_model_list):
+    tm_dict = get_sensitivity_dict(test_model_list)
+    return tm_dict
+
+def get_lazy_speedup_dict(test_model_list):
+
+    tm_dict = {}
+    for key in test_model_list:
+        if '_default' in key or '_lazy' in key:
+            tm_dict[key] = True
+        else:
+            tm_dict[key] = False
+
+    return tm_dict
+
+def get_trunc_speedup_dict(test_model_list):
+
+    tm_dict = {}
+    for key in test_model_list:
+        if 'dlopf_default' in key \
+                or 'dlopf_e' in key \
+                or 'clopf_default' in key \
+                or 'clopf_e' in key:
+            tm_dict[key] = True
+        else:
+            tm_dict[key] = False
+
+    return tm_dict

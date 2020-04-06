@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import matplotlib.colors as clrs
 import matplotlib.cm as cmap
+from matplotlib.colors import ListedColormap
 import seaborn as sns
 from cycler import cycler
 import math
@@ -69,33 +70,28 @@ sum_functions = [tu.optimal,
                  tu.duals,
                  ]
 
-def choose_colors(map_name=None):
+def get_colors(map_name=None, trim=0.9):
 
     if map_name is None:
         map_name = 'gnuplot'
 
-    color_dict = {'viridis' : cmap.viridis, #*****#
-                  'cividis' : cmap.cividis,
-                  'magma' : cmap.magma,
-                  'plasma' : cmap.plasma, #*****#
-                  'Spectral' : cmap.Spectral, #*****#
-                  'coolwarm' : cmap.coolwarm, #*****#
-                  'twilight' : cmap.twilight,
-                  'twilight_shifted' : cmap.twilight_shifted,
-                  'hsv' : cmap.hsv,
-                  'Paired' : cmap.Paired,
-                  'Accent' : cmap.Accent,
-                  'Set3' : cmap.Set3,
-                  'gnuplot' : cmap.gnuplot, #*****#
-                  'jet' : cmap.jet,
-                  'nipy_spectral' : cmap.nipy_spectral #*****#
-                  }
+    trim_top = [
+        'ocean',
+        'gist_earth',
+        'terrain',
+        'gnuplot2',
+        'CMRmap',
+        'cubehelix'
+    ]
 
-    try:
-        colors = color_dict[map_name]
-        return colors
-    except KeyError:
-        raise KeyError('{} not found in available color maps.'.format(map_name))
+    colors = cmap.get_cmap(name=map_name)
+
+    if map_name in trim_top:
+        trim_colors = ListedColormap(colors(np.linspace(0,trim,256)))
+        return trim_colors
+
+    return colors
+
 
 def read_sensitivity_data(case_folder, test_model, data_generator=tu.total_cost):
     parent, case = os.path.split(case_folder)
@@ -150,22 +146,23 @@ def geometricMean(array):
     return geomean
 
 
-def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,tu.num_constraints,tu.model_density,tu.acpf_slack,tu.solve_time]):
+def generate_mean_data(test_case, test_model_list, function_list=[tu.num_buses,tu.num_constraints,tu.model_density,tu.acpf_slack,tu.solve_time]):
 
     case_location = tau.get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
 
     ## include acopf results
-    test_model_dict['acopf'] = True
+    if 'acopf' not in test_model_list:
+        test_model_list.append('acopf')
 
-    df_data = pd.DataFrame(data=None, index=test_model_dict.keys())
+    df_data = pd.DataFrame(data=None, index=test_model_list)
 
     for func in function_list:
         ## put data into blank DataFrame
         df_func = pd.DataFrame(data=None)
 
-        for test_model, val in test_model_dict.items():
+        for test_model in test_model_list:
             # read data and place in df_func
             df_raw = read_sensitivity_data(case_location, test_model, data_generator=func)
             df_func = pd.concat([df_func , df_raw], sort=True)
@@ -199,22 +196,23 @@ def generate_mean_data(test_case, test_model_dict, function_list=[tu.num_buses,t
     df_data.to_csv(os.path.join(destination, filename))
 
 
-def generate_sum_data(test_case, test_model_dict, function_list=sum_functions):
+def generate_sum_data(test_case, test_model_list, function_list=sum_functions):
 
     case_location = tau.get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
 
     ## include acopf results
-    test_model_dict['acopf'] = True
+    if 'acopf' not in test_model_list:
+        test_model_list.append('acopf')
 
-    df_data = pd.DataFrame(data=None, index=test_model_dict.keys())
+    df_data = pd.DataFrame(data=None, index=test_model_list)
 
     for func in function_list:
         ## put data into blank DataFrame
         df_func = pd.DataFrame(data=None)
 
-        for test_model, val in test_model_dict.items():
+        for test_model in test_model_list:
             # read data and place in df_func
             df_raw = read_sensitivity_data(case_location, test_model, data_generator=func)
             df_func = pd.concat([df_func , df_raw], sort=True)
@@ -233,7 +231,7 @@ def generate_sum_data(test_case, test_model_dict, function_list=sum_functions):
     df_data.to_csv(os.path.join(destination, filename))
 
 
-def generate_speedup_data(test_model_dict, case_list=None, mean_data='solve_time_geomean', benchmark='dlopf_lazy'):
+def generate_speedup_data(case_list=None, mean_data='solve_time_geomean', benchmark='dlopf_lazy'):
 
     ## get data
     if case_list is None:
@@ -244,7 +242,7 @@ def generate_speedup_data(test_model_dict, case_list=None, mean_data='solve_time
     for case in case_list:
         try:
             input = "mean_data_" + case + ".csv"
-            df_data = get_data(input, test_model_dict)
+            df_data = get_data(input)
             models = list(df_data.index.values)
             for m in models:
                 val = df_data.at[benchmark, mean_data] / df_data.at[m, mean_data]
@@ -265,12 +263,12 @@ def generate_speedup_data(test_model_dict, case_list=None, mean_data='solve_time
     df_data.to_csv(os.path.join(destination, filename))
 
 
-def generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='dlopf_lazy',colormap=None,
+def generate_speedup_heatmap(test_model_dict=None, mean_data='solve_time_geomean', benchmark='dlopf_lazy',colormap=None,
                              cscale='linear', include_benchmark=False, show_plot=False):
 
     filename = "speedup_data_" + mean_data + "_" + benchmark + ".csv"
-    df_data = get_data(filename,test_model_dict=test_model_dict)
-    if not include_benchmark:
+    df_data = get_data(filename, test_model_dict=test_model_dict)
+    if not include_benchmark and benchmark in df_data.columns.to_list():
         df_data = df_data.drop(columns=benchmark)
 
     cols = df_data.columns.to_list()
@@ -326,7 +324,7 @@ def generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', be
         plt.clf()
 
 
-def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.acpf_slack,
+def generate_sensitivity_data(test_case, test_model_list, data_generator=tu.acpf_slack,
                               data_is_pct=False, data_is_vector=False, vector_norm=2):
 
     case_location = tau.get_solution_file_location(test_case)
@@ -352,26 +350,27 @@ def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.acpf
     # empty dataframe to add data into
     df_data = pd.DataFrame(data=None)
 
-    # iterate over test_model's
-    test_model_dict['acopf'] = True
-    for test_model, val in test_model_dict.items():
-        if val:
-            df_approx = read_sensitivity_data(case_location, test_model, data_generator=data_generator)
+    # iterate over test_models
+    if 'acopf'  not in test_model_list:
+        test_model_list.append('acopf')
 
-            # calculate norm from df_diff columns
-            data = {}
-            avg_ac_data = sum(df_acopf[idx].values for idx in df_acopf) / len(df_acopf)
-            for col in df_approx:
-                if data_is_vector is True:
-                    data[col] = np.linalg.norm(df_approx[col].values - df_acopf[col].values, vector_norm)
-                elif data_is_pct is True:
-                    data[col] = ((df_approx[col].values - df_acopf[col].values) / df_acopf[col].values) * 100
-                else:
-                    data[col] = df_approx[col].values
+    for test_model in test_model_list:
+        df_approx = read_sensitivity_data(case_location, test_model, data_generator=data_generator)
 
-            # record test_model column in DataFrame
-            df_col = pd.DataFrame(data, index=[test_model])
-            df_data = pd.concat([df_data, df_col], sort=True)
+        # calculate norm from df_diff columns
+        data = {}
+        avg_ac_data = sum(df_acopf[idx].values for idx in df_acopf) / len(df_acopf)
+        for col in df_approx:
+            if data_is_vector is True:
+                data[col] = np.linalg.norm(df_approx[col].values - df_acopf[col].values, vector_norm)
+            elif data_is_pct is True:
+                data[col] = ((df_approx[col].values - df_acopf[col].values) / df_acopf[col].values) * 100
+            else:
+                data[col] = df_approx[col].values
+
+        # record test_model column in DataFrame
+        df_col = pd.DataFrame(data, index=[test_model])
+        df_data = pd.concat([df_data, df_col], sort=True)
 
 
     ## save DATA as csv
@@ -383,23 +382,24 @@ def generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.acpf
 
 
 
-def get_data(filename, test_model_dict):
+def get_data(filename, test_model_dict=None):
     print(filename)
 
     ## get data from CSV
     source = tau.get_summary_file_location('data')
     df_data = pd.read_csv(os.path.join(source,filename), index_col=0)
 
-    remove_list = []
-    for tm,val in test_model_dict.items():
-        if not val:
-            remove_list.append(tm)
+    if test_model_dict is not None:
+        remove_list = []
+        for tm,val in test_model_dict.items():
+            if not val:
+                remove_list.append(tm)
 
-    for rm in remove_list:
-        if rm in df_data.index:
-            df_data = df_data.drop(rm, axis=0)
-        elif rm in df_data.columns:
-            df_data = df_data.drop(rm, axis=1)
+        for rm in remove_list:
+            if rm in df_data.index:
+                df_data = df_data.drop(rm, axis=0)
+            elif rm in df_data.columns:
+                df_data = df_data.drop(rm, axis=1)
 
     return df_data
 
@@ -411,43 +411,44 @@ def generate_pareto_plot(test_case, test_model_dict, y_data='acpf_slack', x_data
     _, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
     input = "mean_data_" + case_name + ".csv"
-    df_data = get_data(input, test_model_dict)
+    df_data = get_data(input, test_model_dict=test_model_dict)
 
     models = list(df_data.index.values)
     df_y_data = df_data[y_data]
     df_x_data = df_data[x_data]
 
-
-    ## assign color values
-    #num_entries = len(df_data)
-    #color = colors(np.linspace(0, 1, num_entries))
-    #custom_cycler = (cycler(color=color))
-    #plt.rc('axes', prop_cycle=custom_cycler)
-
     ## Create plot
     fig, ax = plt.subplots()
 
     #---- set property cycles
-    markers = ['o', '+', 'x']
-    if colors is not None:
-        n = len(df_data)
-        m = len(markers)
-        ax.set_prop_cycle(color=[colors(i) for i in np.linspace(0,1,n)],
-                          marker=[markers[i%m] for i in range(n)])
-    else:
-        ax.set_prop_cycle(marker=markers)
+    markers = ['+','o','x','s']
+    n = len(df_data)
+    m = len(markers)
+    new_marks = [markers[i%m] for i in range(n)]
+    o_marks = [i for i in range(0,len(new_marks)) if new_marks[i] is 'o']
+    edgecolor = [colors(i) for i in np.linspace(0, 1, n)]
+    facecolor = edgecolor.copy()
+    for idx in o_marks:
+        facecolor[idx] = 'none'
+    #if colors is not None:
+    #    ax.set_prop_cycle(color=facecolor,
+    #                      edgecolor=edgecolor,
+    #                      marker=new_marks)
 
     for m in models:
-        if 'lazy' in m:
-            mark = mark_lazy
-        elif 'acopf' in m:
-            mark = mark_acopf
-        else:
-            mark = mark_default
-
+        idx = models.index(m)
+        edge = edgecolor[idx]
+        face = facecolor[idx]
+        marker_style = dict(linestyle='', markersize=8, color=edge)
         x = df_x_data[m]
         y = df_y_data[m]
-        ax.scatter(x, y, s=mark_size, label=m, marker=mark)
+        if m == 'acopf':
+            #ax.scatter(x, y, s=mark_size, label=m, marker=mark_acopf)
+            ax.plot(x,y, label=m, marker=mark_acopf, **marker_style)
+        else:
+            mark = new_marks[idx]
+            #ax.scatter(x, y, s=mark_size, label=m, marker=mark, edgecolors=edge, facecolors=face)
+            ax.plot(x,y, label=m, marker=mark, markeredgewidth=2, fillstyle='none', **marker_style)
 
         if annotate_plot:
             ax.annotate(m, (x,y))
@@ -479,7 +480,7 @@ def generate_sensitivity_plot(test_case, test_model_dict, plot_data='acpf_slack'
     _, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
     input = "sensitivity_data_" + case_name + "_" + plot_data + ".csv"
-    df_data = get_data(input, test_model_dict)
+    df_data = get_data(input, test_model_dict=test_model_dict)
 
     models = list(df_data.columns.values)
 
@@ -488,7 +489,7 @@ def generate_sensitivity_plot(test_case, test_model_dict, plot_data='acpf_slack'
     fig, ax = plt.subplots()
 
     #---- set property cycles
-    markers = ['x','o','+']
+    markers = ['+','o','x','s']
     if colors is not None:
         n = len(df_data.columns)
         m = len(markers)
@@ -502,7 +503,7 @@ def generate_sensitivity_plot(test_case, test_model_dict, plot_data='acpf_slack'
         if m =='acopf':
             ax.plot(y, label=m, marker='')
         else:
-            ax.plot(y, label=m)
+            ax.plot(y, label=m, fillstyle='none')
 
 
     ax.set_title(plot_data + " (" + case_name + ")")
@@ -547,7 +548,7 @@ def generate_case_size_plot_seaborn(test_model_dict, case_list=None,
     for case in case_list:
         try:
             input = "mean_data_" + case + ".csv"
-            df_data = get_data(input, test_model_dict)
+            df_data = get_data(input, test_model_dict=test_model_dict)
             if 'con_per_bus' in var_names:
                 df_data['con_per_bus'] = df_data['num_constraints'] / df_data['num_buses']
 
@@ -611,7 +612,7 @@ def generate_case_size_plot(test_model_dict, case_list=None,
     for case in case_list:
         try:
             input = "mean_data_" + case + ".csv"
-            df_data = get_data(input, test_model_dict)
+            df_data = get_data(input, test_model_dict=test_model_dict)
             if 'con_per_bus' in var_names:
                 df_data['con_per_bus'] = df_data['num_constraints'] / df_data['num_buses']
             models = list(df_data.index.values)
@@ -730,112 +731,86 @@ def create_circlesize_legend(title=None, s_min=1, s_max=500, data_min=2, data_ma
     plt.gca().add_artist(new_legend)
 
 
-def create_full_summary(test_case, test_model_dict, show_plot=True, colormap='gnuplot'):
+def create_full_summary(test_case, test_model_list, show_plot=True):
     """
     solves generates plots for test_case
     """
 
-    # remove unused models from reporting
-    test_model_dict = {key:val for key,val in test_model_dict.items() if val}
-
-    if colormap is not None:
-        colors = choose_colors(colormap)
-    else:
-        colors = None
-
+    colors = get_colors(map_name='cubehelix', trim=0.8)
+    speed_colors = get_colors(map_name='inferno')
 
     ## Generate data files
-    #generate_mean_data(test_case,test_model_dict) ## to just grab the default metrics
-    generate_mean_data(test_case,test_model_dict, function_list=mean_functions)
-    generate_sensitivity_data(test_case, test_model_dict, data_generator=tu.acpf_slack)
+    #generate_mean_data(test_case,test_model_list) ## to just grab the default metrics
+    #generate_mean_data(test_case,test_model_list, function_list=mean_functions)
 
-    ## Generate plots
-    #---- Sensitivity plots: remove lazy and tolerance models
-    for key, val in test_model_dict.items():
-        if 'lazy' in key or '_e' in key:
-            test_model_dict[key] = False
-    generate_sensitivity_plot(test_case, test_model_dict, plot_data='acpf_slack', units='MW', colors=colors, show_plot=show_plot)
+    #---- Sensitivity plot
+    sensitivity_dict = tau.get_sensitivity_dict(test_model_list)
+    generate_sensitivity_data(test_case, test_model_list, data_generator=tu.acpf_slack)
+    generate_sensitivity_plot(test_case, sensitivity_dict, plot_data='acpf_slack', units='MW', colors=colors, show_plot=show_plot)
 
-    #---- Pareto plots: add lazy models
-    for key, val in test_model_dict.items():
-        if 'lazy' in key:
-            test_model_dict[key] = False
-        elif 'default' in key:
-            test_model_dict[key] = True
-    generate_pareto_plot(test_case, test_model_dict, y_data='acpf_slack', x_data='solve_time_geomean', y_units='MW', x_units='s',
+    #---- Pareto plot
+    pareto_dict = tau.get_pareto_dict(test_model_list)
+    generate_pareto_plot(test_case, pareto_dict, y_data='acpf_slack', x_data='solve_time_geomean', y_units='MW', x_units='s',
                          mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
                          annotate_plot=False, show_plot=show_plot)
 
-    #---- Case size plots:
-    generate_case_size_plot(test_model_dict,y_data='solve_time_geomean', y_units='s',
+    #---- Case size plot
+    case_size_dict = tau.get_case_size_dict(test_model_list)
+    generate_case_size_plot(case_size_dict, y_data='solve_time_geomean', y_units='s',
                             x_data='num_buses', x_units=None, s_data='con_per_bus',colors=colors,
                             xscale='log', yscale='linear',show_plot=show_plot)
 
-    #---- Lazy model speedup: remove all but default and lazy models
-    for key, val in test_model_dict.items():
-        if 'acopf' in key \
-                or 'slopf' in key \
-                or 'dlopf_default' in key \
-                or 'dlopf_lazy' in key \
-                or 'clopf_default' in key \
-                or 'clopf_lazy' in key \
-                or 'clopf_p_default' in key \
-                or 'clopf_p_lazy' in key \
-                or 'dcopf_btheta' in key:
-            test_model_dict[key] = True
-        else:
-            test_model_dict[key] = False
-    generate_speedup_data(test_model_dict, mean_data='solve_time_geomean', benchmark='acopf')
-    generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='acopf',
-                             colormap=None, cscale='log', show_plot=show_plot)
+    #---- Lazy model speedup plot
+    lazy_speedup_dict = tau.get_lazy_speedup_dict(test_model_list)
+    generate_speedup_data(mean_data='solve_time_geomean', benchmark='acopf')
+    generate_speedup_heatmap(test_model_dict=lazy_speedup_dict, mean_data='solve_time_geomean', benchmark='acopf',
+                             include_benchmark=False, colormap=speed_colors, cscale='log', show_plot=show_plot)
 
-    # ---- Factor truncation speedup: remove all but default and tolerance option models
-    for key, val in test_model_dict.items():
-        if 'dlopf_default' in key \
-                or 'dlopf_e' in key \
-                or 'clopf_default' in key \
-                or 'clopf_e' in key:
-            test_model_dict[key] = True
-        else:
-            test_model_dict[key] = False
-    generate_speedup_data(test_model_dict, mean_data='solve_time_geomean', benchmark='dlopf_default')
-    generate_speedup_heatmap(test_model_dict, mean_data='solve_time_geomean', benchmark='dlopf_default',colormap=None,
-                             cscale='linear', include_benchmark=True, show_plot=show_plot)
+    # ---- Factor truncation speedup plot
+    trunc_speedup_dict = tau.get_trunc_speedup_dict(test_model_list)
+    generate_speedup_data(mean_data='solve_time_geomean', benchmark='dlopf_default')
+    generate_speedup_heatmap(test_model_dict=trunc_speedup_dict, mean_data='solve_time_geomean', benchmark='dlopf_default',
+                             cscale='linear', include_benchmark=True, colormap=speed_colors, show_plot=show_plot)
 
 
 
 if __name__ == '__main__':
-    test_case = tau.idx_to_test_case(16)
-    test_model_dict = \
-        {'acopf' : True,
-         'slopf': True,
-         'dlopf_default': True,
-         'dlopf_lazy' : True,
-         'dlopf_e5': True,
-         'dlopf_e4': True,
-         'dlopf_e3': True,
-         'dlopf_e2': False,
-         'clopf_default': True,
-         'clopf_lazy': True,
-         'clopf_e5': True,
-         'clopf_e4': True,
-         'clopf_e3': True,
-         'clopf_e2': False,
-         'clopf_p_default': True,
-         'clopf_p_lazy': True,
-         'clopf_p_e5': True,
-         'clopf_p_e4': True,
-         'clopf_p_e3': True,
-         'clopf_p_e2': False,
-         'qcopf_btheta': True,
-         'dcopf_ptdf_default': True,
-         'dcopf_ptdf_lazy': True,
-         'dcopf_ptdf_e5': True,
-         'dcopf_ptdf_e4': True,
-         'dcopf_ptdf_e3': True,
-         'dcopf_ptdf_e2': False,
-         'dcopf_btheta': True
-         }
+    import sys
+    try:
+        test_case = tau.idx_to_test_case(sys.argv[1])
+    except:
+        test_case = tau.idx_to_test_case(16)
 
-    generate_sum_data(test_case,test_model_dict)
-    #create_full_summary(test_case,test_model_dict)
+    test_model_list = [
+         'acopf',
+         'slopf',
+         'dlopf_default',
+         'dlopf_lazy',
+         'dlopf_e5',
+         'dlopf_e4',
+         'dlopf_e3',
+         #'dlopf_e2',
+         'clopf_default',
+         'clopf_lazy',
+         'clopf_e5',
+         'clopf_e4',
+         'clopf_e3',
+         #'clopf_e2',
+         'clopf_p_default',
+         'clopf_p_lazy',
+         'clopf_p_e5',
+         'clopf_p_e4',
+         'clopf_p_e3',
+         #'clopf_p_e2',
+         'qcopf_btheta',
+         'dcopf_ptdf_default',
+         'dcopf_ptdf_lazy',
+         'dcopf_ptdf_e5',
+         'dcopf_ptdf_e4',
+         'dcopf_ptdf_e3',
+         #'dcopf_ptdf_e2',
+         'dcopf_btheta'
+         ]
+
+    #generate_sum_data(test_case,test_model_list)
+    create_full_summary(test_case,test_model_list)
