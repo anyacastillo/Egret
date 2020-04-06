@@ -74,8 +74,12 @@ def internalSolverError(md):
     return 0
 
 def duals(md):
-    val = md.data['results']['duals']
-    return val
+    try:
+        val = md.data['results']['duals']
+        return val
+    except KeyError as e:
+        print('...ModelData is missing: {}'.format(str(e)))
+        return 0
 
 def solve_time(md):
 
@@ -419,7 +423,7 @@ def save_to_solution_directory(filename, model_name):
     return destination
 
 
-def sum_vm_UB_viol(md):
+def vm_UB_viol_sum(md):
     '''
     Returns the sum of voltage upper bound infeasibilites
     Note: returned value is in p.u.
@@ -432,7 +436,7 @@ def sum_vm_UB_viol(md):
     return sum_vm_UB_viol
 
 
-def sum_vm_LB_viol(md):
+def vm_LB_viol_sum(md):
     '''
     Returns the sum of voltage lower bound infeasibilities
     Note: returned value is in p.u.
@@ -445,7 +449,7 @@ def sum_vm_LB_viol(md):
     return sum_vm_LB_viol
 
 
-def sum_vm_viol(md):
+def vm_viol_sum(md):
     '''
     Returns the sum of all voltage infeasibilities
     Note: returned value is in p.u.
@@ -458,7 +462,7 @@ def sum_vm_viol(md):
     return sum_vm_viol
 
 
-def sum_thermal_viol(md):
+def thermal_viol_sum(md):
     '''
     Returns the sum of thermal limit infeasibilites
     Note: returned value is in MVA
@@ -471,7 +475,7 @@ def sum_thermal_viol(md):
     return sum_thermal_viol
 
 
-def avg_vm_UB_viol(md):
+def vm_UB_viol_avg(md):
     '''
     Returns the average of voltage upper bound infeasibilites
     Note: returned value is in p.u.
@@ -483,7 +487,7 @@ def avg_vm_UB_viol(md):
 
     return avg_vm_UB_viol
 
-def avg_vm_LB_viol(md):
+def vm_LB_viol_avg(md):
     '''
     Returns the average of voltage lower bound infeasibilities
     Note: returned value is in p.u.
@@ -496,7 +500,7 @@ def avg_vm_LB_viol(md):
     return avg_vm_LB_viol
 
 
-def avg_vm_viol(md):
+def vm_viol_avg(md):
     '''
     Returns the average of all voltage infeasibilities
     Note: returned value is in p.u.
@@ -509,7 +513,7 @@ def avg_vm_viol(md):
     return avg_vm_viol
 
 
-def avg_thermal_viol(md):
+def thermal_viol_avg(md):
     '''
     Returns the sum of thermal limit infeasibilites
     Note: returned value is in MVA
@@ -522,7 +526,7 @@ def avg_thermal_viol(md):
     return avg_thermal_viol
 
 
-def max_vm_UB_viol(md):
+def vm_UB_viol_max(md):
     '''
     Returns the maximum of voltage upper bound infeasibilites
     Note: returned value is in p.u.
@@ -535,7 +539,7 @@ def max_vm_UB_viol(md):
     return max_vm_UB_viol
 
 
-def max_vm_LB_viol(md):
+def vm_LB_viol_max(md):
     '''
     Returns the maximum of voltage lower bound infeasibilities
     Note: returned value is in p.u.
@@ -548,7 +552,7 @@ def max_vm_LB_viol(md):
     return max_vm_LB_viol
 
 
-def max_vm_viol(md):
+def vm_viol_max(md):
     '''
     Returns the maximum of all voltage infeasibilities
     Note: returned value is in p.u.
@@ -561,7 +565,7 @@ def max_vm_viol(md):
     return max_vm_viol
 
 
-def max_thermal_viol(md):
+def thermal_viol_max(md):
     '''
     Returns the maximum of thermal limit infeasibilites
     Note: returned value is in MVA
@@ -574,7 +578,7 @@ def max_thermal_viol(md):
     return max_thermal_viol
 
 
-def pct_vm_UB_viol(md):
+def vm_UB_viol_pct(md):
     '''
     Returns the number of voltage upper bound infeasibilites
     '''
@@ -586,7 +590,7 @@ def pct_vm_UB_viol(md):
     return pct_vm_UB_viol
 
 
-def pct_vm_LB_viol(md):
+def vm_LB_viol_pct(md):
     '''
     Returns the number of voltage lower bound infeasibilities
     '''
@@ -598,7 +602,7 @@ def pct_vm_LB_viol(md):
     return pct_vm_LB_viol
 
 
-def pct_vm_viol(md):
+def vm_viol_pct(md):
     '''
     Returns the number of all voltage infeasibilities
     '''
@@ -610,7 +614,7 @@ def pct_vm_viol(md):
     return pct_vm_viol
 
 
-def pct_thermal_viol(md):
+def thermal_viol_pct(md):
     '''
     Returns the number of thermal limit infeasibilites
     '''

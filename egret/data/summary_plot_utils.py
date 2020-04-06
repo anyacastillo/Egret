@@ -46,18 +46,18 @@ mean_functions = [tu.num_buses,
                   tu.model_density,
                   tu.solve_time,
                   tu.acpf_slack,
-                  tu.avg_vm_UB_viol,
-                  tu.avg_vm_LB_viol,
-                  tu.avg_vm_viol,
-                  tu.avg_thermal_viol,
-                  tu.max_vm_UB_viol,
-                  tu.max_vm_LB_viol,
-                  tu.max_vm_viol,
-                  tu.max_thermal_viol,
-                  tu.pct_vm_UB_viol,
-                  tu.pct_vm_LB_viol,
-                  tu.pct_vm_viol,
-                  tu.pct_thermal_viol,
+                  tu.vm_UB_viol_avg,
+                  tu.vm_LB_viol_avg,
+                  tu.vm_viol_avg,
+                  tu.thermal_viol_avg,
+                  tu.vm_UB_viol_max,
+                  tu.vm_LB_viol_max,
+                  tu.vm_viol_max,
+                  tu.thermal_viol_max,
+                  tu.vm_UB_viol_pct,
+                  tu.vm_LB_viol_pct,
+                  tu.vm_viol_pct,
+                  tu.thermal_viol_pct,
                   ]
 
 #Functions to be summarized by summation
@@ -69,6 +69,17 @@ sum_functions = [tu.optimal,
                  tu.internalSolverError,
                  tu.duals,
                  ]
+
+summary_functions = {}
+sf = summary_functions
+for func in mean_functions:
+    key = func.__name__
+    sf[key] = {'function' : func, 'summarizers' : ['avg']}
+for func in sum_functions:
+    key = func.__name__
+    sf[key] = {'function' : func, 'summarizers' : ['sum']}
+sf['solve_time']['summarizers'] = ['avg','geomean','max']
+sf['acpf_slack']['summarizers'] = ['avg','max']
 
 def get_colors(map_name=None, trim=0.9):
 
@@ -91,6 +102,21 @@ def get_colors(map_name=None, trim=0.9):
         return trim_colors
 
     return colors
+
+def short_summary(short=True):
+
+    function_list = ['num_buses', 'num_constraints', 'acpf_slack', 'solve_time']
+    keys = summary_functions.keys()
+
+    if not short:
+        return
+
+    to_delete = []
+    for k in keys:
+        if k not in function_list:
+            to_delete.append(k)
+    for k in to_delete:
+            del summary_functions[k]
 
 
 def read_sensitivity_data(case_folder, test_model, data_generator=tu.total_cost):
@@ -146,7 +172,9 @@ def geometricMean(array):
     return geomean
 
 
-def generate_mean_data(test_case, test_model_list, function_list=[tu.num_buses,tu.num_constraints,tu.model_density,tu.acpf_slack,tu.solve_time]):
+def generate_summary_data(test_case, test_model_list, shorten=False):
+
+    short_summary(shorten)
 
     case_location = tau.get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
@@ -158,7 +186,9 @@ def generate_mean_data(test_case, test_model_list, function_list=[tu.num_buses,t
 
     df_data = pd.DataFrame(data=None, index=test_model_list)
 
-    for func in function_list:
+    for func_name, func_dict in summary_functions.items():
+        func = func_dict['function']
+        summarizers = func_dict['summarizers']
         ## put data into blank DataFrame
         df_func = pd.DataFrame(data=None)
 
@@ -167,32 +197,37 @@ def generate_mean_data(test_case, test_model_list, function_list=[tu.num_buses,t
             df_raw = read_sensitivity_data(case_location, test_model, data_generator=func)
             df_func = pd.concat([df_func , df_raw], sort=True)
 
-        func_name = func.__name__
-
         ## also calculate geomean and maximum if function is solve_time()
-        if func_name=='solve_time':
+        if 'geomean' in summarizers:
             gm = geometricMean(df_func.to_numpy())
             gm_name = func_name + '_geomean'
             df_gm = pd.DataFrame(data=gm, index=df_func.index, columns=[gm_name])
             df_data[gm_name] = df_gm
 
+        if 'max' in summarizers:
             max = df_func.max(axis=1)
             max_name = func_name + '_max'
             df_max = pd.DataFrame(data=max.values, index=df_func.index, columns=['max_' + func_name])
             df_data[max_name] = df_max
 
-            func_name = func_name + '_avg'
+        if 'avg' in summarizers:
+            avg = df_func.mean(axis=1)
+            if 'num' not in func_name:
+                avg_name = func_name + '_avg'
+            else:
+                avg_name = func_name
+            df_avg = pd.DataFrame(data=avg.values, index=df_func.index, columns=[func_name])
+            df_data[avg_name] = df_avg
 
-
-        df_func = df_func.mean(axis=1)
-        df_func = pd.DataFrame(data=df_func.values, index=df_func.index, columns=[func_name])
-
-        #df_data = pd.concat([df_data, df_func])
-        df_data[func_name] = df_func
+        if 'sum' in summarizers:
+            sum = df_func.sum(axis=1)
+            sum_name = func_name + '_sum'
+            df_sum = pd.DataFrame(data=sum.values, index=df_func.index, columns=[func_name])
+            df_data[sum_name] = df_sum
 
     ## save DATA to csv
     destination = tau.get_summary_file_location('data')
-    filename = "mean_data_" + case_name + ".csv"
+    filename = "summary_data_" + case_name + ".csv"
     df_data.to_csv(os.path.join(destination, filename))
 
 
@@ -241,7 +276,7 @@ def generate_speedup_data(case_list=None, mean_data='solve_time_geomean', benchm
     cases = []
     for case in case_list:
         try:
-            input = "mean_data_" + case + ".csv"
+            input = "summary_data_" + case + ".csv"
             df_data = get_data(input)
             models = list(df_data.index.values)
             for m in models:
@@ -410,7 +445,7 @@ def generate_pareto_plot(test_case, test_model_dict, y_data='acpf_slack', x_data
     ## get data
     _, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
-    input = "mean_data_" + case_name + ".csv"
+    input = "summary_data_" + case_name + ".csv"
     df_data = get_data(input, test_model_dict=test_model_dict)
 
     models = list(df_data.index.values)
@@ -547,7 +582,7 @@ def generate_case_size_plot_seaborn(test_model_dict, case_list=None,
     cases = []
     for case in case_list:
         try:
-            input = "mean_data_" + case + ".csv"
+            input = "summary_data_" + case + ".csv"
             df_data = get_data(input, test_model_dict=test_model_dict)
             if 'con_per_bus' in var_names:
                 df_data['con_per_bus'] = df_data['num_constraints'] / df_data['num_buses']
@@ -611,7 +646,7 @@ def generate_case_size_plot(test_model_dict, case_list=None,
         var_names = ['model',x_data,y_data,s_data]
     for case in case_list:
         try:
-            input = "mean_data_" + case + ".csv"
+            input = "summary_data_" + case + ".csv"
             df_data = get_data(input, test_model_dict=test_model_dict)
             if 'con_per_bus' in var_names:
                 df_data['con_per_bus'] = df_data['num_constraints'] / df_data['num_buses']
@@ -740,8 +775,7 @@ def create_full_summary(test_case, test_model_list, show_plot=True):
     speed_colors = get_colors(map_name='inferno')
 
     ## Generate data files
-    #generate_mean_data(test_case,test_model_list) ## to just grab the default metrics
-    #generate_mean_data(test_case,test_model_list, function_list=mean_functions)
+    generate_summary_data(test_case,test_model_list, shorten=False)
 
     #---- Sensitivity plot
     sensitivity_dict = tau.get_sensitivity_dict(test_model_list)
@@ -750,7 +784,7 @@ def create_full_summary(test_case, test_model_list, show_plot=True):
 
     #---- Pareto plot
     pareto_dict = tau.get_pareto_dict(test_model_list)
-    generate_pareto_plot(test_case, pareto_dict, y_data='acpf_slack', x_data='solve_time_geomean', y_units='MW', x_units='s',
+    generate_pareto_plot(test_case, pareto_dict, y_data='acpf_slack_avg', x_data='solve_time_geomean', y_units='MW', x_units='s',
                          mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
                          annotate_plot=False, show_plot=show_plot)
 
