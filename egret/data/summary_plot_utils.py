@@ -765,6 +765,40 @@ def create_circlesize_legend(title=None, s_min=1, s_max=500, data_min=2, data_ma
     new_legend = plt.legend(dots, labels,title=title, bbox_to_anchor=(1.05,0.35), loc='upper left')
     plt.gca().add_artist(new_legend)
 
+def sensitivity_plot(test_case, test_model_list, colors, show_plot):
+    #---- Sensitivity plot
+    sensitivity_dict = tau.get_sensitivity_dict(test_model_list)
+    generate_sensitivity_data(test_case, test_model_list, data_generator=tu.acpf_slack)
+    generate_sensitivity_plot(test_case, sensitivity_dict, plot_data='acpf_slack', units='MW', colors=colors, show_plot=show_plot)
+
+def pareto_plot(test_case, test_model_list, colors, show_plot):
+    #---- Pareto plot
+    pareto_dict = tau.get_pareto_dict(test_model_list)
+    generate_pareto_plot(test_case, pareto_dict, y_data='acpf_slack_avg', x_data='solve_time_geomean', y_units='MW', x_units='s',
+                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
+                         annotate_plot=False, show_plot=show_plot)
+
+def solution_time_plot(test_model_list, colors, show_plot):
+    #---- Case size plot
+    case_size_dict = tau.get_case_size_dict(test_model_list)
+    generate_case_size_plot(case_size_dict, y_data='solve_time_geomean', y_units='s',
+                            x_data='num_buses', x_units=None, s_data='con_per_bus',colors=colors,
+                            xscale='log', yscale='linear',show_plot=show_plot)
+
+def lazy_speedup_plot(test_model_list, speed_colors, show_plot):
+    #---- Lazy model speedup plot
+    lazy_speedup_dict = tau.get_lazy_speedup_dict(test_model_list)
+    generate_speedup_data(mean_data='solve_time_geomean', benchmark='acopf')
+    generate_speedup_heatmap(test_model_dict=lazy_speedup_dict, mean_data='solve_time_geomean', benchmark='acopf',
+                             include_benchmark=False, colormap=speed_colors, cscale='log', show_plot=show_plot)
+
+def trunc_speedup_plot(test_model_list, speed_colors, show_plot):
+    # ---- Factor truncation speedup plot
+    trunc_speedup_dict = tau.get_trunc_speedup_dict(test_model_list)
+    generate_speedup_data(mean_data='solve_time_geomean', benchmark='dlopf_default')
+    generate_speedup_heatmap(test_model_dict=trunc_speedup_dict, mean_data='solve_time_geomean', benchmark='dlopf_default',
+                             cscale='linear', include_benchmark=True, colormap=speed_colors, show_plot=show_plot)
+
 
 def create_full_summary(test_case, test_model_list, show_plot=True):
     """
@@ -777,34 +811,16 @@ def create_full_summary(test_case, test_model_list, show_plot=True):
     ## Generate data files
     generate_summary_data(test_case,test_model_list, shorten=False)
 
-    #---- Sensitivity plot
-    sensitivity_dict = tau.get_sensitivity_dict(test_model_list)
-    generate_sensitivity_data(test_case, test_model_list, data_generator=tu.acpf_slack)
-    generate_sensitivity_plot(test_case, sensitivity_dict, plot_data='acpf_slack', units='MW', colors=colors, show_plot=show_plot)
+    ## Generate plots
+    sensitivity_plot(test_case, test_model_list, colors, show_plot)
 
-    #---- Pareto plot
-    pareto_dict = tau.get_pareto_dict(test_model_list)
-    generate_pareto_plot(test_case, pareto_dict, y_data='acpf_slack_avg', x_data='solve_time_geomean', y_units='MW', x_units='s',
-                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
-                         annotate_plot=False, show_plot=show_plot)
+    pareto_plot(test_case, test_model_list, colors, show_plot)
 
-    #---- Case size plot
-    case_size_dict = tau.get_case_size_dict(test_model_list)
-    generate_case_size_plot(case_size_dict, y_data='solve_time_geomean', y_units='s',
-                            x_data='num_buses', x_units=None, s_data='con_per_bus',colors=colors,
-                            xscale='log', yscale='linear',show_plot=show_plot)
+    solution_time_plot(test_model_list, colors, show_plot)
 
-    #---- Lazy model speedup plot
-    lazy_speedup_dict = tau.get_lazy_speedup_dict(test_model_list)
-    generate_speedup_data(mean_data='solve_time_geomean', benchmark='acopf')
-    generate_speedup_heatmap(test_model_dict=lazy_speedup_dict, mean_data='solve_time_geomean', benchmark='acopf',
-                             include_benchmark=False, colormap=speed_colors, cscale='log', show_plot=show_plot)
+    lazy_speedup_plot(test_model_list, speed_colors, show_plot)
 
-    # ---- Factor truncation speedup plot
-    trunc_speedup_dict = tau.get_trunc_speedup_dict(test_model_list)
-    generate_speedup_data(mean_data='solve_time_geomean', benchmark='dlopf_default')
-    generate_speedup_heatmap(test_model_dict=trunc_speedup_dict, mean_data='solve_time_geomean', benchmark='dlopf_default',
-                             cscale='linear', include_benchmark=True, colormap=speed_colors, show_plot=show_plot)
+    trunc_speedup_plot(test_model_list, speed_colors, show_plot)
 
 
 
@@ -813,7 +829,7 @@ if __name__ == '__main__':
     try:
         test_case = tau.idx_to_test_case(sys.argv[1])
     except:
-        test_case = tau.idx_to_test_case(16)
+        test_case = tau.idx_to_test_case(0)
 
     test_model_list = [
          'acopf',
