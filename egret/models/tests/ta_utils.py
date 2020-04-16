@@ -136,3 +136,7 @@ def get_trunc_speedup_dict(test_model_list):
             tm_dict[key] = False
 
     return tm_dict
+
+def get_violation_dict(test_model_list):
+    tm_dict = get_sensitivity_dict(test_model_list)
+    return tm_dict

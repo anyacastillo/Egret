@@ -17,6 +17,7 @@ import egret.models.tests.ta_utils as tau
 import egret.model_library.decl as decl
 import pyomo.environ as pe
 import pandas as pd
+import numpy as np
 from egret.models.acopf import create_psv_acopf_model
 from egret.models.acpf import create_psv_acpf_model, solve_acpf
 from egret.common.solver_interface import _solve_model
@@ -293,35 +294,23 @@ def solve_infeas_model(model_data):
 
     return slack_p, vm_UB_viol_dict, vm_LB_viol_dict, thermal_viol_dict, termination
 
-def get_infeas_from_model_data(md, infeas_name='acpf_slack', overwrite_existing=False, abs_tol_vm=1e-6, rel_tol_therm=0.01):
+def get_infeas_from_model_data(md, infeas_name='acpf_slack', overwrite_existing=False):
 
     system_data = md.data['system']
 
-    # return data if it is already in the ModelData and an ovewrite is not desired
-    if infeas_name in system_data.keys() and not overwrite_existing:
-        return system_data[infeas_name]
+    # repopulate data if not in the ModelData or an ovewrite is desired
+    if infeas_name not in system_data.keys() or overwrite_existing:
+        repopulate_acpf_to_modeldata(md)
 
-    ## printing some status updates
-    if 'filename' in system_data:
-        name = system_data['filename']
-    elif 'mult' in system_data:
-        name = 'mult={}'.format(system_data['mult'])
-    else:
-        name = 'file'
+    return system_data[infeas_name]
 
-    message = '...'
-    if not infeas_name in system_data.keys():
-        message += 'Did not find ' + infeas_name + ' in '+ name+ '. '
-    else:
-        show_me = pd.DataFrame(system_data,index=[name])
-        #print('...existing system data: {}'.format(show_me.T))
+def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
 
-    # otherwise, solve the sum_infeas model and save solution to md
     acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, termination = solve_infeas_model(md)
-    message += 'Infeasibility model returned ' + termination + '.'
-    print(message)
-    #m_ac.pprint()
 
+    system_data = md.data['system']
+    buses = dict(md.elements(element_type='bus'))
+    branches = dict(md.elements(element_type='branch'))
     bus_attrs = md.attributes(element_type='bus')
     branch_attrs = md.attributes(element_type='branch')
     num_bus = len(bus_attrs['names'])
@@ -337,8 +326,20 @@ def get_infeas_from_model_data(md, infeas_name='acpf_slack', overwrite_existing=
     vm_UB_list = list(vm_UB_viol.values())
     vm_LB_list = list(vm_LB_viol.values())
     vm_list = vm_UB_list + vm_LB_list
-#    thermal_list = list(thermal_viol.values())
 
+    ## save violations in ModelData
+    system_data['acpf_termination'] = termination
+    for k,viol in thermal_viol.items():
+        branch = branches[k]
+        branch['acpf_viol'] = viol
+    for b,viol in vm_UB_viol.items():
+        bus = buses[b]
+        bus['acpf_viol'] = viol
+    for b,viol in vm_LB_viol.items():
+        bus = buses[b]
+        bus['acpf_viol'] = -viol
+
+    ## save scalar data in ModelData TODO: add detail (bus/branch violations to md.elements)
     system_data['acpf_slack'] = acpf_p_slack
 
     system_data['sum_vm_UB_viol'] = sum(vm_UB_list)
@@ -380,9 +381,6 @@ def get_infeas_from_model_data(md, infeas_name='acpf_slack', overwrite_existing=
     system_data['pct_thermal_viol'] = len([t for i,t in enumerate(thermal_list)
                                            if t > rel_tol_therm * thermal_max[i]]) / num_branch
 
-    show_me = pd.DataFrame(system_data,index=[name])
-    #print('...overwriting system data: {}'.format(show_me.T))
-
     if 'filename' in system_data.keys():
         data_utils_deprecated.destroy_dicts_of_fdf(md)
         filename = system_data['filename']
@@ -393,11 +391,6 @@ def get_infeas_from_model_data(md, infeas_name='acpf_slack', overwrite_existing=
         print(system_data.keys())
         print('Failed to write modelData to json.')
 
-    if infeas_name in system_data.keys():
-        return system_data[infeas_name]
-    else:
-        print(system_data.keys())
-        raise NameError('Quantity '+ infeas_name +' not found in sum_infeas model data.')
 
 def save_to_solution_directory(filename, model_name):
 
@@ -637,3 +630,58 @@ def acpf_slack(md):
 
     return acpf_slack
 
+def thermal_viol(md):
+
+    system_data = md.data['system']
+    branches = dict(md.elements(element_type='branch'))
+
+    if not optimal(md):
+        return None
+
+    if 'acpf_termination' in system_data.keys():
+        if not system_data['acpf_termination'] == 'optimal':
+            nan_dict = {b: np.nan for b in branches.keys()}
+            return nan_dict
+        else:
+            pass
+    else:
+        print('Repopulating ACPF violations for {}.'.format(system_data['filename']))
+        repopulate_acpf_to_modeldata(md)
+
+    viol = {}
+
+    for b,branch in branches.items():
+        if 'acpf_viol' in branch.keys():
+            viol[b] = branch['acpf_viol']
+        else:
+            viol[b] = 0
+
+    return viol
+
+def vm_viol(md):
+
+    system_data = md.data['system']
+    buses = dict(md.elements(element_type='bus'))
+
+    if not optimal(md):
+        return None
+
+    if 'acpf_termination' in system_data.keys():
+        if not system_data['acpf_termination'] == 'optimal':
+            nan_dict = {b: np.nan for b in buses.keys()}
+            return nan_dict
+        else:
+            pass
+    else:
+        print('Repopulating ACPF violations for {}.'.format(system_data['filename']))
+        repopulate_acpf_to_modeldata(md)
+
+    viol = {}
+
+    for b,bus in buses.items():
+        if 'acpf_viol' in bus.keys():
+            viol[b] = bus['acpf_viol']
+        else:
+            viol[b] = 0
+
+    return viol

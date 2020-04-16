@@ -101,15 +101,14 @@ def get_colors(map_name=None, trim=0.9):
         trim_colors = ListedColormap(colors(np.linspace(0,trim,256)))
         return trim_colors
 
+    colors.set_bad('grey')
+
     return colors
 
-def short_summary(short=True):
+def short_summary():
 
     function_list = ['num_buses', 'num_constraints', 'acpf_slack', 'solve_time']
     keys = summary_functions.keys()
-
-    if not short:
-        return
 
     to_delete = []
     for k in keys:
@@ -118,6 +117,24 @@ def short_summary(short=True):
     for k in to_delete:
             del summary_functions[k]
 
+def read_solution_data(case_folder, test_model, data_generator=tu.thermal_viol):
+    parent, case = os.path.split(case_folder)
+    ## assumed that detailed data is only needed for the nominal demand case
+    filename = case + "_" + test_model + "_1000.json"
+
+    try:
+        md_dict = json.load(open(os.path.join(case_folder, filename)))
+    except:
+        return pd.DataFrame(data=None, index=[test_model])
+
+    md = ModelData(md_dict)
+    data = data_generator(md)
+    cols = list(data.keys())
+    new_cols = [int(c) for c in cols]
+    df_data = pd.DataFrame(data, index=[test_model])
+    df_data.columns = new_cols
+
+    return df_data
 
 def read_sensitivity_data(case_folder, test_model, data_generator=tu.total_cost):
     parent, case = os.path.split(case_folder)
@@ -174,7 +191,8 @@ def geometricMean(array):
 
 def generate_summary_data(test_case, test_model_list, shorten=False):
 
-    short_summary(shorten)
+    if shorten:
+        short_summary()
 
     case_location = tau.get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
@@ -230,6 +248,92 @@ def generate_summary_data(test_case, test_model_list, shorten=False):
     filename = "summary_data_" + case_name + ".csv"
     df_data.to_csv(os.path.join(destination, filename))
 
+def generate_violation_data(test_case, test_model_list, data_generator=None):
+
+    case_location = tau.get_solution_file_location(test_case)
+    src_folder, case_name = os.path.split(test_case)
+    case_name, ext = os.path.splitext(case_name)
+
+    if data_generator is None:
+        data_generator = tu.thermal_viol
+    func_name = data_generator.__name__
+
+    df_data = pd.DataFrame(data=None)
+
+    for test_model in test_model_list:
+        # read data and place in df_func
+        try:
+            df_raw = read_solution_data(case_location, test_model, data_generator=data_generator)
+        except:
+            df_raw = pd.DataFrame(data=None, index=[test_model])
+
+        df_data = pd.concat([df_data, df_raw], sort=True)
+
+    df_data = df_data.transpose()
+    #df_data = df_data.sort_index(axis='columns')
+
+    ## save DATA to csv
+    destination = tau.get_summary_file_location('data')
+    filename = func_name + '_' + case_name + ".csv"
+    print('...out: {}'.format(filename))
+    df_data.to_csv(os.path.join(destination, filename))
+
+def generate_violation_heatmap(test_case, test_model_dict=None, viol_name=None, index_name=None, units=None,
+                               colormap=None, show_plot=False):
+
+    src_folder, case_name = os.path.split(test_case)
+    case_name, ext = os.path.splitext(case_name)
+
+    if viol_name is None or viol_name is 'thermal_viol':
+        viol_name = 'thermal_viol'
+        colormap = ListedColormap(colormap(np.linspace(0.5, 1, 256)))
+        colormap.set_bad('grey')
+    if index_name is None:
+        index_name = 'Branch'
+    if units is None:
+        units = 'MW'
+
+    filename = viol_name + "_" + case_name + ".csv"
+    df_data = get_data(filename, test_model_dict=test_model_dict)
+
+    data = df_data.values
+    vmin = data.min()
+    vmax = data.max()
+
+    kwargs={}
+    cbar_dict = {}
+    cbar_dict['label'] = viol_name + ' (' + units + ')'
+    if viol_name is 'vm_viol':
+        kwargs['vmin'] = min(vmin,-vmax)
+        kwargs['vmax'] = max(vmax,-vmin)
+    kwargs['linewidth'] = 0
+    kwargs['cmap'] = colormap
+    kwargs['cbar_kws'] = cbar_dict
+
+    # Create heatmap in Seaborn
+    ## Create plot
+    plt.figure(figsize=(4, 8.5))
+    ax = sns.heatmap(df_data, **kwargs)
+
+    plt.xticks(rotation=90)
+    plt.yticks(rotation=0)
+
+    ax.set_title(case_name + " " + viol_name)
+    ax.set_xlabel("Model")
+    ax.set_ylabel(index_name)
+
+    plt.tight_layout()
+
+    ## save FIGURE as png
+    filename = case_name + "_" + viol_name + ".png"
+    destination = tau.get_summary_file_location('figures')
+    plt.savefig(os.path.join(destination, filename))
+
+    if show_plot:
+        plt.show()
+    else:
+        plt.cla()
+        plt.clf()
 
 def generate_sum_data(test_case, test_model_list, function_list=sum_functions):
 
@@ -765,40 +869,67 @@ def create_circlesize_legend(title=None, s_min=1, s_max=500, data_min=2, data_ma
     new_legend = plt.legend(dots, labels,title=title, bbox_to_anchor=(1.05,0.35), loc='upper left')
     plt.gca().add_artist(new_legend)
 
-def sensitivity_plot(test_case, test_model_list, colors, show_plot):
-    #---- Sensitivity plot
+def sensitivity_plot(test_case, test_model_list, colors=None, show_plot=True):
+
+    if colors is None:
+        colors=get_colors('cubehelix')
+
     sensitivity_dict = tau.get_sensitivity_dict(test_model_list)
     generate_sensitivity_data(test_case, test_model_list, data_generator=tu.acpf_slack)
     generate_sensitivity_plot(test_case, sensitivity_dict, plot_data='acpf_slack', units='MW', colors=colors, show_plot=show_plot)
 
-def pareto_plot(test_case, test_model_list, colors, show_plot):
-    #---- Pareto plot
+def pareto_plot(test_case, test_model_list, colors=None, show_plot=True):
+
+    if colors is None:
+        colors=get_colors('cubehelix')
+
     pareto_dict = tau.get_pareto_dict(test_model_list)
     generate_pareto_plot(test_case, pareto_dict, y_data='acpf_slack_avg', x_data='solve_time_geomean', y_units='MW', x_units='s',
                          mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
                          annotate_plot=False, show_plot=show_plot)
 
-def solution_time_plot(test_model_list, colors, show_plot):
-    #---- Case size plot
+def solution_time_plot(test_model_list, colors=None, show_plot=True):
+
+    if colors is None:
+        colors=get_colors('cubehelix')
+
     case_size_dict = tau.get_case_size_dict(test_model_list)
     generate_case_size_plot(case_size_dict, y_data='solve_time_geomean', y_units='s',
                             x_data='num_buses', x_units=None, s_data='con_per_bus',colors=colors,
                             xscale='log', yscale='linear',show_plot=show_plot)
 
-def lazy_speedup_plot(test_model_list, speed_colors, show_plot):
-    #---- Lazy model speedup plot
+def lazy_speedup_plot(test_model_list, colors=None, show_plot=True):
+
+    if colors is None:
+        colors=get_colors('inferno')
+
     lazy_speedup_dict = tau.get_lazy_speedup_dict(test_model_list)
     generate_speedup_data(mean_data='solve_time_geomean', benchmark='acopf')
     generate_speedup_heatmap(test_model_dict=lazy_speedup_dict, mean_data='solve_time_geomean', benchmark='acopf',
-                             include_benchmark=False, colormap=speed_colors, cscale='log', show_plot=show_plot)
+                             include_benchmark=False, colormap=colors, cscale='log', show_plot=show_plot)
 
-def trunc_speedup_plot(test_model_list, speed_colors, show_plot):
-    # ---- Factor truncation speedup plot
+def trunc_speedup_plot(test_model_list, colors=None, show_plot=True):
+
+    if colors is None:
+        colors=get_colors('inferno')
+
     trunc_speedup_dict = tau.get_trunc_speedup_dict(test_model_list)
     generate_speedup_data(mean_data='solve_time_geomean', benchmark='dlopf_default')
     generate_speedup_heatmap(test_model_dict=trunc_speedup_dict, mean_data='solve_time_geomean', benchmark='dlopf_default',
-                             cscale='linear', include_benchmark=True, colormap=speed_colors, show_plot=show_plot)
+                             cscale='linear', include_benchmark=True, colormap=colors, show_plot=show_plot)
 
+def acpf_violations_plot(test_case, test_model_list, colors=None, show_plot=True):
+
+    if colors is None:
+        colors=get_colors('coolwarm')
+
+    violation_dict = tau.get_violation_dict(test_model_list)
+    generate_violation_data(test_case, test_model_list,data_generator=tu.thermal_viol)
+    generate_violation_data(test_case, test_model_list,data_generator=tu.vm_viol)
+    generate_violation_heatmap(test_case, test_model_dict=violation_dict,viol_name='thermal_viol',
+                               index_name='Branch',colormap=colors,show_plot=show_plot)
+    generate_violation_heatmap(test_case, test_model_dict=violation_dict,viol_name='vm_viol',
+                               index_name='Bus',colormap=colors,show_plot=show_plot)
 
 def create_full_summary(test_case, test_model_list, show_plot=True):
     """
@@ -807,21 +938,24 @@ def create_full_summary(test_case, test_model_list, show_plot=True):
 
     colors = get_colors(map_name='cubehelix', trim=0.8)
     speed_colors = get_colors(map_name='inferno')
+    viol_colors = get_colors(map_name='coolwarm')
 
     ## Generate data files
     generate_summary_data(test_case,test_model_list, shorten=False)
 
     ## Generate plots
-    sensitivity_plot(test_case, test_model_list, colors, show_plot)
 
-    pareto_plot(test_case, test_model_list, colors, show_plot)
+    acpf_violations_plot(test_case, test_model_list, colors=viol_colors, show_plot=show_plot)
 
-    solution_time_plot(test_model_list, colors, show_plot)
+    sensitivity_plot(test_case, test_model_list, colors=colors, show_plot=show_plot)
 
-    lazy_speedup_plot(test_model_list, speed_colors, show_plot)
+    pareto_plot(test_case, test_model_list, colors=colors, show_plot=show_plot)
 
-    trunc_speedup_plot(test_model_list, speed_colors, show_plot)
+    solution_time_plot(test_model_list, colors=colors, show_plot=show_plot)
 
+    lazy_speedup_plot(test_model_list, colors=speed_colors, show_plot=show_plot)
+
+    trunc_speedup_plot(test_model_list, colors=speed_colors, show_plot=show_plot)
 
 
 if __name__ == '__main__':
@@ -862,5 +996,5 @@ if __name__ == '__main__':
          'dcopf_btheta'
          ]
 
-    #generate_sum_data(test_case,test_model_list)
+    #acpf_violations_plot(test_case,test_model_list)
     create_full_summary(test_case,test_model_list)
