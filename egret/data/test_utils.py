@@ -386,7 +386,7 @@ def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
         filename = system_data['filename']
         model_name = system_data['model_name']
         md.write_to_json(filename)
-        save_to_solution_directory(filename,model_name)
+        save_to_solution_directory(filename, model_name)
     else:
         print(system_data.keys())
         print('Failed to write modelData to json.')
@@ -618,6 +618,16 @@ def thermal_viol_pct(md):
 
     return pct_thermal_viol
 
+def thermal_and_vm_viol_pct(md):
+
+    p1 = thermal_viol_pct(md)
+    p2 = vm_viol_pct(md)
+
+    if p1 is None or p2 is not None:
+        return None
+    val = p1+p2
+
+    return val
 
 def acpf_slack(md):
     '''

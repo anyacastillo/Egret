@@ -589,7 +589,7 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
          ]
 
     ## Model solves
-    solve_approximation_models(test_case, test_model_list, init_min=0.9, init_max=1.1, steps=20)
+    #solve_approximation_models(test_case, test_model_list, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate summary data
     spu.create_full_summary(test_case, test_model_list, show_plot=show_plot)

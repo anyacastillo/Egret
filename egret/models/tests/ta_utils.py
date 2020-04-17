@@ -105,7 +105,14 @@ def get_sensitivity_dict(test_model_list):
     return tm_dict
 
 def get_pareto_dict(test_model_list):
-    tm_dict = get_sensitivity_dict(test_model_list)
+
+    tm_dict = {}
+    for key in test_model_list:
+        if 'acopf' in key or '_lazy' in key:
+            tm_dict[key] = False
+        else:
+            tm_dict[key] = True
+
     return tm_dict
 
 def get_case_size_dict(test_model_list):

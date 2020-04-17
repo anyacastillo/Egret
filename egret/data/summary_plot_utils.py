@@ -23,6 +23,7 @@ from matplotlib.colors import ListedColormap
 import seaborn as sns
 from cycler import cycler
 import math
+import numpy.ma as ma
 import unittest
 import logging
 import egret.data.test_utils as tu
@@ -37,6 +38,7 @@ from parameterized import parameterized
 from egret.parsers.matpower_parser import create_ModelData
 from os import listdir
 from os.path import isfile, join
+from scipy.stats.mstats import gmean,tmean
 
 # Functions to be summarized by averaging
 mean_functions = [tu.num_buses,
@@ -46,6 +48,8 @@ mean_functions = [tu.num_buses,
                   tu.model_density,
                   tu.solve_time,
                   tu.acpf_slack,
+                  tu.vm_viol_sum,
+                  tu.thermal_viol_sum,
                   tu.vm_UB_viol_avg,
                   tu.vm_LB_viol_avg,
                   tu.vm_viol_avg,
@@ -58,6 +62,7 @@ mean_functions = [tu.num_buses,
                   tu.vm_LB_viol_pct,
                   tu.vm_viol_pct,
                   tu.thermal_viol_pct,
+                  tu.thermal_and_vm_viol_pct,
                   ]
 
 #Functions to be summarized by summation
@@ -74,7 +79,19 @@ summary_functions = {}
 sf = summary_functions
 for func in mean_functions:
     key = func.__name__
-    sf[key] = {'function' : func, 'summarizers' : ['avg']}
+    sf[key] = {'function' : func}
+    if 'solve_time' in key:
+        sf[key]['summarizers'] = ['avg','geomean','max']
+    elif 'pct' in key:
+        sf[key]['summarizers'] = ['avg','max']
+    elif 'avg' in key:
+        sf[key]['summarizers'] = ['avg','max']
+    elif 'max' in key:
+        sf[key]['summarizers'] = ['avg','max']
+    elif 'sum' in key:
+        sf[key]['summarizers'] = ['avg','sum']
+    else:
+        sf[key]['summarizers'] = ['avg']
 for func in sum_functions:
     key = func.__name__
     sf[key] = {'function' : func, 'summarizers' : ['sum']}
@@ -230,10 +247,10 @@ def generate_summary_data(test_case, test_model_list, shorten=False):
 
         if 'avg' in summarizers:
             avg = df_func.mean(axis=1)
-            if 'num' not in func_name:
-                avg_name = func_name + '_avg'
-            else:
+            if 'num' in func_name:
                 avg_name = func_name
+            else:
+                avg_name = func_name + '_avg'
             df_avg = pd.DataFrame(data=avg.values, index=df_func.index, columns=[func_name])
             df_data[avg_name] = df_avg
 
@@ -242,6 +259,11 @@ def generate_summary_data(test_case, test_model_list, shorten=False):
             sum_name = func_name + '_sum'
             df_sum = pd.DataFrame(data=sum.values, index=df_func.index, columns=[func_name])
             df_data[sum_name] = df_sum
+
+        if func_name == 'solve_time':
+            acopf_geomean = df_data.at['acopf','solve_time_geomean']
+            df_data['solve_time_normalized'] = df_data['solve_time_geomean'].div(acopf_geomean)
+            df_data['speedup'] = acopf_geomean / df_data['solve_time_geomean']
 
     ## save DATA to csv
     destination = tau.get_summary_file_location('data')
@@ -519,6 +541,142 @@ def generate_sensitivity_data(test_case, test_model_list, data_generator=tu.acpf
     filename = "sensitivity_data_" + case_name + "_" + y_axis_data + ".csv"
     df_data.to_csv(os.path.join(destination, filename))
 
+def generate_pareto_all_data(test_model_list, data_column='solve_time_normalized', mean_type='geomean'):
+
+    ## Pull all current summar_data_*.csv files
+    data_location = tau.get_summary_file_location('data')
+    filename = "summary_data_*.csv"
+    file_list = glob.glob(os.path.join(data_location, filename))
+
+    df_x = pd.DataFrame(data=None)
+    for file in file_list:
+        src_folder, case_name = os.path.split(file)
+        case_name, ext = os.path.splitext(case_name)
+        case_name = case_name.replace('summary_data_pglib_opf_','')
+
+        df_raw = get_data(file)
+        df_x[case_name] = df_raw[data_column]
+
+    ## Add last colunm
+    #   - try to use 'geomean' for normalized data (e.g. solve time) and 'avg' for arithmetic data
+    index_list = list(df_x.index)
+    #masked_data = ma.masked_array(df_x.values, mask=df_x.isnull())
+
+    # remove test case if any model was AC-infeasible
+    nullcol = df_x.columns[df_x.isnull().any()].to_list()
+    clean_data = df_x.drop(nullcol, axis=1)
+    if mean_type is 'geomean':
+        mean_data = gmean(clean_data, axis=1)
+    if mean_type is 'avg':
+        mean_data = tmean(clean_data, axis=1)
+    df_x[data_column] = mean_data
+
+    ## save DATA as csv
+    destination = tau.get_summary_file_location('data')
+    filename = "pareto_all_data_" + data_column + ".csv"
+    df_x.to_csv(os.path.join(destination, filename))
+
+def pareto_marker_style(model_list, colors=cmap.viridis):
+    # Creates a dict of dicts of marker styles for each model
+    n = len(model_list)
+    color_list = [colors(i) for i in np.linspace(0, 1, n)]
+    color_dict = dict(zip(model_list,color_list))
+
+    marker_style = {}
+    ms = marker_style
+    for m in model_list:
+        ms[m] = dict(linestyle='', markersize=8)
+        fmt = ms[m]
+        fmt['label'] = m
+        fmt['color'] = color_dict[m]
+        if 'acopf' in m:
+            fmt['marker'] = '*'
+
+        elif 'default' in m:
+            fmt['marker'] = 's'
+            fmt['markeredgewidth'] = 2
+            fmt['fillstyle'] = 'none'
+
+        elif '_e5' in m:
+            fmt['marker'] = 'x'
+            fmt['markeredgewidth'] = 2
+            fmt['fillstyle'] = 'none'
+
+        elif '_e4' in m:
+            fmt['marker'] = 'o'
+            fmt['markeredgewidth'] = 2
+            fmt['fillstyle'] = 'none'
+
+        elif '_e3' in m:
+            fmt['marker'] = '+'
+            fmt['markeredgewidth'] = 2
+            fmt['fillstyle'] = 'none'
+
+        elif 'dcopf_btheta' in m:
+            fmt['marker'] = '$B$'
+
+        elif 'qcopf_btheta' in m:
+            fmt['marker'] = '$Q$'
+
+        elif 'slopf' in m:
+            fmt['marker'] = '$S$'
+
+    return marker_style
+
+def generate_pareto_all_plot(test_model_dict,
+                             y_data = 'thermal_viol_sum_avg', x_data = 'solve_time_normalized',
+                             y_units = 'MW', x_units = 's', colors = cmap.viridis,
+                             annotate_plot=False, show_plot = False):
+    ## get data
+    data_location = tau.get_summary_file_location('data')
+    file_x = os.path.join(data_location, "pareto_all_data_" + x_data + ".csv")
+    file_y = os.path.join(data_location, "pareto_all_data_" + y_data + ".csv")
+
+    df_raw = get_data(file_x, test_model_dict=test_model_dict)
+    df_x_data = pd.DataFrame(df_raw[x_data])
+    df_raw = get_data(file_y, test_model_dict=test_model_dict)
+    df_y_data = pd.DataFrame(df_raw[y_data])
+
+    models = list(df_raw.index.values)
+
+    ## Create plot
+    fig, ax = plt.subplots()
+
+    #---- set property cycles
+    marker_style = pareto_marker_style(models, colors=colors)
+
+    for m in models:
+        ms = marker_style[m]
+        x = df_x_data.loc[m]
+        y = df_y_data.loc[m]
+        ax.plot(x, y, **ms)
+
+        if annotate_plot:
+            ax.annotate(m, (x,y))
+
+    ax.set_title(y_data + " vs. " + x_data + "\n(all test cases)")
+    ax.set_ylabel(y_data + " (" + y_units + ")")
+    ax.set_xlabel(x_data + " (" + x_units + ")")
+    ax.set_ylim(ymin=0)
+
+    if y_units is '%':
+        ax.yaxis.set_major_formatter(mpl.ticker.PercentFormatter(xmax=1,decimals=1))
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+    ## save FIGURE to png
+    figure_dest = tau.get_summary_file_location('figures')
+    filename = "paretoplot_all_" + y_data + "_v_" + x_data + ".png"
+    plt.savefig(os.path.join(figure_dest, filename))
+
+    if show_plot:
+        plt.show()
+    else:
+        plt.cla()
+        plt.clf()
+        plt.close(fig)
 
 
 def get_data(filename, test_model_dict=None):
@@ -543,8 +701,7 @@ def get_data(filename, test_model_dict=None):
     return df_data
 
 def generate_pareto_plot(test_case, test_model_dict, y_data='acpf_slack', x_data='solve_time', y_units='p.u', x_units='s',
-                         mark_default='o', mark_lazy='D', mark_acopf='*', mark_size=36, colors=cmap.viridis,
-                         annotate_plot=False, show_plot=False):
+                         mark_acopf='*', colors=cmap.viridis, annotate_plot=False, show_plot=False):
 
     ## get data
     _, case_name = os.path.split(test_case)
@@ -560,34 +717,12 @@ def generate_pareto_plot(test_case, test_model_dict, y_data='acpf_slack', x_data
     fig, ax = plt.subplots()
 
     #---- set property cycles
-    markers = ['+','o','x','s']
-    n = len(df_data)
-    m = len(markers)
-    new_marks = [markers[i%m] for i in range(n)]
-    o_marks = [i for i in range(0,len(new_marks)) if new_marks[i] is 'o']
-    edgecolor = [colors(i) for i in np.linspace(0, 1, n)]
-    facecolor = edgecolor.copy()
-    for idx in o_marks:
-        facecolor[idx] = 'none'
-    #if colors is not None:
-    #    ax.set_prop_cycle(color=facecolor,
-    #                      edgecolor=edgecolor,
-    #                      marker=new_marks)
-
+    marker_style = pareto_marker_style(models,colors=colors)
     for m in models:
-        idx = models.index(m)
-        edge = edgecolor[idx]
-        face = facecolor[idx]
-        marker_style = dict(linestyle='', markersize=8, color=edge)
+        ms = marker_style[m]
         x = df_x_data[m]
         y = df_y_data[m]
-        if m == 'acopf':
-            #ax.scatter(x, y, s=mark_size, label=m, marker=mark_acopf)
-            ax.plot(x,y, label=m, marker=mark_acopf, **marker_style)
-        else:
-            mark = new_marks[idx]
-            #ax.scatter(x, y, s=mark_size, label=m, marker=mark, edgecolors=edge, facecolors=face)
-            ax.plot(x,y, label=m, marker=mark, markeredgewidth=2, fillstyle='none', **marker_style)
+        ax.plot(x, y, **ms)
 
         if annotate_plot:
             ax.annotate(m, (x,y))
@@ -609,6 +744,8 @@ def generate_pareto_plot(test_case, test_model_dict, y_data='acpf_slack', x_data
         plt.show()
     else:
         plt.cla()
+        plt.clf()
+        plt.close(fig)
 
 
 
@@ -665,6 +802,8 @@ def generate_sensitivity_plot(test_case, test_model_dict, plot_data='acpf_slack'
         plt.show()
     else:
         plt.cla()
+        plt.clf()
+        plt.close(fig)
 
 
 def generate_case_size_plot_seaborn(test_model_dict, case_list=None,
@@ -729,6 +868,7 @@ def generate_case_size_plot_seaborn(test_model_dict, case_list=None,
         plt.show()
     else:
         plt.cla()
+        plt.clf()
 
 
 def generate_case_size_plot(test_model_dict, case_list=None,
@@ -878,15 +1018,18 @@ def sensitivity_plot(test_case, test_model_list, colors=None, show_plot=True):
     generate_sensitivity_data(test_case, test_model_list, data_generator=tu.acpf_slack)
     generate_sensitivity_plot(test_case, sensitivity_dict, plot_data='acpf_slack', units='MW', colors=colors, show_plot=show_plot)
 
-def pareto_plot(test_case, test_model_list, colors=None, show_plot=True):
+def pareto_test_case_plot(test_case, test_model_list, colors=None, show_plot=True):
 
     if colors is None:
         colors=get_colors('cubehelix')
 
     pareto_dict = tau.get_pareto_dict(test_model_list)
-    generate_pareto_plot(test_case, pareto_dict, y_data='acpf_slack_avg', x_data='solve_time_geomean', y_units='MW', x_units='s',
-                         mark_default='o', mark_lazy='+', mark_acopf='*', mark_size=100, colors=colors,
-                         annotate_plot=False, show_plot=show_plot)
+#    generate_pareto_plot(test_case, pareto_dict, y_data='acpf_slack_avg', x_data='solve_time_geomean', y_units='MW', x_units='s',
+    generate_pareto_plot(test_case, pareto_dict, y_data='thermal_viol_sum_avg', x_data='solve_time_geomean', y_units='%', x_units='s',
+                         mark_acopf='*', colors=colors,annotate_plot=False, show_plot=show_plot)
+    generate_pareto_plot(test_case, pareto_dict, y_data='vm_viol_sum_avg', x_data='solve_time_geomean', y_units='%', x_units='s',
+                         mark_acopf='*', colors=colors,annotate_plot=False, show_plot=show_plot)
+
 
 def solution_time_plot(test_model_list, colors=None, show_plot=True):
 
@@ -931,32 +1074,58 @@ def acpf_violations_plot(test_case, test_model_list, colors=None, show_plot=True
     generate_violation_heatmap(test_case, test_model_dict=violation_dict,viol_name='vm_viol',
                                index_name='Bus',colormap=colors,show_plot=show_plot)
 
-def create_full_summary(test_case, test_model_list, show_plot=True):
+def create_pareto_all_summary(test_model_list, colors=None, show_plot=True):
+
+    if colors is None:
+        colors = get_colors(map_name='cubehelix', trim=0.8)
+
+    pareto_dict = tau.get_pareto_dict(test_model_list)
+    generate_pareto_all_data(test_model_list, data_column='solve_time_normalized', mean_type='geomean')
+    # sum of violations
+    generate_pareto_all_data(test_model_list, data_column='thermal_viol_sum_avg', mean_type='avg')
+    generate_pareto_all_data(test_model_list, data_column='vm_viol_sum_avg', mean_type='avg')
+    # percent violations
+    generate_pareto_all_data(test_model_list, data_column='thermal_viol_pct_avg', mean_type='avg')
+    generate_pareto_all_data(test_model_list, data_column='vm_viol_pct_avg', mean_type='avg')
+
+    generate_pareto_all_plot(pareto_dict,y_data='thermal_viol_sum_avg', x_data='solve_time_normalized',
+                             y_units='MW', x_units='s', colors=colors, show_plot=show_plot)
+    generate_pareto_all_plot(pareto_dict,y_data='vm_viol_sum_avg', x_data='solve_time_normalized',
+                             y_units='p.u.', x_units='s', colors=colors, show_plot=show_plot)
+    generate_pareto_all_plot(pareto_dict,y_data='thermal_viol_pct_avg', x_data='solve_time_normalized',
+                             y_units='%', x_units='s', colors=colors, show_plot=show_plot)
+    generate_pareto_all_plot(pareto_dict,y_data='vm_viol_pct_avg', x_data='solve_time_normalized',
+                             y_units='%', x_units='s', colors=colors, show_plot=show_plot)
+
+def create_detail_summary(test_case, test_model_list, show_plot=True):
     """
-    solves generates plots for test_case
+    generates plots for test_case
     """
 
     colors = get_colors(map_name='cubehelix', trim=0.8)
-    speed_colors = get_colors(map_name='inferno')
     viol_colors = get_colors(map_name='coolwarm')
 
     ## Generate data files
     generate_summary_data(test_case,test_model_list, shorten=False)
 
     ## Generate plots
-
     acpf_violations_plot(test_case, test_model_list, colors=viol_colors, show_plot=show_plot)
-
     sensitivity_plot(test_case, test_model_list, colors=colors, show_plot=show_plot)
+    pareto_test_case_plot(test_case, test_model_list, colors=colors, show_plot=show_plot)
 
-    pareto_plot(test_case, test_model_list, colors=colors, show_plot=show_plot)
+def create_solution_time_summary(test_model_list, show_plot=True):
+
+    colors = get_colors(map_name='cubehelix', trim=0.8)
+    speed_colors = get_colors(map_name='inferno')
 
     solution_time_plot(test_model_list, colors=colors, show_plot=show_plot)
-
     lazy_speedup_plot(test_model_list, colors=speed_colors, show_plot=show_plot)
-
     trunc_speedup_plot(test_model_list, colors=speed_colors, show_plot=show_plot)
 
+def create_full_summary(test_case, test_model_list, show_plot=True):
+    create_detail_summary(test_case, test_model_list, show_plot=show_plot)
+    create_solution_time_summary(test_model_list, show_plot=show_plot)
+    create_pareto_all_summary(test_model_list, show_plot=show_plot)
 
 if __name__ == '__main__':
     import sys
