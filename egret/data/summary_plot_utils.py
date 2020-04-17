@@ -354,8 +354,7 @@ def generate_violation_heatmap(test_case, test_model_dict=None, viol_name=None, 
     if show_plot:
         plt.show()
     else:
-        plt.cla()
-        plt.clf()
+        plt.close('all')
 
 def generate_sum_data(test_case, test_model_list, function_list=sum_functions):
 
@@ -481,8 +480,7 @@ def generate_speedup_heatmap(test_model_dict=None, mean_data='solve_time_geomean
     if show_plot:
         plt.show()
     else:
-        plt.cla()
-        plt.clf()
+        plt.close('all')
 
 
 def generate_sensitivity_data(test_case, test_model_list, data_generator=tu.acpf_slack,
@@ -625,7 +623,7 @@ def pareto_marker_style(model_list, colors=cmap.viridis):
 
 def generate_pareto_all_plot(test_model_dict,
                              y_data = 'thermal_viol_sum_avg', x_data = 'solve_time_normalized',
-                             y_units = 'MW', x_units = 's', colors = cmap.viridis,
+                             y_units = 'MW', x_units = None, colors = cmap.viridis,
                              annotate_plot=False, show_plot = False):
     ## get data
     data_location = tau.get_summary_file_location('data')
@@ -655,8 +653,14 @@ def generate_pareto_all_plot(test_model_dict,
             ax.annotate(m, (x,y))
 
     ax.set_title(y_data + " vs. " + x_data + "\n(all test cases)")
-    ax.set_ylabel(y_data + " (" + y_units + ")")
-    ax.set_xlabel(x_data + " (" + x_units + ")")
+    y_label = y_data
+    x_label = x_data
+    if y_units is not None:
+        y_label += " (" + y_units + ")"
+    if x_units is not None:
+        x_label += " (" + x_units + ")"
+    ax.set_ylabel(y_label)
+    ax.set_xlabel(x_label)
     ax.set_ylim(ymin=0)
 
     if y_units is '%':
@@ -674,9 +678,7 @@ def generate_pareto_all_plot(test_model_dict,
     if show_plot:
         plt.show()
     else:
-        plt.cla()
-        plt.clf()
-        plt.close(fig)
+        plt.close('all')
 
 
 def get_data(filename, test_model_dict=None):
@@ -743,9 +745,7 @@ def generate_pareto_plot(test_case, test_model_dict, y_data='acpf_slack', x_data
     if show_plot:
         plt.show()
     else:
-        plt.cla()
-        plt.clf()
-        plt.close(fig)
+        plt.close('all')
 
 
 
@@ -801,9 +801,7 @@ def generate_sensitivity_plot(test_case, test_model_dict, plot_data='acpf_slack'
     if show_plot is True:
         plt.show()
     else:
-        plt.cla()
-        plt.clf()
-        plt.close(fig)
+        plt.close('all')
 
 
 def generate_case_size_plot_seaborn(test_model_dict, case_list=None,
@@ -867,8 +865,7 @@ def generate_case_size_plot_seaborn(test_model_dict, case_list=None,
     if show_plot:
         plt.show()
     else:
-        plt.cla()
-        plt.clf()
+        plt.close('all')
 
 
 def generate_case_size_plot(test_model_dict, case_list=None,
@@ -986,9 +983,7 @@ def generate_case_size_plot(test_model_dict, case_list=None,
     if show_plot:
         plt.show()
     else:
-        plt.cla()
-        plt.clf()
-        plt.close(fig)
+        plt.close('all')
 
 
 def create_circlesize_legend(title=None, s_min=1, s_max=500, data_min=2, data_max=1000):
@@ -1089,13 +1084,13 @@ def create_pareto_all_summary(test_model_list, colors=None, show_plot=True):
     generate_pareto_all_data(test_model_list, data_column='vm_viol_pct_avg', mean_type='avg')
 
     generate_pareto_all_plot(pareto_dict,y_data='thermal_viol_sum_avg', x_data='solve_time_normalized',
-                             y_units='MW', x_units='s', colors=colors, show_plot=show_plot)
+                             y_units='MW', x_units=None, colors=colors, show_plot=show_plot)
     generate_pareto_all_plot(pareto_dict,y_data='vm_viol_sum_avg', x_data='solve_time_normalized',
-                             y_units='p.u.', x_units='s', colors=colors, show_plot=show_plot)
+                             y_units='p.u.', x_units=None, colors=colors, show_plot=show_plot)
     generate_pareto_all_plot(pareto_dict,y_data='thermal_viol_pct_avg', x_data='solve_time_normalized',
-                             y_units='%', x_units='s', colors=colors, show_plot=show_plot)
+                             y_units='%', x_units=None, colors=colors, show_plot=show_plot)
     generate_pareto_all_plot(pareto_dict,y_data='vm_viol_pct_avg', x_data='solve_time_normalized',
-                             y_units='%', x_units='s', colors=colors, show_plot=show_plot)
+                             y_units='%', x_units=None, colors=colors, show_plot=show_plot)
 
 def create_detail_summary(test_case, test_model_list, show_plot=True):
     """
