@@ -31,7 +31,7 @@ from egret.model_library.defn import CoordinateType, ApproximationType, Relaxati
 from egret.data.model_data import map_items, zip_items
 from egret.models.copperplate_dispatch import _include_system_feasibility_slack
 from egret.models.dcopf import _include_feasibility_slack
-from math import pi, radians
+from math import pi, radians, sqrt
 
 
 def create_btheta_losses_dcopf_model(model_data, relaxation_type=RelaxationType.SOC, include_angle_diff_limits=False, include_feasibility_slack=False):
@@ -260,12 +260,24 @@ def create_ptdf_losses_dcopf_model(model_data, include_feasibility_slack=False, 
     pfl_init = {k: 0 for k in branches.keys()}
 
     s_max = {k: branches[k]['rating_long_term'] for k in branches.keys()}
+    ac_qf = {k: branches[k]['qf'] for k in branches.keys()}
+    ac_qt = {k: branches[k]['qt'] for k in branches.keys()}
+    ac_pf = {k: branches[k]['pf'] for k in branches.keys()}
+    ac_pt = {k: branches[k]['pt'] for k in branches.keys()}
     s_lbub = dict()
+    pt_init = dict()
     for k in branches.keys():
+        pt_init[k] = (ac_pf[k] + ac_pt[k]) / 2
         if s_max[k] is None:
             s_lbub[k] = (None, None)
         else:
-            s_lbub[k] = (-s_max[k], s_max[k])
+            sf_init = ac_pf[k] ** 2 + ac_qf[k] ** 2
+            st_init = ac_pt[k] ** 2 + ac_qt[k] ** 2
+            if sf_init > st_init:
+                _s_max = sqrt(s_max[k]**2 - ac_qf[k]**2)
+            else:
+                _s_max = sqrt(s_max[k]**2 - ac_qt[k]**2)
+            s_lbub[k] = (-_s_max, _s_max)
     pf_bounds = s_lbub
 
     #ploss_init = {'system' : sum(branches[idx]['pf'] + branches[idx]['pt'] for idx in list(range(0, _len_branch))) }
