@@ -197,46 +197,46 @@ tmd['clopf_e2']['intial_solution'] = 'basepoint'
 tmd['clopf_e2']['solver'] = 'gurobi_persistent'
 tmd['clopf_e2']['kwargs'] = {**_kwargs, 'ptdf_options' : e2_options}
 
-tmd['clopf_p_default'] = {}
-tmd['clopf_p_default']['solve_func'] = solve_dcopf_losses
-tmd['clopf_p_default']['intial_solution'] = 'basepoint'
-tmd['clopf_p_default']['solver'] = 'gurobi_persistent'
-tmd['clopf_p_default']['kwargs'] = {**_kwargs,
+tmd['plopf_default'] = {}
+tmd['plopf_default']['solve_func'] = solve_dcopf_losses
+tmd['plopf_default']['intial_solution'] = 'basepoint'
+tmd['plopf_default']['solver'] = 'gurobi_persistent'
+tmd['plopf_default']['kwargs'] = {**_kwargs,
                                     'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
 
-tmd['clopf_p_lazy'] = {}
-tmd['clopf_p_lazy']['solve_func'] = solve_dcopf_losses
-tmd['clopf_p_lazy']['intial_solution'] = 'basepoint'
-tmd['clopf_p_lazy']['solver'] = 'gurobi_persistent'
-tmd['clopf_p_lazy']['kwargs'] = {**_kwargs, 'ptdf_options':{'lazy' : True},
+tmd['plopf_lazy'] = {}
+tmd['plopf_lazy']['solve_func'] = solve_dcopf_losses
+tmd['plopf_lazy']['intial_solution'] = 'basepoint'
+tmd['plopf_lazy']['solver'] = 'gurobi_persistent'
+tmd['plopf_lazy']['kwargs'] = {**_kwargs, 'ptdf_options':{'lazy' : True},
                                'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
 
-tmd['clopf_p_e5'] = {}
-tmd['clopf_p_e5']['solve_func'] = solve_dcopf_losses
-tmd['clopf_p_e5']['intial_solution'] = 'basepoint'
-tmd['clopf_p_e5']['solver'] = 'gurobi_persistent'
-tmd['clopf_p_e5']['kwargs'] = {**_kwargs, 'ptdf_options' : e5_options,
+tmd['plopf_e5'] = {}
+tmd['plopf_e5']['solve_func'] = solve_dcopf_losses
+tmd['plopf_e5']['intial_solution'] = 'basepoint'
+tmd['plopf_e5']['solver'] = 'gurobi_persistent'
+tmd['plopf_e5']['kwargs'] = {**_kwargs, 'ptdf_options' : e5_options,
                                'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
 
-tmd['clopf_p_e4'] = {}
-tmd['clopf_p_e4']['solve_func'] = solve_dcopf_losses
-tmd['clopf_p_e4']['intial_solution'] = 'basepoint'
-tmd['clopf_p_e4']['solver'] = 'gurobi_persistent'
-tmd['clopf_p_e4']['kwargs'] = {**_kwargs, 'ptdf_options' : e4_options,
+tmd['plopf_e4'] = {}
+tmd['plopf_e4']['solve_func'] = solve_dcopf_losses
+tmd['plopf_e4']['intial_solution'] = 'basepoint'
+tmd['plopf_e4']['solver'] = 'gurobi_persistent'
+tmd['plopf_e4']['kwargs'] = {**_kwargs, 'ptdf_options' : e4_options,
                                'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
 
-tmd['clopf_p_e3'] = {}
-tmd['clopf_p_e3']['solve_func'] = solve_dcopf_losses
-tmd['clopf_p_e3']['intial_solution'] = 'basepoint'
-tmd['clopf_p_e3']['solver'] = 'gurobi_persistent'
-tmd['clopf_p_e3']['kwargs'] = {**_kwargs, 'ptdf_options' : e3_options,
+tmd['plopf_e3'] = {}
+tmd['plopf_e3']['solve_func'] = solve_dcopf_losses
+tmd['plopf_e3']['intial_solution'] = 'basepoint'
+tmd['plopf_e3']['solver'] = 'gurobi_persistent'
+tmd['plopf_e3']['kwargs'] = {**_kwargs, 'ptdf_options' : e3_options,
                                'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
 
-tmd['clopf_p_e2'] = {}
-tmd['clopf_p_e2']['solve_func'] = solve_dcopf_losses
-tmd['clopf_p_e2']['intial_solution'] = 'basepoint'
-tmd['clopf_p_e2']['solver'] = 'gurobi_persistent'
-tmd['clopf_p_e2']['kwargs'] = {**_kwargs, 'ptdf_options' : e2_options,
+tmd['plopf_e2'] = {}
+tmd['plopf_e2']['solve_func'] = solve_dcopf_losses
+tmd['plopf_e2']['intial_solution'] = 'basepoint'
+tmd['plopf_e2']['solver'] = 'gurobi_persistent'
+tmd['plopf_e2']['kwargs'] = {**_kwargs, 'ptdf_options' : e2_options,
                                'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model }
 
 tmd['qcopf_btheta'] = {}
@@ -572,12 +572,12 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
          'clopf_e4',
          'clopf_e3',
          #'clopf_e2',
-         'clopf_p_default',
-         'clopf_p_lazy',
-         'clopf_p_e5',
-         'clopf_p_e4',
-         'clopf_p_e3',
-         #'clopf_p_e2',
+         'plopf_default',
+         'plopf_lazy',
+         'plopf_e5',
+         'plopf_e4',
+         'plopf_e3',
+         #'plopf_e2',
          'qcopf_btheta',
          'dcopf_ptdf_default',
          'dcopf_ptdf_lazy',
