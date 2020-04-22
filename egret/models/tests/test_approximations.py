@@ -429,9 +429,9 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
             message = str(e)
             print('...EXCEPTION OCCURRED: {}'.format(message))
             if 'infeasible' in message:
-                md_out.data['system']['termination'] = 'infeasible'
+                md_out.data['results']['termination'] = 'infeasible'
             else:
-                md_out.data['system']['termination'] = 'other'
+                md_out.data['results']['termination'] = 'other'
 
         record_results(tm, md_out)
 
