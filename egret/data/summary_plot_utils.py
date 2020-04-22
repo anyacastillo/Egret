@@ -488,6 +488,10 @@ def generate_violin_plot(data_filters=None, y_data='solve_time', order=None, cat
                         drop_rows.append(idx)
                 df_data = df_data.drop(drop_rows)
 
+    if df_data.empty:
+        print('WARNING: attempted generate_violin_plot without sufficient data.')
+        return
+
     if normalized:
         y_data = y_data + '_normalized'
 
@@ -1190,7 +1194,7 @@ def trunc_speedup_plot(test_model_list, colors=None, show_plot=True):
 
 def violin_plot(test_model_list, colors=None, show_plot=True):
 
-    from egret.models.tests.ta_utils import cases_0toC, cases_CtoM
+    from egret.models.tests.ta_utils import cases_0toC, cases_CtoM, cases_MtoX
     dense_settings = ['default','e5','e4','e3','lazy']
 
     if colors is None:
@@ -1198,7 +1202,7 @@ def violin_plot(test_model_list, colors=None, show_plot=True):
 
     violin_dict = tau.get_violin_dict(test_model_list)
     model_list = [key for key,val in violin_dict.items() if val]
-    #generate_serial_data(test_model_list, data_generator=tu.solve_time,benchmark='acopf')
+    generate_serial_data(test_model_list, data_generator=tu.solve_time,benchmark='acopf')
 
     filters = {}
     filters['model'] = model_list
@@ -1211,6 +1215,13 @@ def violin_plot(test_model_list, colors=None, show_plot=True):
     filters['case'] = cases_CtoM
     filters['file_tag'] = 'CtoM_medium'
     generate_violin_plot(data_filters=filters, category='model', yscale='linear', normalized=True, colormap=colors)
+
+    filters = {}
+    filters['model'] = model_list
+    filters['case'] = cases_MtoX
+    filters['file_tag'] = 'MtoX_large'
+    generate_violin_plot(data_filters=filters, category='model', yscale='linear', normalized=True, colormap=colors)
+
 
     filters = {}
     filters['base_model'] = ['dlopf']
