@@ -99,6 +99,8 @@ def get_sensitivity_dict(test_model_list):
     for key in test_model_list:
         if '_lazy' in key or '_e' in key:
             tm_dict[key] = False
+        elif 'qcopf' in key:
+            tm_dict[key] = False
         else:
             tm_dict[key] = True
 
@@ -109,6 +111,8 @@ def get_pareto_dict(test_model_list):
     tm_dict = {}
     for key in test_model_list:
         if 'acopf' in key or '_lazy' in key:
+            tm_dict[key] = False
+        elif 'qcopf' in key:
             tm_dict[key] = False
         else:
             tm_dict[key] = True
