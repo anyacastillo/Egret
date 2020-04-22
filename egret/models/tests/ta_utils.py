@@ -57,6 +57,11 @@ case_names = ['pglib_opf_case3_lmbd',
               'pglib_opf_case10000_tamu',
               'pglib_opf_case13659_pegase',
               ]
+idx_deca = case_names.index('pglib_opf_case118_ieee')
+idx_kilo = case_names.index('pglib_opf_case1354_pegase')
+cases_0toC = case_names[0:idx_deca]
+cases_CtoM = case_names[idx_deca:idx_kilo]
+cases_MtoX = case_names[idx_kilo:-1]
 
 test_cases = [os.path.join('../../../download/pglib-opf-master/', f + '.m') for f in case_names]
 
@@ -150,4 +155,13 @@ def get_trunc_speedup_dict(test_model_list):
 
 def get_violation_dict(test_model_list):
     tm_dict = get_sensitivity_dict(test_model_list)
+    return tm_dict
+
+def get_violin_dict(test_model_list):
+    tm_dict = get_case_size_dict(test_model_list)
+    for key,val in tm_dict.items():
+        if 'e_3' in key:
+            val = True
+        #elif 'default' in key:
+        #    val = False
     return tm_dict

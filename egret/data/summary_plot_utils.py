@@ -134,7 +134,28 @@ def short_summary():
     for k in to_delete:
             del summary_functions[k]
 
-def read_solution_data(case_folder, test_model, data_generator=tu.thermal_viol):
+def read_solution_data(case_folder, test_model, data_generator=tu.solve_time):
+    parent, case = os.path.split(case_folder)
+    filename = case + "_" + test_model + "_*.json"
+    file_list = glob.glob(os.path.join(case_folder, filename))
+
+    data = {}
+    data_type = data_generator.__name__
+    for file in file_list:
+        md_dict = json.load(open(os.path.join(case_folder, file)))
+        md = ModelData(md_dict)
+        idx = md.data['system']['filename']
+        data[idx] = {}
+        data[idx]['case'] = case
+        data[idx]['model'] = test_model
+        data[idx]['mult'] = md.data['system']['mult']
+        data[idx][data_type] = data_generator(md)
+
+    df_data = pd.DataFrame(data).transpose()
+
+    return df_data
+
+def read_nominal_data(case_folder, test_model, data_generator=tu.thermal_viol):
     parent, case = os.path.split(case_folder)
     ## assumed that detailed data is only needed for the nominal demand case
     filename = case + "_" + test_model + "_1000.json"
@@ -285,7 +306,7 @@ def generate_violation_data(test_case, test_model_list, data_generator=None):
     for test_model in test_model_list:
         # read data and place in df_func
         try:
-            df_raw = read_solution_data(case_location, test_model, data_generator=data_generator)
+            df_raw = read_nominal_data(case_location, test_model, data_generator=data_generator)
         except:
             df_raw = pd.DataFrame(data=None, index=[test_model])
 
@@ -390,6 +411,115 @@ def generate_sum_data(test_case, test_model_list, function_list=sum_functions):
     filename = "sum_data_" + case_name + ".csv"
     df_data.to_csv(os.path.join(destination, filename))
 
+def generate_serial_data(test_model_list, case_list=None, data_generator=tu.solve_time, benchmark=None):
+
+    data_name = data_generator.__name__
+
+    ## include acopf results
+    if benchmark is not None and benchmark not in test_model_list:
+        test_model_list.append(benchmark)
+
+    if case_list is None:
+        case_list = tau.case_names[:]
+
+    ## get data
+    df_data = pd.DataFrame(data=None)
+    for case in case_list:
+        case_folder = tau.get_solution_file_location(case)
+        src_folder, case_name = os.path.split(case)
+        case_name, ext = os.path.splitext(case_name)
+
+        case_is_empty = False
+        if benchmark is not None:
+            df_bench = read_solution_data(case_folder, benchmark, data_generator=data_generator)
+            if not df_bench.empty:
+                arr = list(df_bench[data_name].values)
+                denominator = gmean(arr)
+            else:
+                case_is_empty = True
+        else:
+            denominator = 1
+
+        if not case_is_empty:
+            print('Collecting ' + data_name + ' data for ' + case_name)
+            for test_model in test_model_list:
+                df_raw = read_solution_data(case_folder, test_model, data_generator=data_generator)
+                if not df_raw.empty:
+                    if benchmark is not None:
+                        df_raw[data_name + '_normalized'] = df_raw[data_name] / denominator
+                    df_data = pd.concat([df_data, df_raw])
+
+    # add categorical columns
+    model_list = list(df_data.model)
+    setting_list = []
+    base_model_list = []
+    dense_settings = ['default','lazy','e5','e4','e3','e2']
+    for m in model_list:
+        setting = [ds for ds in dense_settings if ds in m]
+        if len(setting) > 0:
+            setting_list.append(setting[0])
+            short_name = m.replace('_'+setting[0],'')
+            base_model_list.append(short_name)
+        else:
+            setting_list.append('sparse')
+            base_model_list.append(m)
+    df_data['setting'] = setting_list
+    df_data['base_model'] = base_model_list
+
+    ## save DATA to csv
+    destination = tau.get_summary_file_location('data')
+    filename = "serial_data_" + data_name + ".csv"
+    print('...Saved to ' + filename)
+    df_data.to_csv(os.path.join(destination, filename))
+
+def generate_violin_plot(data_filters=None, y_data='solve_time', order=None, category='model',
+                         normalized=True, colormap=None, yscale='linear', show_plot=True):
+
+    filename = "serial_data_" + y_data + ".csv"
+    source = tau.get_summary_file_location('data')
+    df_data = pd.read_csv(os.path.join(source,filename))
+
+    if data_filters is not None:
+        for col,keepers in data_filters.items():
+            if col in df_data.columns:
+                drop_rows = []
+                for idx,row in df_data.iterrows():
+                    if row[col] not in keepers:
+                        drop_rows.append(idx)
+                df_data = df_data.drop(drop_rows)
+
+    if normalized:
+        y_data = y_data + '_normalized'
+
+    model_list = list(df_data.model.unique())
+    case_list = list(df_data.case.unique())
+
+    settings = {}
+    settings['order'] = order
+    settings['inner'] = None
+    settings['scale'] = 'width'
+    settings['color'] = '0.8'
+    #settings['orient'] = 'h'
+    settings['bw'] = 0.2
+    ax = sns.violinplot(x=category, y=y_data, data=df_data, **settings)
+    ax = sns.stripplot(x=category, y=y_data, data=df_data, order=order, dodge=True, size=2.5)
+    ax.set_xlabel(category)
+    ax.set_ylabel(y_data)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+
+    plt.tight_layout()
+    plt.yscale(yscale)
+
+    ## save FIGURE as png
+    tag = data_filters['file_tag']
+    filename = "violin_" + y_data + "_" + tag + ".png"
+    destination = tau.get_summary_file_location('figures')
+    plt.savefig(os.path.join(destination, filename))
+
+    if show_plot:
+        plt.show()
+    else:
+        plt.close('all')
 
 def generate_speedup_data(case_list=None, mean_data='solve_time_geomean', benchmark='dlopf_lazy'):
 
@@ -1058,6 +1188,58 @@ def trunc_speedup_plot(test_model_list, colors=None, show_plot=True):
     generate_speedup_heatmap(test_model_dict=trunc_speedup_dict, mean_data='solve_time_geomean', benchmark='dlopf_default',
                              cscale='linear', include_benchmark=True, colormap=colors, show_plot=show_plot)
 
+def violin_plot(test_model_list, colors=None, show_plot=True):
+
+    from egret.models.tests.ta_utils import cases_0toC, cases_CtoM
+    dense_settings = ['default','e5','e4','e3','lazy']
+
+    if colors is None:
+        colors = get_colors('cubehelix', trim=0.8)
+
+    violin_dict = tau.get_violin_dict(test_model_list)
+    model_list = [key for key,val in violin_dict.items() if val]
+    #generate_serial_data(test_model_list, data_generator=tu.solve_time,benchmark='acopf')
+
+    filters = {}
+    filters['model'] = model_list
+    filters['case'] = cases_0toC
+    filters['file_tag'] = '0toC_small'
+    generate_violin_plot(data_filters=filters, category='model', yscale='linear', normalized=True, colormap=colors)
+
+    filters = {}
+    filters['model'] = model_list
+    filters['case'] = cases_CtoM
+    filters['file_tag'] = 'CtoM_medium'
+    generate_violin_plot(data_filters=filters, category='model', yscale='linear', normalized=True, colormap=colors)
+
+    filters = {}
+    filters['base_model'] = ['dlopf']
+    filters['setting'] = dense_settings
+    filters['file_tag'] = 'dlopf'
+    generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
+                         yscale='linear', normalized=True, colormap=colors)
+
+    filters = {}
+    filters['base_model'] = ['clopf']
+    filters['setting'] = dense_settings
+    filters['file_tag'] = 'clopf'
+    generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
+                         yscale='linear', normalized=True, colormap=colors)
+
+    filters = {}
+    filters['base_model'] = ['plopf']
+    filters['setting'] = dense_settings
+    filters['file_tag'] = 'plopf'
+    generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
+                         yscale='linear', normalized=True, colormap=colors)
+
+    filters = {}
+    filters['base_model'] = ['dcopf_ptdf']
+    filters['setting'] = dense_settings
+    filters['file_tag'] = 'dcopf_ptdf'
+    generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
+                         yscale='linear', normalized=True, colormap=colors)
+
 def acpf_violations_plot(test_case, test_model_list, colors=None, show_plot=True):
 
     if colors is None:
@@ -1118,6 +1300,9 @@ def create_solution_time_summary(test_model_list, show_plot=True):
     solution_time_plot(test_model_list, colors=colors, show_plot=show_plot)
     lazy_speedup_plot(test_model_list, colors=speed_colors, show_plot=show_plot)
     trunc_speedup_plot(test_model_list, colors=speed_colors, show_plot=show_plot)
+
+    violin_plot(test_model_list, colors=colors, show_plot=show_plot)
+
 
 def create_full_summary(test_case, test_model_list, show_plot=True):
     create_detail_summary(test_case, test_model_list, show_plot=show_plot)
