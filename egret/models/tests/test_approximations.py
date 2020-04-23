@@ -105,10 +105,10 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 #test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
 
 _kwargs = {'return_model' :True, 'return_results' : True, 'solver_tee' : False}
-e5_options = {'abs_ptdf_tol' : 1e-5, 'abs_qtdf_tol' : 5e-5, 'rel_vdf_tol' : 10e-5}
-e4_options = {'abs_ptdf_tol' : 1e-4, 'abs_qtdf_tol' : 5e-4, 'rel_vdf_tol' : 10e-4}
-e3_options = {'abs_ptdf_tol' : 1e-3, 'abs_qtdf_tol' : 5e-3, 'rel_vdf_tol' : 10e-3}
-e2_options = {'abs_ptdf_tol' : 1e-2, 'abs_qtdf_tol' : 5e-2, 'rel_vdf_tol' : 10e-2}
+e5_options = {'rel_ptdf_tol' : 1e-5, 'rel_qtdf_tol' : 1e-5, 'rel_pldf_tol' : 1e-5, 'rel_qldf_tol' : 1e-5, 'rel_vdf_tol' : 1e-5}
+e4_options = {'rel_ptdf_tol' : 1e-4, 'rel_qtdf_tol' : 1e-4, 'rel_pldf_tol' : 1e-4, 'rel_qldf_tol' : 1e-4, 'rel_vdf_tol' : 1e-4}
+e3_options = {'rel_ptdf_tol' : 1e-3, 'rel_qtdf_tol' : 1e-3, 'rel_pldf_tol' : 1e-3, 'rel_qldf_tol' : 1e-3, 'rel_vdf_tol' : 1e-3}
+e2_options = {'rel_ptdf_tol' : 1e-2, 'rel_qtdf_tol' : 1e-2, 'rel_pldf_tol' : 1e-2, 'rel_qldf_tol' : 1e-2, 'rel_vdf_tol' : 1e-2}
 
 test_model_dict = {}
 tmd = test_model_dict
@@ -537,7 +537,7 @@ def main(arg):
         submain(idx, show_plot=False, log_level=logging.INFO)
 
 
-def submain(idx=None, show_plot=True, log_level=logging.ERROR):
+def submain(idx=None, show_plot=False, log_level=logging.ERROR):
     """
     solves models and generates plots for test case at test_cases[idx] or a default case
     """
@@ -562,29 +562,29 @@ def submain(idx=None, show_plot=True, log_level=logging.ERROR):
          'slopf',
          'dlopf_default',
          'dlopf_lazy',
-         'dlopf_e5',
+         #'dlopf_e5',
          'dlopf_e4',
-         'dlopf_e3',
-         #'dlopf_e2',
+         #'dlopf_e3',
+         'dlopf_e2',
          'clopf_default',
          'clopf_lazy',
-         'clopf_e5',
+         #'clopf_e5',
          'clopf_e4',
-         'clopf_e3',
-         #'clopf_e2',
+         #'clopf_e3',
+         'clopf_e2',
          'plopf_default',
          'plopf_lazy',
-         'plopf_e5',
+         #'plopf_e5',
          'plopf_e4',
-         'plopf_e3',
-         #'plopf_e2',
-         'qcopf_btheta',
+         #'plopf_e3',
+         'plopf_e2',
+         #'qcopf_btheta',
          'dcopf_ptdf_default',
          'dcopf_ptdf_lazy',
-         'dcopf_ptdf_e5',
+         #'dcopf_ptdf_e5',
          'dcopf_ptdf_e4',
-         'dcopf_ptdf_e3',
-         #'dcopf_ptdf_e2',
+         #'dcopf_ptdf_e3',
+         'dcopf_ptdf_e2',
          'dcopf_btheta'
          ]
 

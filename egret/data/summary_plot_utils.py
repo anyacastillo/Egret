@@ -725,7 +725,7 @@ def pareto_marker_style(model_list, colors=cmap.viridis):
             fmt['marker'] = '*'
 
         elif 'default' in m:
-            fmt['marker'] = 's'
+            fmt['marker'] = 'o'
             fmt['markeredgewidth'] = 2
             fmt['fillstyle'] = 'none'
 
@@ -735,11 +735,16 @@ def pareto_marker_style(model_list, colors=cmap.viridis):
             fmt['fillstyle'] = 'none'
 
         elif '_e4' in m:
-            fmt['marker'] = 'o'
+            fmt['marker'] = 'x'
             fmt['markeredgewidth'] = 2
             fmt['fillstyle'] = 'none'
 
         elif '_e3' in m:
+            fmt['marker'] = '+'
+            fmt['markeredgewidth'] = 2
+            fmt['fillstyle'] = 'none'
+
+        elif '_e2' in m:
             fmt['marker'] = '+'
             fmt['markeredgewidth'] = 2
             fmt['fillstyle'] = 'none'
@@ -1195,7 +1200,7 @@ def trunc_speedup_plot(test_model_list, colors=None, show_plot=True):
 def violin_plot(test_model_list, colors=None, show_plot=True):
 
     from egret.models.tests.ta_utils import cases_0toC, cases_CtoM, cases_MtoX
-    dense_settings = ['default','e5','e4','e3','lazy']
+    dense_settings = ['default','e4','e2','lazy']
 
     if colors is None:
         colors = get_colors('cubehelix', trim=0.8)
@@ -1208,19 +1213,22 @@ def violin_plot(test_model_list, colors=None, show_plot=True):
     filters['model'] = model_list
     filters['case'] = cases_0toC
     filters['file_tag'] = '0toC_small'
-    generate_violin_plot(data_filters=filters, category='model', yscale='linear', normalized=True, colormap=colors)
+    generate_violin_plot(data_filters=filters, category='model', yscale='linear', normalized=True,
+                         colormap=colors, show_plot=show_plot)
 
     filters = {}
     filters['model'] = model_list
     filters['case'] = cases_CtoM
     filters['file_tag'] = 'CtoM_medium'
-    generate_violin_plot(data_filters=filters, category='model', yscale='linear', normalized=True, colormap=colors)
+    generate_violin_plot(data_filters=filters, category='model', yscale='linear', normalized=True,
+                         colormap=colors, show_plot=show_plot)
 
     filters = {}
     filters['model'] = model_list
     filters['case'] = cases_MtoX
     filters['file_tag'] = 'MtoX_large'
-    generate_violin_plot(data_filters=filters, category='model', yscale='linear', normalized=True, colormap=colors)
+    generate_violin_plot(data_filters=filters, category='model', yscale='linear', normalized=True,
+                         colormap=colors, show_plot=show_plot)
 
 
     filters = {}
@@ -1228,28 +1236,28 @@ def violin_plot(test_model_list, colors=None, show_plot=True):
     filters['setting'] = dense_settings
     filters['file_tag'] = 'dlopf'
     generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
-                         yscale='linear', normalized=True, colormap=colors)
+                         yscale='linear', normalized=True, colormap=colors, show_plot=show_plot)
 
     filters = {}
     filters['base_model'] = ['clopf']
     filters['setting'] = dense_settings
     filters['file_tag'] = 'clopf'
     generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
-                         yscale='linear', normalized=True, colormap=colors)
+                         yscale='linear', normalized=True, colormap=colors, show_plot=show_plot)
 
     filters = {}
     filters['base_model'] = ['plopf']
     filters['setting'] = dense_settings
     filters['file_tag'] = 'plopf'
     generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
-                         yscale='linear', normalized=True, colormap=colors)
+                         yscale='linear', normalized=True, colormap=colors, show_plot=show_plot)
 
     filters = {}
     filters['base_model'] = ['dcopf_ptdf']
     filters['setting'] = dense_settings
     filters['file_tag'] = 'dcopf_ptdf'
     generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
-                         yscale='linear', normalized=True, colormap=colors)
+                         yscale='linear', normalized=True, colormap=colors, show_plot=show_plot)
 
 def acpf_violations_plot(test_case, test_model_list, colors=None, show_plot=True):
 

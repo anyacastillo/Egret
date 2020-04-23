@@ -47,6 +47,14 @@ def populate_default_ptdf_options(ptdf_options):
         ptdf_options['rel_qloss_tol'] = 1.e-6
     if 'abs_qloss_tol' not in ptdf_options:
         ptdf_options['abs_qloss_tol'] = 1.e-10
+    if 'rel_pldf_tol' not in ptdf_options:
+        ptdf_options['rel_pldf_tol'] = 1.e-6
+    if 'abs_pldf_tol' not in ptdf_options:
+        ptdf_options['abs_pldf_tol'] = 1.e-10
+    if 'rel_qldf_tol' not in ptdf_options:
+        ptdf_options['rel_qldf_tol'] = 1.e-6
+    if 'abs_qldf_tol' not in ptdf_options:
+        ptdf_options['abs_qldf_tol'] = 1.e-10
     if 'abs_flow_tol' not in ptdf_options:
         ptdf_options['abs_flow_tol'] = 1.e-3
     if 'rel_flow_tol' not in ptdf_options:
@@ -85,8 +93,8 @@ def check_and_scale_ptdf_options(ptdf_options, baseMVA):
     # TODO: not sure we need to scale any except abs_vdf and abs_flow. The rest are dimensionless factors.
     ptdf_options['abs_ptdf_tol'] /= baseMVA
     ptdf_options['abs_qtdf_tol'] /= baseMVA
-    ptdf_options['abs_ploss_tol'] /= baseMVA
-    ptdf_options['abs_qloss_tol'] /= baseMVA
+    ptdf_options['abs_pldf_tol'] /= baseMVA
+    ptdf_options['abs_qldf_tol'] /= baseMVA
     ptdf_options['abs_vdf_tol'] /= baseMVA
     ptdf_options['abs_flow_tol'] /= baseMVA
     ptdf_options['abs_thermal_init_tol'] /= baseMVA

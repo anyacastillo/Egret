@@ -159,9 +159,4 @@ def get_violation_dict(test_model_list):
 
 def get_violin_dict(test_model_list):
     tm_dict = get_case_size_dict(test_model_list)
-    for key,val in tm_dict.items():
-        if 'e_3' in key:
-            val = True
-        #elif 'default' in key:
-        #    val = False
     return tm_dict

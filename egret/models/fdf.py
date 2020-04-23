@@ -371,16 +371,16 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                                index_set=branch_attrs['names'],
                                                sensitivity=branch_attrs['pldf'],
                                                constant=branch_attrs['pldf_c'],
-                                               rel_tol=ptdf_options['rel_ploss_tol'],
-                                               abs_tol=ptdf_options['abs_ploss_tol'],
+                                               rel_tol=ptdf_options['rel_pldf_tol'],
+                                               abs_tol=ptdf_options['abs_pldf_tol'],
                                                )
 
     libbranch.declare_eq_branch_qfl_fdf_approx(model=model,
                                                index_set=branch_attrs['names'],
                                                sensitivity=branch_attrs['qldf'],
                                                constant=branch_attrs['qldf_c'],
-                                               rel_tol=ptdf_options['rel_qloss_tol'],
-                                               abs_tol=ptdf_options['abs_qloss_tol'],
+                                               rel_tol=ptdf_options['rel_qldf_tol'],
+                                               abs_tol=ptdf_options['abs_qldf_tol'],
                                                )
 
     ### declare the p balance
@@ -1053,6 +1053,7 @@ def compare_fdf_options(md):
         md, m, results = solve_fdf(md_ac, "gurobi_direct", return_model=True,return_results=True, solver_tee=False, **kwargs)
         print('Default cost: $%3.2f' % md.data['system']['total_cost'])
         print(results.Solver)
+        print(md.data['results'])
         update_solution_dicts(md,'default')
         termination['default'] = md.data['results']['termination']
     except Exception as e:
@@ -1068,15 +1069,18 @@ def compare_fdf_options(md):
     ptdf_options = {}
     ptdf_options['lazy'] = False
     ptdf_options['lazy_voltage'] = False
-    ptdf_options['abs_ptdf_tol'] = 1e-5
-    ptdf_options['abs_qtdf_tol'] = 5e-5
-    ptdf_options['rel_vdf_tol'] = 10e-5
+    ptdf_options['rel_ptdf_tol'] = 1e-2
+    ptdf_options['rel_qtdf_tol'] = 1e-2
+    ptdf_options['rel_pldf_tol'] = 1e-2
+    ptdf_options['rel_qldf_tol'] = 1e-2
+    ptdf_options['rel_vdf_tol'] = 1e-2
     kwargs['ptdf_options'] = ptdf_options
     try:
         md, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True,return_results=True, solver_tee=False,
                                    **kwargs)
         print('Tolerance cost: $%3.2f' % md.data['system']['total_cost'])
         print(results.Solver)
+        print(md.data['results'])
         update_solution_dicts(md,'tolerance')
         termination['tolerance'] = md.data['results']['termination']
     except Exception as e:
@@ -1090,6 +1094,7 @@ def compare_fdf_options(md):
         md_lccm, m, results = solve_lccm(md_ac, "gurobi_direct", return_model=True, return_results=True, solver_tee=False)
         print('S-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
         print(results.Solver)
+        print(md_lccm.data['results'])
         update_solution_dicts(md,'slopf')
         termination['slopf'] = md.data['results']['termination']
     except Exception as e:
@@ -1121,6 +1126,10 @@ def compare_fdf_options(md):
         compare_results(results,'default', 'lazy', display_results=False)
         print('--- default v slopf')
         compare_results(results,'default', 'slopf', display_results=False)
+
+def trim_factors(coef_mat, offset, model_var):
+
+    pass
 
 
 if __name__ == '__main__':
