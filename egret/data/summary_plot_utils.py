@@ -472,10 +472,10 @@ def generate_serial_data(test_model_list, case_list=None, data_generator=tu.solv
     print('...Saved to ' + filename)
     df_data.to_csv(os.path.join(destination, filename))
 
-def generate_violin_plot(data_filters=None, y_data='solve_time', order=None, category='model',
-                         normalized=True, colormap=None, yscale='linear', show_plot=True):
+def generate_violin_plot(data_filters=None, data_name='solve_time', order=None, category='model',
+                         normalized=True, colormap=None, scale='linear', show_plot=True):
 
-    filename = "serial_data_" + y_data + ".csv"
+    filename = "serial_data_" + data_name + ".csv"
     source = tau.get_summary_file_location('data')
     df_data = pd.read_csv(os.path.join(source,filename))
 
@@ -493,30 +493,31 @@ def generate_violin_plot(data_filters=None, y_data='solve_time', order=None, cat
         return
 
     if normalized:
-        y_data = y_data + '_normalized'
+        data_name = data_name + '_normalized'
 
     model_list = list(df_data.model.unique())
     case_list = list(df_data.case.unique())
 
     settings = {}
     settings['order'] = order
-    settings['inner'] = None
+    settings['inner'] = 'quartile'
     settings['scale'] = 'width'
     settings['color'] = '0.8'
     #settings['orient'] = 'h'
-    settings['bw'] = 0.2
-    ax = sns.violinplot(x=category, y=y_data, data=df_data, **settings)
-    ax = sns.stripplot(x=category, y=y_data, data=df_data, order=order, dodge=True, size=2.5)
-    ax.set_xlabel(category)
-    ax.set_ylabel(y_data)
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+    #settings['bw'] = 0.2
+    ax = sns.violinplot(y=category, x=data_name, data=df_data, **settings)
+    ax = sns.stripplot(y=category, x=data_name, data=df_data, order=order, dodge=True, size=2.5)
+    ax.set_ylabel(category)
+    ax.set_xlabel(data_name)
+    #ax.set_yticklabels(ax.get_yticklabels(), rotation=90)
+    #ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
     plt.tight_layout()
-    plt.yscale(yscale)
+    plt.xscale(scale)
 
     ## save FIGURE as png
     tag = data_filters['file_tag']
-    filename = "violin_" + y_data + "_" + tag + ".png"
+    filename = "violin_" + data_name + "_" + tag + ".png"
     destination = tau.get_summary_file_location('figures')
     plt.savefig(os.path.join(destination, filename))
 
@@ -725,22 +726,22 @@ def pareto_marker_style(model_list, colors=cmap.viridis):
             fmt['marker'] = '*'
 
         elif 'default' in m:
-            fmt['marker'] = 'o'
+            fmt['marker'] = 's'
             fmt['markeredgewidth'] = 2
             fmt['fillstyle'] = 'none'
 
         elif '_e5' in m:
-            fmt['marker'] = 'x'
+            fmt['marker'] = '.'
             fmt['markeredgewidth'] = 2
             fmt['fillstyle'] = 'none'
 
         elif '_e4' in m:
-            fmt['marker'] = 'x'
+            fmt['marker'] = 'o'
             fmt['markeredgewidth'] = 2
             fmt['fillstyle'] = 'none'
 
         elif '_e3' in m:
-            fmt['marker'] = '+'
+            fmt['marker'] = 'x'
             fmt['markeredgewidth'] = 2
             fmt['fillstyle'] = 'none'
 
@@ -1200,34 +1201,37 @@ def trunc_speedup_plot(test_model_list, colors=None, show_plot=True):
 def violin_plot(test_model_list, colors=None, show_plot=True):
 
     from egret.models.tests.ta_utils import cases_0toC, cases_CtoM, cases_MtoX
-    dense_settings = ['default','e4','e2','lazy']
 
     if colors is None:
         colors = get_colors('cubehelix', trim=0.8)
 
     violin_dict = tau.get_violin_dict(test_model_list)
-    model_list = [key for key,val in violin_dict.items() if val]
     generate_serial_data(test_model_list, data_generator=tu.solve_time,benchmark='acopf')
+
+    # lists used for filtering categorical labels
+    model_list = [key for key,val in violin_dict.items() if val]
+    model_list.remove('acopf')
+    dense_settings = ['default','e4','e3','e2']
 
     filters = {}
     filters['model'] = model_list
     filters['case'] = cases_0toC
     filters['file_tag'] = '0toC_small'
-    generate_violin_plot(data_filters=filters, category='model', yscale='linear', normalized=True,
+    generate_violin_plot(data_filters=filters, category='model', scale='linear', normalized=True,
                          colormap=colors, show_plot=show_plot)
 
     filters = {}
     filters['model'] = model_list
     filters['case'] = cases_CtoM
     filters['file_tag'] = 'CtoM_medium'
-    generate_violin_plot(data_filters=filters, category='model', yscale='linear', normalized=True,
+    generate_violin_plot(data_filters=filters, category='model', scale='linear', normalized=True,
                          colormap=colors, show_plot=show_plot)
 
     filters = {}
     filters['model'] = model_list
     filters['case'] = cases_MtoX
     filters['file_tag'] = 'MtoX_large'
-    generate_violin_plot(data_filters=filters, category='model', yscale='linear', normalized=True,
+    generate_violin_plot(data_filters=filters, category='model', scale='linear', normalized=True,
                          colormap=colors, show_plot=show_plot)
 
 
@@ -1236,28 +1240,28 @@ def violin_plot(test_model_list, colors=None, show_plot=True):
     filters['setting'] = dense_settings
     filters['file_tag'] = 'dlopf'
     generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
-                         yscale='linear', normalized=True, colormap=colors, show_plot=show_plot)
+                         scale='linear', normalized=True, colormap=colors, show_plot=show_plot)
 
     filters = {}
     filters['base_model'] = ['clopf']
     filters['setting'] = dense_settings
     filters['file_tag'] = 'clopf'
     generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
-                         yscale='linear', normalized=True, colormap=colors, show_plot=show_plot)
+                         scale='linear', normalized=True, colormap=colors, show_plot=show_plot)
 
     filters = {}
     filters['base_model'] = ['plopf']
     filters['setting'] = dense_settings
     filters['file_tag'] = 'plopf'
     generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
-                         yscale='linear', normalized=True, colormap=colors, show_plot=show_plot)
+                         scale='linear', normalized=True, colormap=colors, show_plot=show_plot)
 
     filters = {}
     filters['base_model'] = ['dcopf_ptdf']
     filters['setting'] = dense_settings
     filters['file_tag'] = 'dcopf_ptdf'
     generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
-                         yscale='linear', normalized=True, colormap=colors, show_plot=show_plot)
+                         scale='linear', normalized=True, colormap=colors, show_plot=show_plot)
 
 def acpf_violations_plot(test_case, test_model_list, colors=None, show_plot=True):
 
