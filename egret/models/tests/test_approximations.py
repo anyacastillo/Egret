@@ -516,7 +516,7 @@ def solve_approximation_models(test_case, test_model_list, init_min=0.9, init_ma
 def main(arg):
 
     idxA0 = 0
-    #idxA0 = case_names.index('pglib_opf_case89_pegase')  ## redefine first case of A
+    #idxA0 = case_names.index('pglib_opf_case179_goc')  ## redefine first case of A
     idxA = case_names.index('pglib_opf_case1354_pegase')  ## < 1000 buses
     idxB = case_names.index('pglib_opf_case2736sp_k')  ## 1354 - 2383 buses
     idxC = case_names.index('pglib_opf_case6468_rte')  ## 2383 - 4661 buses
