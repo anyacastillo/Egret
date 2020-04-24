@@ -426,6 +426,7 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
             md_out,m,results = solve_func(md_input, solver, **kwargs)
         except Exception as e:
             md_out = md_input.clone()
+            md_out.data['results'] = {}
             message = str(e)
             print('...EXCEPTION OCCURRED: {}'.format(message))
             if 'infeasible' in message:
