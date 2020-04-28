@@ -22,7 +22,7 @@ case_names = ['pglib_opf_case3_lmbd',
               'pglib_opf_case39_epri',
               'pglib_opf_case57_ieee',
               'pglib_opf_case73_ieee_rts',
-              'pglib_opf_case89_pegase', ### not feasible at mult = 1.01 ###
+              'pglib_opf_case89_pegase',
               'pglib_opf_case118_ieee',
               'pglib_opf_case162_ieee_dtc',
               'pglib_opf_case179_goc',
@@ -125,7 +125,14 @@ def get_pareto_dict(test_model_list):
     return tm_dict
 
 def get_case_size_dict(test_model_list):
-    tm_dict = get_sensitivity_dict(test_model_list)
+
+    tm_dict = {}
+    for key in test_model_list:
+        if 'qcopf' in key:
+            tm_dict[key] = False
+        else:
+            tm_dict[key] = True
+
     return tm_dict
 
 def get_lazy_speedup_dict(test_model_list):

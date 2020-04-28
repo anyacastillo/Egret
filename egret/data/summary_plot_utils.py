@@ -45,6 +45,7 @@ mean_functions = [tu.num_buses,
                   tu.num_branches,
                   tu.num_constraints,
                   tu.num_variables,
+                  tu.num_nonzeros,
                   tu.model_density,
                   tu.solve_time,
                   tu.acpf_slack,
@@ -1058,15 +1059,19 @@ def generate_case_size_plot(test_model_dict, case_list=None,
     df_s_data = pd.DataFrame(s_dict).fillna(0)
 
     # scale s_data
-    arr = df_s_data.values
-    data_max = arr.max()
-    arr = arr * (s_max / data_max)
-    arr[arr<s_min] = s_min
-    df_s_data = pd.DataFrame(data=arr, columns=models)
+    if s_data is not None:
+        arr = df_s_data.values
+        data_max = arr.max()
+        arr = arr * (s_max / data_max)
+        arr[arr<s_min] = s_min
+        df_s_data = pd.DataFrame(data=arr, columns=models)
 
 
     ## Create plot
-    fig, ax = plt.subplots(figsize=(9, 4))
+    #fig, ax = plt.subplots(figsize=(9, 4))
+    fig, ax = plt.subplots()
+    plt.yscale(yscale)
+    plt.xscale(xscale)
 
     #---- set color cycle
     if colors is not None:
@@ -1101,10 +1106,6 @@ def generate_case_size_plot(test_model_dict, case_list=None,
     else:
         ax.set_xlabel(x_data + " (" + x_units + ")")
 
-    plt.yscale(yscale)
-    plt.xscale(xscale)
-    #x1,x2 = ax.get_xlim()
-    #ax.set_xlim([2,x2])
     plt.tight_layout()
 
     box = ax.get_position()
@@ -1174,8 +1175,24 @@ def solution_time_plot(test_model_list, colors=None, show_plot=True):
         colors=get_colors('cubehelix')
 
     case_size_dict = tau.get_case_size_dict(test_model_list)
+    generate_case_size_plot(case_size_dict, y_data='num_constraints', y_units=None,
+                            x_data='num_buses', x_units=None, s_data=None, colors=colors,
+                            xscale='log', yscale='log',show_plot=show_plot)
+
+    generate_case_size_plot(case_size_dict, y_data='num_variables', y_units=None,
+                            x_data='num_buses', x_units=None, s_data=None, colors=colors,
+                            xscale='log', yscale='log',show_plot=show_plot)
+
+    generate_case_size_plot(case_size_dict, y_data='num_nonzeros', y_units=None,
+                            x_data='num_buses', x_units=None, s_data=None, colors=colors,
+                            xscale='log', yscale='log',show_plot=show_plot)
+
     generate_case_size_plot(case_size_dict, y_data='solve_time_geomean', y_units='s',
-                            x_data='num_buses', x_units=None, s_data='con_per_bus',colors=colors,
+                            x_data='num_buses', x_units=None, s_data=None, colors=colors,
+                            xscale='log', yscale='log',show_plot=show_plot)
+
+    generate_case_size_plot(case_size_dict, y_data='solve_time_geomean', y_units='s',
+                            x_data='num_nonzeros', x_units=None, s_data=None, colors=colors,
                             xscale='log', yscale='log',show_plot=show_plot)
 
 def lazy_speedup_plot(test_model_list, colors=None, show_plot=True):
