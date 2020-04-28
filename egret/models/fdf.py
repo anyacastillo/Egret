@@ -277,7 +277,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                 branch = branches[bn]
                 libbranch.add_constr_branch_thermal_limit(model, branch, bn, thermal_limit)
                 thermal_idx_monitored.append(i)
-        #print('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
+        print('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
 
     else:
 
@@ -328,8 +328,8 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
             vm = bus['vm']
             v_max = bus['v_max']
             v_min = bus['v_min']
-            abs_slack = max( vm - v_min , v_max - vm )
-            rel_slack =  abs_slack / ((v_min + v_max)/2)
+            abs_slack = min( abs(vm - v_min) , abs(v_max - vm) )
+            rel_slack =  abs_slack / (v_max - v_min)
             if abs_slack < ptdf_options['abs_vm_init_tol'] or rel_slack < ptdf_options['rel_vm_init_tol']:
                 #print('adding vm: {} <= {} <= {}'.format(v_min, vm, v_max))
                 #print('... abs_slack={} < abs_tol={}'.format(abs_slack,ptdf_options['abs_vm_init_tol']))
@@ -352,10 +352,10 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                                      )
                 model.eq_vm_bus[bn] = model.vm[bn] == expr
                 model._vm_idx_monitored.append(i)
-        #mon_message = '{} of {} voltage constraints added to initial monitored set'.format(len(monitor_init),
-        #                                                                            len(bus_attrs['names']))
-        #mon_message += ' ({} shunt devices).'.format(len(shunt_buses))
-        #print(mon_message)
+        mon_message = '{} of {} voltage constraints added to initial monitored set'.format(len(monitor_init),
+                                                                                    len(bus_attrs['names']))
+        mon_message += ' ({} shunt devices).'.format(len(shunt_buses))
+        print(mon_message)
 
     else:
         libbus.declare_eq_vm_vdf_approx(model=model,
@@ -1127,10 +1127,98 @@ def compare_fdf_options(md):
         print('--- default v slopf')
         compare_results(results,'default', 'slopf', display_results=False)
 
-def trim_factors(coef_mat, offset, model_var):
+def test_dlopf(md):
 
-    pass
+    from egret.data.test_utils import solve_infeas_model
+    from egret.models.tests.test_approximations import create_new_model_data
 
+    import logging
+    logger = logging.getLogger('egret')
+    logger.setLevel(logging.WARNING)
+
+    def acpf_to_md(md):
+        try:
+            acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, termination = solve_infeas_model(md)
+        except Exception as e:
+            return e
+        vm_viol = vm_UB_viol.update(vm_LB_viol)
+        system_data = md.data['system']
+        system_data['acpf_slack'] = acpf_p_slack
+        system_data['vm_viol'] = vm_viol
+        system_data['thermal_viol'] = thermal_viol
+
+
+    # solve ACOPF
+    print('Solve ACOPF....')
+    from egret.models.acopf import solve_acopf
+    md_ac, m_ac, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
+    print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
+    print(results.Solver)
+
+
+    md_ac = create_new_model_data(md_ac,0.900)
+
+
+    #solve D-LOPF tolerances
+    print('Solve D-LOPF (lazy e2)....')
+    kwargs = {}
+    ptdf_options = {}
+    ptdf_options['lazy'] = True
+    ptdf_options['lazy_voltage'] = True
+    ptdf_options['rel_ptdf_tol'] = 1e-2
+    ptdf_options['rel_qtdf_tol'] = 1e-2
+    ptdf_options['rel_pldf_tol'] = 1e-2
+    ptdf_options['rel_qldf_tol'] = 1e-2
+    ptdf_options['rel_vdf_tol'] = 1e-2
+    kwargs['ptdf_options'] = ptdf_options
+    try:
+        md, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True,return_results=True, solver_tee=False,
+                                   **kwargs)
+        print('D-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
+        print(results.Solver)
+        print(md.data['results'])
+    except Exception as e:
+        message = str(e)
+        print(message)
+
+    #solve D-LOPF tolerances
+    print('Solve D-LOPF (lazy full)....')
+    kwargs = {}
+    ptdf_options = {}
+    ptdf_options['lazy'] = True
+    ptdf_options['lazy_voltage'] = True
+    kwargs['ptdf_options'] = ptdf_options
+    try:
+        md, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True,return_results=True, solver_tee=False,
+                                   **kwargs)
+        print('D-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
+        print(results.Solver)
+        print(md.data['results'])
+    except Exception as e:
+        message = str(e)
+        print(message)
+
+    #solve D-LOPF tolerances
+    print('Solve D-LOPF (default e2)....')
+    kwargs = {}
+    ptdf_options = {}
+    ptdf_options['lazy'] = False
+    ptdf_options['lazy_voltage'] = False
+    ptdf_options['rel_ptdf_tol'] = 1e-2
+    ptdf_options['rel_qtdf_tol'] = 1e-2
+    ptdf_options['rel_pldf_tol'] = 1e-2
+    ptdf_options['rel_qldf_tol'] = 1e-2
+    ptdf_options['rel_vdf_tol'] = 1e-2
+    kwargs['ptdf_options'] = ptdf_options
+    try:
+        md, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True,return_results=True, solver_tee=False,
+                                   **kwargs)
+        print('D-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
+        print(results.Solver)
+        print(md.data['results'])
+    except Exception as e:
+        message = str(e)
+        print(message)
 
 if __name__ == '__main__':
 
@@ -1146,16 +1234,18 @@ if __name__ == '__main__':
     #filename = 'pglib_opf_case14_ieee.m'
     #filename = 'pglib_opf_case30_ieee.m'
     #filename = 'pglib_opf_case57_ieee.m'
-    filename = 'pglib_opf_case118_ieee.m'
+    #filename = 'pglib_opf_case118_ieee.m'
     #filename = 'pglib_opf_case162_ieee_dtc.m'
     #filename = 'pglib_opf_case179_goc.m'
     #filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
-    #filename = 'pglib_opf_case2000_tamu.m'
+    filename = 'pglib_opf_case1888_rte.m'
     #filename = 'pglib_opf_case1951_rte.m'
+    #filename = 'pglib_opf_case2000_tamu.m'
     #filename = 'pglib_opf_case1354_pegase.m'
     #filename = 'pglib_opf_case2869_pegase.m'
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
     md = create_ModelData(matpower_file)
 
-    compare_fdf_options(md)
+    #compare_fdf_options(md)
+    test_dlopf(md)

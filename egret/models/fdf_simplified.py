@@ -355,12 +355,12 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
             vm = bus['vm']
             v_max = bus['v_max']
             v_min = bus['v_min']
-            abs_slack = max( vm - v_min , v_max - vm )
-            rel_slack =  abs_slack / ((v_min + v_max)/2)
+            abs_slack = min( abs(vm - v_min) , abs(v_max - vm) )
+            rel_slack =  abs_slack / (v_max - v_min)
             if abs_slack < ptdf_options['abs_vm_init_tol'] or rel_slack < ptdf_options['rel_vm_init_tol']:
-                print('adding vm: {} <= {} <= {}'.format(v_min, vm, v_max))
-                print('... abs_slack={} < abs_tol={}'.format(abs_slack,ptdf_options['abs_vm_init_tol']))
-                print('... rel_slack={} < rel_tol={}'.format(rel_slack,ptdf_options['rel_vm_init_tol']))
+                #print('adding vm: {} <= {} <= {}'.format(v_min, vm, v_max))
+                #print('... abs_slack={} < abs_tol={}'.format(abs_slack,ptdf_options['abs_vm_init_tol']))
+                #print('... rel_slack={} < rel_tol={}'.format(rel_slack,ptdf_options['rel_vm_init_tol']))
                 monitor_init.add(bus_name)
 
         model.eq_vm_bus = pe.Constraint(bus_attrs['names'])

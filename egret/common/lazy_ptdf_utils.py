@@ -64,11 +64,11 @@ def populate_default_ptdf_options(ptdf_options):
     if 'abs_thermal_init_tol' not in ptdf_options:
         ptdf_options['abs_thermal_init_tol'] = 1
     if 'rel_thermal_init_tol' not in ptdf_options:
-        ptdf_options['rel_thermal_init_tol'] = 0.2
+        ptdf_options['rel_thermal_init_tol'] = 0.1
     if 'abs_vm_init_tol' not in ptdf_options:
-        ptdf_options['abs_vm_init_tol'] = 1.e-6
+        ptdf_options['abs_vm_init_tol'] = 0.01
     if 'rel_vm_init_tol' not in ptdf_options:
-        ptdf_options['rel_vm_init_tol'] = 1.e-10
+        ptdf_options['rel_vm_init_tol'] = 0.05
     if 'iteration_limit' not in ptdf_options:
         ptdf_options['iteration_limit'] = 100000
     if 'lp_iteration_limit' not in ptdf_options:
