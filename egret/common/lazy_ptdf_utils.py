@@ -56,9 +56,9 @@ def populate_default_ptdf_options(ptdf_options):
     if 'abs_qldf_tol' not in ptdf_options:
         ptdf_options['abs_qldf_tol'] = 1.e-10
     if 'abs_flow_tol' not in ptdf_options:
-        ptdf_options['abs_flow_tol'] = 1.e-1
+        ptdf_options['abs_flow_tol'] = 1.e-3
     if 'rel_flow_tol' not in ptdf_options:
-        ptdf_options['rel_flow_tol'] = 1.e-3
+        ptdf_options['rel_flow_tol'] = 1.e-5
     if 'pu_vm_tol' not in ptdf_options:
         ptdf_options['pu_vm_tol'] = 1.e-5
     if 'abs_thermal_init_tol' not in ptdf_options:

@@ -82,6 +82,7 @@ from cycler import cycler
 import math
 import unittest
 import logging
+import copy
 import egret.data.test_utils as tu
 import egret.data.summary_plot_utils as spu
 from pyomo.opt import SolverFactory, TerminationCondition
@@ -104,196 +105,121 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 # test_cases = [join('../../../download/pglib-opf-master/', f) for f in listdir('../../../download/pglib-opf-master/') if isfile(join('../../../download/pglib-opf-master/', f)) and f.endswith('.m')]
 #test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
 
-_kwargs = {'return_model' :True, 'return_results' : True, 'solver_tee' : False}
-e5_options = {'rel_ptdf_tol' : 1e-5, 'rel_qtdf_tol' : 1e-5, 'rel_pldf_tol' : 1e-5, 'rel_qldf_tol' : 1e-5, 'rel_vdf_tol' : 1e-5}
-e4_options = {'rel_ptdf_tol' : 1e-4, 'rel_qtdf_tol' : 1e-4, 'rel_pldf_tol' : 1e-4, 'rel_qldf_tol' : 1e-4, 'rel_vdf_tol' : 1e-4}
-e3_options = {'rel_ptdf_tol' : 1e-3, 'rel_qtdf_tol' : 1e-3, 'rel_pldf_tol' : 1e-3, 'rel_qldf_tol' : 1e-3, 'rel_vdf_tol' : 1e-3}
-e2_options = {'rel_ptdf_tol' : 1e-2, 'rel_qtdf_tol' : 1e-2, 'rel_pldf_tol' : 1e-2, 'rel_qldf_tol' : 1e-2, 'rel_vdf_tol' : 1e-2}
 
-test_model_dict = {}
-tmd = test_model_dict
+test_model_list = [
+    'acopf',
+    'slopf',
+    'dlopf_full',
+    'dlopf_e4',
+    'dlopf_e2',
+    'dlopf_lazy_full',
+    'dlopf_lazy_e4',
+    'dlopf_lazy_e2',
+    'clopf_full',
+    'clopf_e4',
+    'clopf_e2',
+    'clopf_lazy_full',
+    'clopf_lazy_e4',
+    'clopf_lazy_e2',
+    'plopf_full',
+    'plopf_e4',
+    'plopf_e2',
+    'plopf_lazy_full',
+    'plopf_lazy_e4',
+    'plopf_lazy_e2',
+    'ptdf_full',
+    'ptdf_e4',
+    'ptdf_e2',
+    'ptdf_lazy_full',
+    'ptdf_lazy_e4',
+    'ptdf_lazy_e2',
+    'btheta',
+    # 'btheta_qcp',
+]
 
-tmd['acopf'] = {}
-tmd['acopf']['solve_func'] = solve_acopf
-tmd['acopf']['intial_solution'] = 'flat'
-tmd['acopf']['solver'] = 'ipopt'
-tmd['acopf']['kwargs'] = _kwargs
 
-tmd['slopf'] = {}
-tmd['slopf']['solve_func'] = solve_lccm
-tmd['slopf']['intial_solution'] = 'basepoint'
-tmd['slopf']['solver'] = 'gurobi_persistent'
-tmd['slopf']['kwargs'] = _kwargs
+def generate_test_model_dict(test_model_list):
 
-tmd['dlopf_default'] = {}
-tmd['dlopf_default']['solve_func'] = solve_fdf
-tmd['dlopf_default']['intial_solution'] = 'basepoint'
-tmd['dlopf_default']['solver'] = 'gurobi_persistent'
-tmd['dlopf_default']['kwargs'] = _kwargs
+    test_model_dict = {}
+    _kwargs = {'return_model' :True, 'return_results' : True, 'solver_tee' : False}
+    tol_keys = ['rel_ptdf_tol', 'rel_qtdf_tol', 'rel_pldf_tol', 'rel_qldf_tol', 'rel_vdf_tol']
 
-tmd['dlopf_lazy'] = {}
-tmd['dlopf_lazy']['solve_func'] = solve_fdf
-tmd['dlopf_lazy']['intial_solution'] = 'basepoint'
-tmd['dlopf_lazy']['solver'] = 'gurobi_persistent'
-tmd['dlopf_lazy']['kwargs'] = {**_kwargs, 'ptdf_options':{'lazy' : True, 'lazy_voltage' : True} }
 
-tmd['dlopf_e5'] = {}
-tmd['dlopf_e5']['solve_func'] = solve_fdf
-tmd['dlopf_e5']['intial_solution'] = 'basepoint'
-tmd['dlopf_e5']['solver'] = 'gurobi_persistent'
-tmd['dlopf_e5']['kwargs'] = {**_kwargs, 'ptdf_options' : e5_options}
+    for tm in test_model_list:
+        # create empty settings dictionary for each model type
+        tmd = dict()
+        tmd['kwargs'] = copy.deepcopy(_kwargs)
 
-tmd['dlopf_e4'] = {}
-tmd['dlopf_e4']['solve_func'] = solve_fdf
-tmd['dlopf_e4']['intial_solution'] = 'basepoint'
-tmd['dlopf_e4']['solver'] = 'gurobi_persistent'
-tmd['dlopf_e4']['kwargs'] = {**_kwargs, 'ptdf_options' : e4_options}
+        # Build ptdf_options based on model name
+        _ptdf_options = dict()
+        if 'lazy' in tm:
+            _ptdf_options['lazy'] = True
+            if 'dlopf' in tm or 'clopf' in tm:
+                _ptdf_options['lazy_voltage'] = True
+        tol = None
+        if 'e5' in tm:
+            tol = 1e-5
+        elif 'e4' in tm:
+            tol = 1e-4
+        elif 'e3' in tm:
+            tol = 1e-3
+        elif 'e2' in tm:
+            tol = 1e-2
+        if any(e in tm for e in ['e5','e4','e3','e2']):
+            for k in tol_keys:
+                _ptdf_options[k] = tol
 
-tmd['dlopf_e3'] = {}
-tmd['dlopf_e3']['solve_func'] = solve_fdf
-tmd['dlopf_e3']['intial_solution'] = 'basepoint'
-tmd['dlopf_e3']['solver'] = 'gurobi_persistent'
-tmd['dlopf_e3']['kwargs'] = {**_kwargs, 'ptdf_options' : e3_options}
+        if 'acopf' in tm:
+            tmd['solve_func'] = solve_acopf
+            tmd['initial_solution'] = 'flat'
+            tmd['solver'] = 'ipopt'
 
-tmd['dlopf_e2'] = {}
-tmd['dlopf_e2']['solve_func'] = solve_fdf
-tmd['dlopf_e2']['intial_solution'] = 'basepoint'
-tmd['dlopf_e2']['solver'] = 'gurobi_persistent'
-tmd['dlopf_e2']['kwargs'] = {**_kwargs, 'ptdf_options' : e2_options}
+        elif 'slopf' in tm:
+            tmd['solve_func'] = solve_lccm
+            tmd['initial_solution'] = 'basepoint'
+            tmd['solver'] = 'gurobi_persistent'
 
-tmd['clopf_default'] = {}
-tmd['clopf_default']['solve_func'] = solve_fdf_simplified
-tmd['clopf_default']['intial_solution'] = 'basepoint'
-tmd['clopf_default']['solver'] = 'gurobi_persistent'
-tmd['clopf_default']['kwargs'] = _kwargs
+        elif 'dlopf' in tm:
+            tmd['solve_func'] = solve_fdf
+            tmd['initial_solution'] = 'basepoint'
+            tmd['solver'] = 'gurobi_persistent'
+            tmd['kwargs']['ptdf_options'] = dict(_ptdf_options)
 
-tmd['clopf_lazy'] = {}
-tmd['clopf_lazy']['solve_func'] = solve_fdf_simplified
-tmd['clopf_lazy']['intial_solution'] = 'basepoint'
-tmd['clopf_lazy']['solver'] = 'gurobi_persistent'
-tmd['clopf_lazy']['kwargs'] = {**_kwargs, 'ptdf_options':{'lazy' : True, 'lazy_voltage' : True} }
+        elif 'clopf' in tm:
+            tmd['solve_func'] = solve_fdf_simplified
+            tmd['initial_solution'] = 'basepoint'
+            tmd['solver'] = 'gurobi_persistent'
+            tmd['kwargs']['ptdf_options'] = dict(_ptdf_options)
 
-tmd['clopf_e5'] = {}
-tmd['clopf_e5']['solve_func'] = solve_fdf_simplified
-tmd['clopf_e5']['intial_solution'] = 'basepoint'
-tmd['clopf_e5']['solver'] = 'gurobi_persistent'
-tmd['clopf_e5']['kwargs'] = {**_kwargs, 'ptdf_options' : e5_options}
+        elif 'plopf' in tm:
+            tmd['solve_func'] = solve_dcopf_losses
+            tmd['initial_solution'] = 'basepoint'
+            tmd['solver'] = 'gurobi_persistent'
+            tmd['kwargs']['ptdf_options'] = dict(_ptdf_options)
+            tmd['kwargs']['dcopf_losses_model_generator'] = create_ptdf_losses_dcopf_model
 
-tmd['clopf_e4'] = {}
-tmd['clopf_e4']['solve_func'] = solve_fdf_simplified
-tmd['clopf_e4']['intial_solution'] = 'basepoint'
-tmd['clopf_e4']['solver'] = 'gurobi_persistent'
-tmd['clopf_e4']['kwargs'] = {**_kwargs, 'ptdf_options' : e4_options}
+        elif 'ptdf' in tm:
+            tmd['solve_func'] = solve_dcopf
+            tmd['initial_solution'] = 'flat'
+            tmd['solver'] = 'gurobi_persistent'
+            tmd['kwargs']['ptdf_options'] = dict(_ptdf_options)
+            tmd['kwargs']['dcopf_model_generator'] = create_ptdf_dcopf_model
 
-tmd['clopf_e3'] = {}
-tmd['clopf_e3']['solve_func'] = solve_fdf_simplified
-tmd['clopf_e3']['intial_solution'] = 'basepoint'
-tmd['clopf_e3']['solver'] = 'gurobi_persistent'
-tmd['clopf_e3']['kwargs'] = {**_kwargs, 'ptdf_options' : e3_options}
+        elif 'btheta' in tm:
+            if 'qcp' in tm:
+                tmd['solve_func'] = solve_dcopf_losses
+                tmd['intial_solution'] = 'flat'
+                tmd['solver'] = 'gurobi_persistent'
+                tmd['kwargs']['dcopf_losses_model_generator'] = create_btheta_losses_dcopf_model
+            else:
+                tmd['solve_func'] = solve_dcopf
+                tmd['initial_solution'] = 'flat'
+                tmd['solver'] = 'gurobi_persistent'
+                tmd['kwargs']['dcopf_model_generator'] = create_btheta_dcopf_model
 
-tmd['clopf_e2'] = {}
-tmd['clopf_e2']['solve_func'] = solve_fdf_simplified
-tmd['clopf_e2']['intial_solution'] = 'basepoint'
-tmd['clopf_e2']['solver'] = 'gurobi_persistent'
-tmd['clopf_e2']['kwargs'] = {**_kwargs, 'ptdf_options' : e2_options}
+        test_model_dict[tm] = copy.deepcopy(tmd)
 
-tmd['plopf_default'] = {}
-tmd['plopf_default']['solve_func'] = solve_dcopf_losses
-tmd['plopf_default']['intial_solution'] = 'basepoint'
-tmd['plopf_default']['solver'] = 'gurobi_persistent'
-tmd['plopf_default']['kwargs'] = {**_kwargs,
-                                    'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
-
-tmd['plopf_lazy'] = {}
-tmd['plopf_lazy']['solve_func'] = solve_dcopf_losses
-tmd['plopf_lazy']['intial_solution'] = 'basepoint'
-tmd['plopf_lazy']['solver'] = 'gurobi_persistent'
-tmd['plopf_lazy']['kwargs'] = {**_kwargs, 'ptdf_options':{'lazy' : True},
-                               'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
-
-tmd['plopf_e5'] = {}
-tmd['plopf_e5']['solve_func'] = solve_dcopf_losses
-tmd['plopf_e5']['intial_solution'] = 'basepoint'
-tmd['plopf_e5']['solver'] = 'gurobi_persistent'
-tmd['plopf_e5']['kwargs'] = {**_kwargs, 'ptdf_options' : e5_options,
-                               'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
-
-tmd['plopf_e4'] = {}
-tmd['plopf_e4']['solve_func'] = solve_dcopf_losses
-tmd['plopf_e4']['intial_solution'] = 'basepoint'
-tmd['plopf_e4']['solver'] = 'gurobi_persistent'
-tmd['plopf_e4']['kwargs'] = {**_kwargs, 'ptdf_options' : e4_options,
-                               'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
-
-tmd['plopf_e3'] = {}
-tmd['plopf_e3']['solve_func'] = solve_dcopf_losses
-tmd['plopf_e3']['intial_solution'] = 'basepoint'
-tmd['plopf_e3']['solver'] = 'gurobi_persistent'
-tmd['plopf_e3']['kwargs'] = {**_kwargs, 'ptdf_options' : e3_options,
-                               'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model}
-
-tmd['plopf_e2'] = {}
-tmd['plopf_e2']['solve_func'] = solve_dcopf_losses
-tmd['plopf_e2']['intial_solution'] = 'basepoint'
-tmd['plopf_e2']['solver'] = 'gurobi_persistent'
-tmd['plopf_e2']['kwargs'] = {**_kwargs, 'ptdf_options' : e2_options,
-                               'dcopf_losses_model_generator' : create_ptdf_losses_dcopf_model }
-
-tmd['qcopf_btheta'] = {}
-tmd['qcopf_btheta']['solve_func'] = solve_dcopf_losses
-tmd['qcopf_btheta']['intial_solution'] = 'flat'
-tmd['qcopf_btheta']['solver'] = 'gurobi_persistent'
-tmd['qcopf_btheta']['kwargs'] = {**_kwargs,
-                               'dcopf_losses_model_generator' : create_btheta_losses_dcopf_model }
-
-tmd['dcopf_ptdf_default'] = {}
-tmd['dcopf_ptdf_default']['solve_func'] = solve_dcopf
-tmd['dcopf_ptdf_default']['intial_solution'] = 'flat'
-tmd['dcopf_ptdf_default']['solver'] = 'gurobi_persistent'
-tmd['dcopf_ptdf_default']['kwargs'] = {**_kwargs,
-                               'dcopf_model_generator' : create_ptdf_dcopf_model }
-
-tmd['dcopf_ptdf_lazy'] = {}
-tmd['dcopf_ptdf_lazy']['solve_func'] = solve_dcopf
-tmd['dcopf_ptdf_lazy']['intial_solution'] = 'flat'
-tmd['dcopf_ptdf_lazy']['solver'] = 'gurobi_persistent'
-tmd['dcopf_ptdf_lazy']['kwargs'] = {**_kwargs, 'ptdf_options':{'lazy' : True},
-                               'dcopf_model_generator' : create_ptdf_dcopf_model }
-
-tmd['dcopf_ptdf_e5'] = {}
-tmd['dcopf_ptdf_e5']['solve_func'] = solve_dcopf
-tmd['dcopf_ptdf_e5']['intial_solution'] = 'flat'
-tmd['dcopf_ptdf_e5']['solver'] = 'gurobi_persistent'
-tmd['dcopf_ptdf_e5']['kwargs'] = {**_kwargs, 'ptdf_options' : e5_options,
-                               'dcopf_model_generator' : create_ptdf_dcopf_model }
-
-tmd['dcopf_ptdf_e4'] = {}
-tmd['dcopf_ptdf_e4']['solve_func'] = solve_dcopf
-tmd['dcopf_ptdf_e4']['intial_solution'] = 'flat'
-tmd['dcopf_ptdf_e4']['solver'] = 'gurobi_persistent'
-tmd['dcopf_ptdf_e4']['kwargs'] = {**_kwargs, 'ptdf_options' : e4_options,
-                               'dcopf_model_generator' : create_ptdf_dcopf_model }
-
-tmd['dcopf_ptdf_e3'] = {}
-tmd['dcopf_ptdf_e3']['solve_func'] = solve_dcopf
-tmd['dcopf_ptdf_e3']['intial_solution'] = 'flat'
-tmd['dcopf_ptdf_e3']['solver'] = 'gurobi_persistent'
-tmd['dcopf_ptdf_e3']['kwargs'] = {**_kwargs, 'ptdf_options' : e3_options,
-                               'dcopf_model_generator' : create_ptdf_dcopf_model }
-
-tmd['dcopf_ptdf_e2'] = {}
-tmd['dcopf_ptdf_e2']['solve_func'] = solve_dcopf
-tmd['dcopf_ptdf_e2']['intial_solution'] = 'flat'
-tmd['dcopf_ptdf_e2']['solver'] = 'gurobi_persistent'
-tmd['dcopf_ptdf_e2']['kwargs'] = {**_kwargs, 'ptdf_options' : e2_options,
-                               'dcopf_model_generator' : create_ptdf_dcopf_model }
-
-tmd['dcopf_btheta'] = {}
-tmd['dcopf_btheta']['solve_func'] = solve_dcopf
-tmd['dcopf_btheta']['intial_solution'] = 'flat'
-tmd['dcopf_btheta']['solver'] = 'gurobi_persistent'
-tmd['dcopf_btheta']['kwargs'] = {**_kwargs,
-                               'dcopf_model_generator' : create_btheta_dcopf_model }
+    return test_model_dict
 
 
 
@@ -406,18 +332,20 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
     sensitivities from md_basepoint or md_flat as appropriate for the model being solved
     '''
 
+    test_model_dict = generate_test_model_dict(test_model_list)
+
     for tm in test_model_list:
 
         tm_dict = test_model_dict[tm]
 
         solve_func = tm_dict['solve_func']
-        intial_solution = tm_dict['intial_solution']
+        initial_solution = tm_dict['initial_solution']
         solver = tm_dict['solver']
         kwargs = tm_dict['kwargs']
 
-        if intial_solution == 'flat':
+        if initial_solution == 'flat':
             md_input = md_flat
-        elif intial_solution == 'basepoint':
+        elif initial_solution == 'basepoint':
             md_input = md_basepoint
         else:
             raise Exception('test_model_dict must provide valid inital_solution')
@@ -535,10 +463,10 @@ def main(arg):
         idx_list = list(range(idxD,idxE))
 
     for idx in idx_list:
-        submain(idx, show_plot=False, log_level=logging.INFO)
+        submain(idx, show_plot=False, log_level=logging.WARNING)
 
 
-def submain(idx=None, show_plot=False, log_level=logging.ERROR):
+def submain(idx=None, show_plot=False, log_level=logging.WARNING):
     """
     solves models and generates plots for test case at test_cases[idx] or a default case
     """
@@ -557,43 +485,11 @@ def submain(idx=None, show_plot=False, log_level=logging.ERROR):
     else:
         test_case=idx_to_test_case(idx)
 
-    # Select models to run
-    test_model_list = [
-         'acopf',
-         'slopf',
-         'dlopf_default',
-         'dlopf_lazy',
-         #'dlopf_e5',
-         'dlopf_e4',
-         'dlopf_e3',
-         'dlopf_e2',
-         'clopf_default',
-         'clopf_lazy',
-         #'clopf_e5',
-         'clopf_e4',
-         'clopf_e3',
-         'clopf_e2',
-         'plopf_default',
-         'plopf_lazy',
-         #'plopf_e5',
-         'plopf_e4',
-         'plopf_e3',
-         'plopf_e2',
-         #'qcopf_btheta',
-         'dcopf_ptdf_default',
-         'dcopf_ptdf_lazy',
-         #'dcopf_ptdf_e5',
-         'dcopf_ptdf_e4',
-         'dcopf_ptdf_e3',
-         'dcopf_ptdf_e2',
-         'dcopf_btheta'
-         ]
-
     ## Model solves
     solve_approximation_models(test_case, test_model_list, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate summary data
-    spu.create_full_summary(test_case, test_model_list, show_plot=show_plot)
+    #spu.create_full_summary(test_case, test_model_list, show_plot=show_plot)
 
 
 if __name__ == '__main__':

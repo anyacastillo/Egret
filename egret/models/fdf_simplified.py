@@ -15,6 +15,8 @@ This module provides functions that create the modules for typical ACOPF formula
 import pyomo.environ as pe
 from math import inf, pi, sqrt
 import pandas as pd
+from egret.common.log import logger
+import logging
 import egret.model_library.transmission.tx_utils as tx_utils
 import egret.model_library.transmission.tx_calc as tx_calc
 import egret.model_library.transmission.bus as libbus
@@ -299,7 +301,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                 qld = branch_attrs['qloss_distribution'][bn]
                 libbranch.add_constr_branch_thermal_limit(model, branch, bn, thermal_limit, pfl_of_ploss=pld, qfl_of_qloss=qld)
                 thermal_idx_monitored.append(i)
-        print('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
+        logger.warning('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
 
 
     else:
@@ -358,9 +360,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
             abs_slack = min( abs(vm - v_min) , abs(v_max - vm) )
             rel_slack =  abs_slack / (v_max - v_min)
             if abs_slack < ptdf_options['abs_vm_init_tol'] or rel_slack < ptdf_options['rel_vm_init_tol']:
-                #print('adding vm: {} <= {} <= {}'.format(v_min, vm, v_max))
-                #print('... abs_slack={} < abs_tol={}'.format(abs_slack,ptdf_options['abs_vm_init_tol']))
-                #print('... rel_slack={} < rel_tol={}'.format(rel_slack,ptdf_options['rel_vm_init_tol']))
+                logger.warning('adding vm {}: {} <= {} <= {}'.format(bus_name, v_min, vm, v_max))
                 monitor_init.add(bus_name)
 
         model.eq_vm_bus = pe.Constraint(bus_attrs['names'])

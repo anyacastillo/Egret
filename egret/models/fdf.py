@@ -15,6 +15,8 @@ This module provides functions that create the modules for typical ACOPF formula
 import pyomo.environ as pe
 from math import inf, pi, sqrt
 import pandas as pd
+from egret.common.log import logger
+import logging
 import egret.model_library.transmission.tx_utils as tx_utils
 import egret.model_library.transmission.tx_calc as tx_calc
 import egret.model_library.transmission.bus as libbus
@@ -277,7 +279,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                 branch = branches[bn]
                 libbranch.add_constr_branch_thermal_limit(model, branch, bn, thermal_limit)
                 thermal_idx_monitored.append(i)
-        print('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
+        logger.warning('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
 
     else:
 
@@ -331,9 +333,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
             abs_slack = min( abs(vm - v_min) , abs(v_max - vm) )
             rel_slack =  abs_slack / (v_max - v_min)
             if abs_slack < ptdf_options['abs_vm_init_tol'] or rel_slack < ptdf_options['rel_vm_init_tol']:
-                #print('adding vm: {} <= {} <= {}'.format(v_min, vm, v_max))
-                #print('... abs_slack={} < abs_tol={}'.format(abs_slack,ptdf_options['abs_vm_init_tol']))
-                #print('... rel_slack={} < rel_tol={}'.format(rel_slack,ptdf_options['rel_vm_init_tol']))
+                logger.warning('adding vm {}: {} <= {} <= {}'.format(bus_name, v_min, vm, v_max))
                 monitor_init.add(bus_name)
 
         model.eq_vm_bus = pe.Constraint(bus_attrs['names'])
@@ -355,7 +355,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
         mon_message = '{} of {} voltage constraints added to initial monitored set'.format(len(monitor_init),
                                                                                     len(bus_attrs['names']))
         mon_message += ' ({} shunt devices).'.format(len(shunt_buses))
-        print(mon_message)
+        logger.warning(mon_message)
 
     else:
         libbus.declare_eq_vm_vdf_approx(model=model,
@@ -727,7 +727,7 @@ def _load_solution_to_model_data(m, md, results):
 
         tol = 1e-6
         if b_dict['vm'] < b_dict['v_min'] - tol or b_dict['vm'] > b_dict['v_max'] + tol:
-            print('BAD vm DATA-------: bus {}, vm {}'.format(b, b_dict['vm']))
+            logger.warning('BAD vm DATA-------: bus {}, vm {}'.format(b, b_dict['vm']))
 
     ## generator data
     for g,g_dict in gens.items():
@@ -978,7 +978,6 @@ def compare_fdf_options(md):
     from egret.data.test_utils import solve_infeas_model
     from egret.models.tests.test_approximations import create_new_model_data
 
-    import logging
     logger = logging.getLogger('egret')
     logger.setLevel(logging.ERROR)
 
@@ -1132,7 +1131,6 @@ def test_dlopf(md):
     from egret.data.test_utils import solve_infeas_model
     from egret.models.tests.test_approximations import create_new_model_data
 
-    import logging
     logger = logging.getLogger('egret')
     logger.setLevel(logging.WARNING)
 
