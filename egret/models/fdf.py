@@ -340,7 +340,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
 
         lpu.add_monitored_vm_tracker(model)
 
-        monitor_init = monitor_init.union(shunt_buses)
+        #monitor_init = monitor_init.union(shunt_buses)
         for i,bn in enumerate(bus_attrs['names']):
             if bn in monitor_init:
                 bus = buses[bn]
@@ -354,7 +354,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                 model._vm_idx_monitored.append(i)
         mon_message = '{} of {} voltage constraints added to initial monitored set'.format(len(monitor_init),
                                                                                     len(bus_attrs['names']))
-        mon_message += ' ({} shunt devices).'.format(len(shunt_buses))
+        #mon_message += ' ({} shunt devices).'.format(len(shunt_buses))
         logger.warning(mon_message)
 
     else:
