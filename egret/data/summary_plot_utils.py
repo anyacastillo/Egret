@@ -51,19 +51,19 @@ mean_functions = [tu.num_buses,
                   tu.acpf_slack,
                   tu.vm_viol_sum,
                   tu.thermal_viol_sum,
-                  tu.vm_UB_viol_avg,
-                  tu.vm_LB_viol_avg,
-                  tu.vm_viol_avg,
-                  tu.thermal_viol_avg,
+                  #tu.vm_UB_viol_avg,
+                  #tu.vm_LB_viol_avg,
+                  #tu.vm_viol_avg,
+                  #tu.thermal_viol_avg,
                   tu.vm_UB_viol_max,
                   tu.vm_LB_viol_max,
                   tu.vm_viol_max,
                   tu.thermal_viol_max,
-                  tu.vm_UB_viol_pct,
-                  tu.vm_LB_viol_pct,
-                  tu.vm_viol_pct,
-                  tu.thermal_viol_pct,
-                  tu.thermal_and_vm_viol_pct,
+                  #tu.vm_UB_viol_pct,
+                  #tu.vm_LB_viol_pct,
+                  #tu.vm_viol_pct,
+                  #tu.thermal_viol_pct,
+                  #tu.thermal_and_vm_viol_pct,
                   ]
 
 #Functions to be summarized by summation
@@ -122,6 +122,67 @@ def get_colors(map_name=None, trim=0.9):
     colors.set_bad('grey')
 
     return colors
+
+def update_data_file(case_name):
+
+    try:
+        df_data = read_data_file()
+    except:
+        df_data = pd.DataFrame(data=None)
+
+    df_add = read_json_data(case_name)
+    df_updated = pd.concat([df_data, df_add])
+
+    ## save DATA to csv
+    destination = tau.get_summary_file_location('data')
+    filename = "all_summary_data.csv"
+    df_updated.to_csv(os.path.join(destination, filename))
+
+def read_json_data(case_name):
+
+    #parent, case = os.path.split(case_folder)
+    case_folder = tau.get_solution_file_location(case_name)
+    filename = case_name + "_*.json"
+    file_list = glob.glob(os.path.join(case_folder, filename))
+
+    data = {}
+    for file in file_list:
+        md_dict = json.load(open(os.path.join(case_folder, file)))
+        md = ModelData(md_dict)
+        idx = md.data['system']['filename']
+        mult = md.data['system']['mult']
+        name = idx.replace(case_name,'')
+        name = name.replace('_{0:04.0f}'.format(mult * 1000), '')
+        data[idx] = {}
+        data[idx]['case'] = case_name.replace('pglib_opf_','')
+        data[idx]['model'] = name
+        data[idx]['mult'] = mult
+        for name,fdict in summary_functions.items():
+            data_generator = fdict['function']
+            data[idx][name] = data_generator(md)
+
+    df_data = pd.DataFrame(data).transpose()
+    df_data = normalize_solve_time(df_data)
+
+    return df_data
+
+def normalize_solve_time(df_data, model_benchmark='acopf'):
+
+    is_benchmark = df_data['model']==model_benchmark
+    df_benchmark = df_data[is_benchmark]
+    gm_benchmark = gmean(df_benchmark['solve_time'])
+
+    df_data['solve_time_normalized'] = df_data['solve_time'] / gm_benchmark
+
+    return df_data
+
+def read_data_file():
+
+    filename = "all_summary_data.csv"
+    source = tau.get_summary_file_location('data')
+    df_data = pd.read_csv(os.path.join(source, filename))
+
+    return df_data
 
 def short_summary():
 
