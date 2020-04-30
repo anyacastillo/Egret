@@ -135,6 +135,56 @@ def get_case_size_dict(test_model_list):
 
     return tm_dict
 
+def get_scatter_full_dict(test_model_list):
+
+    tm_dict = {}
+    for key in test_model_list:
+        if 'acopf' in key:
+            tm_dict[key] = True
+        else:
+            tm_dict[key] = True
+
+    return tm_dict
+
+def get_scatter_settings_dict(test_model_list, model='dlopf'):
+
+    tm_dict = {}
+    for key in test_model_list:
+        if model in key:
+            tm_dict[key] = True
+        else:
+            tm_dict[key] = False
+
+    return tm_dict
+
+def get_scatter_filtered_dict(test_model_list):
+
+    tm_dict = {}
+    for key in test_model_list:
+        if 'acopf' in key:
+            tm_dict[key] = True
+        elif 'lopf' in key and '_e2' in key:
+            tm_dict[key] = True
+        else:
+            tm_dict[key] = False
+
+    return tm_dict
+
+def get_scatter_pareto_dict(test_model_list):
+
+    tm_dict = {}
+
+    for key in test_model_list:
+        if any(m in key for m in ['slopf','btheta']):
+            tm_dict[key] = True
+        elif '_e2' in key:
+            tm_dict[key] = True
+        else:
+            tm_dict[key] = False
+
+    return tm_dict
+
+
 def get_lazy_speedup_dict(test_model_list):
 
     tm_dict = {}

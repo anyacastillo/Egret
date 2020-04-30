@@ -26,6 +26,7 @@ import math
 import numpy.ma as ma
 import unittest
 import logging
+from egret.common.log import logger
 import egret.data.test_utils as tu
 import egret.models.tests.ta_utils as tau
 from pyomo.opt import SolverFactory, TerminationCondition
@@ -64,6 +65,7 @@ mean_functions = [tu.num_buses,
                   #tu.vm_viol_pct,
                   #tu.thermal_viol_pct,
                   #tu.thermal_and_vm_viol_pct,
+                  tu.total_cost
                   ]
 
 #Functions to be summarized by summation
@@ -123,26 +125,110 @@ def get_colors(map_name=None, trim=0.9):
 
     return colors
 
-def update_data_file(case_name):
+def update_data_file(test_case):
 
     try:
-        df_data = read_data_file()
+        df1 = read_data_file()
     except:
-        df_data = pd.DataFrame(data=None)
+        df1 = pd.DataFrame(data=None)
 
-    df_add = read_json_data(case_name)
-    df_updated = pd.concat([df_data, df_add])
+    df2 = read_json_files(test_case)
+
+    # merge new data
+    new_index = list(set(list(df1.index.values) + list(df2.index.values)))
+    new_columns = list(set(list(df1.columns.values) + list(df2.columns.values)))
+    update = df1.reindex(index=new_index,columns=new_columns)
+    for idx,row in df2.iterrows():
+        update.loc[idx] = row
+    update.sort_index(inplace=True)
 
     ## save DATA to csv
     destination = tau.get_summary_file_location('data')
     filename = "all_summary_data.csv"
-    df_updated.to_csv(os.path.join(destination, filename))
+    print('...out: {}'.format(filename))
+    update.to_csv(os.path.join(destination, filename))
 
-def read_json_data(case_name):
+def update_data_tables():
 
-    #parent, case = os.path.split(case_folder)
-    case_folder = tau.get_solution_file_location(case_name)
-    filename = case_name + "_*.json"
+    df = read_data_file()
+
+    model_list = list(set(list(df.model.values)))
+    model_order = ['acopf','slopf','dlopf','clopf','plopf','ptdf','btheta']
+    build_order = ['default','lazy']
+    trim_order = ['full','e4','e2']
+    desc_list = ['base_model','trim','build_mode']
+    count_list = ['optimal','infeasible','duals','internalSolverError','maxIterations','maxTimeLimit','solverFailure']
+    gmean_list = ['solve_time_normalized','total_cost_normalized','acpf_slack','num_variables','num_constraints','num_nonzeros']
+    tmean_list = ['vm_viol_sum','vm_viol_max','thermal_viol_sum','thermal_viol_max']
+    max_list = tmean_list
+    df3_list = [c + '_avg' for c in tmean_list] + [c + '_max' for c in max_list]
+
+    df1 = pd.DataFrame(data=None, index=model_list, columns=desc_list+count_list)
+    df2 = pd.DataFrame(data=None, index=model_list, columns=desc_list+gmean_list)
+    df3 = pd.DataFrame(data=None, index=model_list, columns=desc_list+df3_list)
+
+    # Table 1
+    for idx,row in df1.iterrows():
+        _df = df[df.model==idx]
+        dummy_row = _df.iloc[0]
+        for col in desc_list:
+            row[col] = dummy_row[col]
+        for col in count_list:
+            _col = _df[col]
+            _col[_col=='True'] = 1
+            _col[_col=='False'] = 0
+            row[col] = sum(_col.astype(int))
+    df1 = df1.sort_values(by=['base_model','build_mode','trim'], ascending=[1,1,0])
+
+    ## save DATA to csv
+    destination = tau.get_summary_file_location('data')
+    filename = "table1.csv"
+    print('...out: {}'.format(filename))
+    df1.to_csv(os.path.join(destination, filename))
+
+    # Table 2
+    for idx, row in df2.iterrows():
+        _df = df[df.model == idx]
+        dummy_row = _df.iloc[0]
+        for col in desc_list:
+            row[col] = dummy_row[col]
+        for col in gmean_list:
+            df_nz = _df[_df[col]!=0]
+            array = abs(df_nz[col].dropna())
+            row[col] = gmean(array)
+    df2 = df2.sort_values(by=['base_model','build_mode','trim'], ascending=[1,1,0])
+
+    ## save DATA to csv
+    destination = tau.get_summary_file_location('data')
+    filename = "table2.csv"
+    print('...out: {}'.format(filename))
+    df2.to_csv(os.path.join(destination, filename))
+
+    # Table 3
+    for idx, row in df3.iterrows():
+        _df = df[df.model == idx]
+        dummy_row = _df.iloc[0]
+        for col in desc_list:
+            row[col] = dummy_row[col]
+        for col in tmean_list:
+            row[col + '_avg'] = tmean(_df[col].dropna())
+        for col in max_list:
+            row[col + '_max'] = max(_df[col])
+    df3 = df3.sort_values(by=['base_model','build_mode','trim'], ascending=[1,1,0])
+
+    ## save DATA to csv
+    destination = tau.get_summary_file_location('data')
+    filename = "table3.csv"
+    print('...out: {}'.format(filename))
+    df3.to_csv(os.path.join(destination, filename))
+
+
+def read_json_files(test_case):
+
+    _, case = os.path.split(test_case)
+    case, _ = os.path.splitext(case)
+    case_folder = tau.get_solution_file_location(test_case)
+    filename = case + "_*.json"
     file_list = glob.glob(os.path.join(case_folder, filename))
 
     data = {}
@@ -151,18 +237,40 @@ def read_json_data(case_name):
         md = ModelData(md_dict)
         idx = md.data['system']['filename']
         mult = md.data['system']['mult']
-        name = idx.replace(case_name,'')
+        name = idx.replace(case + '_','')
         name = name.replace('_{0:04.0f}'.format(mult * 1000), '')
         data[idx] = {}
-        data[idx]['case'] = case_name.replace('pglib_opf_','')
+        data[idx]['case'] = case.replace('pglib_opf_','')
+        data[idx]['long_case'] = case
         data[idx]['model'] = name
         data[idx]['mult'] = mult
-        for name,fdict in summary_functions.items():
+        for col,fdict in summary_functions.items():
             data_generator = fdict['function']
-            data[idx][name] = data_generator(md)
+            data[idx][col] = data_generator(md)
+
+        # record lazy setting
+        if 'lazy' in name:
+            data[idx]['build_mode'] = 'lazy'
+        else:
+            data[idx]['build_mode'] = 'default'
+
+        # record factor truncation setting, if any
+        if any(e in name for e in ['e5','e4','e3','e2']):
+            data[idx]['trim'] = name[-2:]
+        else:
+            data[idx]['trim'] = 'full'
+
+        # record base model
+        base_model = name
+        setting_list = ['_lazy','_full','_e5','_e4','_e3','_e2']
+        remove_list = [s for s in setting_list if s in name]
+        for r in remove_list:
+            base_model = base_model.replace(r,'')
+        data[idx]['base_model'] = base_model
 
     df_data = pd.DataFrame(data).transpose()
     df_data = normalize_solve_time(df_data)
+    df_data = normalize_total_cost(df_data)
 
     return df_data
 
@@ -170,19 +278,253 @@ def normalize_solve_time(df_data, model_benchmark='acopf'):
 
     is_benchmark = df_data['model']==model_benchmark
     df_benchmark = df_data[is_benchmark]
-    gm_benchmark = gmean(df_benchmark['solve_time'])
+    arr = list(df_benchmark['solve_time'].values)
+    gm_benchmark = gmean(arr)
 
     df_data['solve_time_normalized'] = df_data['solve_time'] / gm_benchmark
 
     return df_data
 
-def read_data_file():
+def normalize_total_cost(df_data, model_benchmark='acopf'):
 
-    filename = "all_summary_data.csv"
-    source = tau.get_summary_file_location('data')
-    df_data = pd.read_csv(os.path.join(source, filename))
+    df_data = df_data.sort_values(by='mult')
+    is_benchmark = df_data['model']==model_benchmark
+    df_benchmark = df_data[is_benchmark]
+    tc2 = df_benchmark['total_cost'].to_numpy()
+
+    model_list = list(set(df_data.model.values))
+    model_list.sort()
+
+    for m in model_list:
+        df_m = df_data[df_data.model==m]
+        for idx,row in df_m.iterrows():
+            mult = row.mult
+            tc1 = row.total_cost
+            df2 = df_benchmark[df_benchmark.mult==mult]
+            tc2 = df2.total_cost.values.item()
+            try:
+                val = tc1 / tc2
+            except:
+                val = None
+            df_data.loc[idx, 'total_cost_normalized'] = val
 
     return df_data
+
+def read_data_file(filename="all_summary_data.csv"):
+
+    source = tau.get_summary_file_location('data')
+    df_data = pd.read_csv(os.path.join(source, filename), index_col=0)
+
+    return df_data
+
+def build_sensitivity_plot(test_case, model_dict, y_data='acpf_slack', y_units='MW',
+                           colors=None, show_plot=True):
+
+    _, case_name = os.path.split(test_case)
+    case_name, ext = os.path.splitext(case_name)
+
+    df = read_data_file()
+
+    # filter by test case and model
+    model_list = [k for k,v in model_dict.items() if v]
+    df = df[df.long_case==case_name]
+    df = df[df.model.isin(model_list)]
+
+    # create empty dataframe
+    idx_list = list(set(df.mult.values))
+    idx_list.sort()
+    df_data = pd.DataFrame(data=None, index=idx_list, columns=model_list)
+
+    # fill dataframe with data
+    for idx,row in df.iterrows():
+        model = row.model
+        x = row.mult
+        y = row[y_data]
+        df_data.loc[x,model] = y
+
+    ## save DATA to csv
+    destination = tau.get_summary_file_location('data')
+    filename = "sensitivity_" + case_name + "_" + y_data + ".csv"
+    print('...out: {}'.format(filename))
+    df_data.to_csv(os.path.join(destination, filename))
+
+    ## Create plot
+    fig, ax = plt.subplots()
+
+    #---- set properties
+    if colors is None:
+        colors = get_colors('cubehelix', trim=0.8)
+    marker_style = pareto_marker_style(model_list, colors=colors)
+
+    # plot
+    for m in model_list:
+        ms = marker_style[m]
+        ms['linestyle'] = 'solid'
+        ms['markeredgewidth'] = 1.5
+        if 'slopf' in m or 'btheta' in m:
+            ms['marker'] = 's'
+        elif 'dlopf' in m:
+            ms['marker'] = 'o'
+        elif 'clopf' in m or 'ptdf' in m:
+            ms['marker'] = 'x'
+        elif 'plopf' in m:
+            ms['marker'] = '+'
+        else:
+            ms['marker'] = None
+        ms['fillstyle'] = 'none'
+        x = idx_list
+        y = df_data[m]
+        ax.plot(x, y, **ms)
+
+    # formatting
+    ylabel = y_data
+    if y_units is not None:
+        ylabel += " (" + y_units +")"
+    ax.set_ylabel(ylabel)
+    ax.set_xlabel('Demand Multiplier')
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+    ## save FIGURE as png
+    destination = tau.get_summary_file_location('figures')
+    filename = "sensitivity_" + case_name + "_" + y_data + ".png"
+    plt.savefig(os.path.join(destination, filename))
+
+    # display
+    if show_plot is True:
+        plt.show()
+    else:
+        plt.close('all')
+
+def calculate_case_gmean_data():
+
+    df = read_data_file()
+    df = df[df.optimal==1]
+
+    # create empty dataframe
+    model_list = list(set(df.model.values))
+    case_list = list(set(df.case.values))
+    df_data = pd.DataFrame(data=None)
+
+    # fill dataframe with data
+    for m in model_list:
+        _dfm = df[df.model==m]
+        for c in case_list:
+            _df = _dfm[_dfm.case==c]
+            df_num = _df.select_dtypes(include='number')
+            _df = _df.drop_duplicates(subset='case')
+            idx = list(_df.index)
+            for col in df_num.columns:
+                try:
+                    gm = gmean(df_num[col])
+                except:
+                    gm = None
+                _df.loc[idx,col] = gm
+            df_data = pd.concat([df_data, _df])
+
+    ## save DATA to csv
+    destination = tau.get_summary_file_location('data')
+    filename = "case_gmean_data.csv"
+    print('...out: {}'.format(filename))
+    df_data.to_csv(os.path.join(destination, filename))
+
+def calculate_model_gmean_data():
+
+    df = read_data_file()
+    #df = df[df.optimal==1]
+
+    # remove cases with suboptimal solves from
+    bad_case = []
+    for idx,row in df.iterrows():
+        if row.optimal != 1:
+            bad_case.append(row.case)
+    bad_case = list(set(bad_case))
+    bad_idx = list(df[df.case.isin(bad_case)].index)
+    df = df.drop(bad_idx)
+
+    # create empty dataframe
+    model_list = list(set(df.model.values))
+    df_data = pd.DataFrame(data=None)
+
+    # fill dataframe with data
+    for m in model_list:
+        _df = df[df.model==m]
+        df_num = _df.select_dtypes(include='number')
+        _df = _df.drop_duplicates(subset='model')
+        idx = list(_df.index)
+        for col in df_num.columns:
+            try:
+                gm = gmean(abs(df_num[col]))
+            except:
+                gm = None
+            _df.loc[idx,col] = gm
+        df_data = pd.concat([df_data, _df])
+
+    ## save DATA to csv
+    destination = tau.get_summary_file_location('data')
+    filename = "model_gmean_data.csv"
+    print('...out: {}'.format(filename))
+    df_data.to_csv(os.path.join(destination, filename))
+
+def build_scatterplot(model_dict, x_data='num_buses', y_data='solve_time',
+                      data_file="case_gmean_data.csv",
+                      hue_group=None, style_group=None, size_group=None,
+                      hue_order=None, style_order=None, size_order=None,
+                      xscale='log', yscale='log', file_tag=None,
+                      x_units=None, y_units='s', show_plot=True):
+
+    df = read_data_file(filename=data_file)
+
+    # filter by model
+    model_list = [k for k,v in model_dict.items() if v]
+    df = df[df.model.isin(model_list)]
+
+    model_order = ['acopf','slopf','dlopf','clopf','plopf','ptdf','btheta']
+    build_order = ['default','lazy']
+    trim_order = ['full','e4','e2']
+    model_list = list(set(list(df.base_model.values)))
+    model_order = [m for m in model_order if m in model_list]
+
+    order = {'base_model':model_order, 'build_mode':build_order, 'trim':trim_order}
+    if hue_group in order.keys():
+        hue_order = order[hue_group]
+    if style_group in order.keys():
+        style_order = order[style_group]
+    if size_group in order.keys():
+        size_order = order[size_group]
+
+    # build scatterplot
+    ax = sns.scatterplot(x=x_data, y=y_data, data=df,
+                         hue=hue_group, hue_order=hue_order,
+                         style=style_group, style_order=style_order,
+                         size=size_group, size_order=size_order
+                         )
+    ax.set_xscale(xscale)
+    ax.set_yscale(yscale)
+    if x_units is not None:
+        ax.set_xlabel(x_data + ' (' + x_units + ')')
+    if y_units is not None:
+        ax.set_ylabel(y_data + ' (' + y_units + ')')
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0,box.width * 0.8, box.height])
+    plt.legend(bbox_to_anchor=(1,0.5),loc='center left')
+
+    ## save FIGURE as png
+    if file_tag is not None:
+        filename = y_data + "_vs_" + x_data + "_" + file_tag + ".png"
+    else:
+        filename = y_data + "_vs_" + x_data + ".png"
+    destination = tau.get_summary_file_location('figures')
+    print('...out: {}'.format(filename))
+    plt.savefig(os.path.join(destination, filename))
+
+    if show_plot:
+        plt.show()
+    else:
+        plt.close('all')
 
 def short_summary():
 
@@ -535,9 +877,9 @@ def generate_serial_data(test_model_list, case_list=None, data_generator=tu.solv
     df_data.to_csv(os.path.join(destination, filename))
 
 def generate_violin_plot(data_filters=None, data_name='solve_time', order=None, category='model',
-                         normalized=True, colormap=None, scale='linear', show_plot=True):
+                         scale='linear', show_plot=True):
 
-    filename = "serial_data_" + data_name + ".csv"
+    filename = "all_summary_data.csv"
     source = tau.get_summary_file_location('data')
     df_data = pd.read_csv(os.path.join(source,filename))
 
@@ -546,16 +888,13 @@ def generate_violin_plot(data_filters=None, data_name='solve_time', order=None, 
             if col in df_data.columns:
                 drop_rows = []
                 for idx,row in df_data.iterrows():
-                    if row[col] not in keepers:
+                    if not any(k in row[col] for k in keepers):
                         drop_rows.append(idx)
                 df_data = df_data.drop(drop_rows)
 
     if df_data.empty:
-        print('WARNING: attempted generate_violin_plot without sufficient data.')
+        logger.warning('WARNING: attempted generate_violin_plot without sufficient data.')
         return
-
-    if normalized:
-        data_name = data_name + '_normalized'
 
     model_list = list(df_data.model.unique())
     case_list = list(df_data.case.unique())
@@ -580,6 +919,7 @@ def generate_violin_plot(data_filters=None, data_name='solve_time', order=None, 
     ## save FIGURE as png
     tag = data_filters['file_tag']
     filename = "violin_" + data_name + "_" + tag + ".png"
+    print('...out: {}'.format(filename))
     destination = tau.get_summary_file_location('figures')
     plt.savefig(os.path.join(destination, filename))
 
@@ -787,7 +1127,7 @@ def pareto_marker_style(model_list, colors=cmap.viridis):
         if 'acopf' in m:
             fmt['marker'] = '*'
 
-        elif 'default' in m:
+        elif 'full' in m:
             fmt['marker'] = 's'
             fmt['markeredgewidth'] = 2
             fmt['fillstyle'] = 'none'
@@ -812,11 +1152,11 @@ def pareto_marker_style(model_list, colors=cmap.viridis):
             fmt['markeredgewidth'] = 2
             fmt['fillstyle'] = 'none'
 
-        elif 'dcopf_btheta' in m:
-            fmt['marker'] = '$B$'
-
-        elif 'qcopf_btheta' in m:
-            fmt['marker'] = '$Q$'
+        elif 'btheta' in m:
+            if 'qcp' in m:
+                fmt['marker'] = '$Q$'
+            else:
+                fmt['marker'] = '$B$'
 
         elif 'slopf' in m:
             fmt['marker'] = '$S$'
@@ -885,7 +1225,6 @@ def generate_pareto_all_plot(test_model_dict,
 
 
 def get_data(filename, test_model_dict=None):
-    print(filename)
 
     ## get data from CSV
     source = tau.get_summary_file_location('data')
@@ -1276,70 +1615,42 @@ def trunc_speedup_plot(test_model_list, colors=None, show_plot=True):
     generate_speedup_heatmap(test_model_dict=trunc_speedup_dict, mean_data='solve_time_geomean', benchmark='dlopf_default',
                              cscale='linear', include_benchmark=True, colormap=colors, show_plot=show_plot)
 
-def violin_plot(test_model_list, colors=None, show_plot=True):
+def violin_plots(show_plot=True):
 
     from egret.models.tests.ta_utils import cases_0toC, cases_CtoM, cases_MtoX
 
-    if colors is None:
-        colors = get_colors('cubehelix', trim=0.8)
-
-    violin_dict = tau.get_violin_dict(test_model_list)
-    generate_serial_data(test_model_list, data_generator=tu.solve_time,benchmark='acopf')
+    # deprecated and replaced with all_summary_data.csv
+    #generate_serial_data(test_model_list, data_generator=tu.solve_time,benchmark='acopf')
 
     # lists used for filtering categorical labels
-    model_list = [key for key,val in violin_dict.items() if val]
-    model_list.remove('acopf')
-    dense_settings = ['default','e4','e3','e2']
+    model_list = ['dlopf','clopf','plopf','ptdf']
+    cases_dict = {'0toC_small':cases_0toC,
+                  'CtoM_medium':cases_CtoM,
+                  'MtoX_large':cases_MtoX}
 
-    filters = {}
-    filters['model'] = model_list
-    filters['case'] = cases_0toC
-    filters['file_tag'] = '0toC_small'
-    generate_violin_plot(data_filters=filters, category='model', scale='linear', normalized=True,
-                         colormap=colors, show_plot=show_plot)
+    # generic violins
+    for m in model_list:
+        for cname,cases in cases_dict.items():
+            filters = {}
+            filters['model'] = [m]
+            filters['long_case'] = cases
+            filters['file_tag'] = m + '_' + cname
+            generate_violin_plot(data_name='solve_time_normalized',data_filters=filters,
+                                 category='model', show_plot=show_plot)
 
+    # special violins
     filters = {}
-    filters['model'] = model_list
-    filters['case'] = cases_CtoM
+    filters['model'] = ['slopf','dlopf_lazy_e2','dlopf_e2','clopf_lazy_e2','clopf_e2']
+    filters['long_case'] = cases_CtoM
     filters['file_tag'] = 'CtoM_medium'
-    generate_violin_plot(data_filters=filters, category='model', scale='linear', normalized=True,
-                         colormap=colors, show_plot=show_plot)
+    generate_violin_plot(data_name='solve_time_normalized',data_filters=filters,
+                         category='model', show_plot=show_plot)
 
-    filters = {}
-    filters['model'] = model_list
-    filters['case'] = cases_MtoX
+    filters['long_case'] = cases_MtoX
     filters['file_tag'] = 'MtoX_large'
-    generate_violin_plot(data_filters=filters, category='model', scale='linear', normalized=True,
-                         colormap=colors, show_plot=show_plot)
+    generate_violin_plot(data_name='solve_time_normalized',data_filters=filters,
+                         category='model', show_plot=show_plot)
 
-
-    filters = {}
-    filters['base_model'] = ['dlopf']
-    filters['setting'] = dense_settings
-    filters['file_tag'] = 'dlopf'
-    generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
-                         scale='linear', normalized=True, colormap=colors, show_plot=show_plot)
-
-    filters = {}
-    filters['base_model'] = ['clopf']
-    filters['setting'] = dense_settings
-    filters['file_tag'] = 'clopf'
-    generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
-                         scale='linear', normalized=True, colormap=colors, show_plot=show_plot)
-
-    filters = {}
-    filters['base_model'] = ['plopf']
-    filters['setting'] = dense_settings
-    filters['file_tag'] = 'plopf'
-    generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
-                         scale='linear', normalized=True, colormap=colors, show_plot=show_plot)
-
-    filters = {}
-    filters['base_model'] = ['dcopf_ptdf']
-    filters['setting'] = dense_settings
-    filters['file_tag'] = 'dcopf_ptdf'
-    generate_violin_plot(data_filters=filters, category='setting', order=dense_settings,
-                         scale='linear', normalized=True, colormap=colors, show_plot=show_plot)
 
 def acpf_violations_plot(test_case, test_model_list, colors=None, show_plot=True):
 
@@ -1384,31 +1695,76 @@ def create_detail_summary(test_case, test_model_list, show_plot=True):
 
     colors = get_colors(map_name='cubehelix', trim=0.8)
     viol_colors = get_colors(map_name='coolwarm')
+    sensitivity_dict = tau.get_sensitivity_dict(test_model_list)
 
     ## Generate data files
-    generate_summary_data(test_case,test_model_list, shorten=False)
+    update_data_file(test_case)
+    update_data_tables()
 
     ## Generate plots
     acpf_violations_plot(test_case, test_model_list, colors=viol_colors, show_plot=show_plot)
-    sensitivity_plot(test_case, test_model_list, colors=colors, show_plot=show_plot)
-    pareto_test_case_plot(test_case, test_model_list, colors=colors, show_plot=show_plot)
+    build_sensitivity_plot(test_case, sensitivity_dict, y_data='acpf_slack', y_units='MW')
+    build_sensitivity_plot(test_case, sensitivity_dict, y_data='total_cost_normalized', y_units=None)
 
-def create_solution_time_summary(test_model_list, show_plot=True):
+    # TODO: summary table of # optimal/not/duals/normalized solve/normalized obj
+    #generate_summary_data(test_case,test_model_list, shorten=False)
 
-    colors = get_colors(map_name='cubehelix', trim=0.8)
-    speed_colors = get_colors(map_name='inferno')
+    # Skipping this plot for now, was not very imformative
+    #pareto_test_case_plot(test_case, test_model_list, colors=colors, show_plot=show_plot)
 
-    solution_time_plot(test_model_list, colors=colors, show_plot=show_plot)
-    lazy_speedup_plot(test_model_list, colors=speed_colors, show_plot=show_plot)
-    trunc_speedup_plot(test_model_list, colors=speed_colors, show_plot=show_plot)
+def scatter_plots(test_model_list, show_plot=True):
 
-    violin_plot(test_model_list, colors=colors, show_plot=show_plot)
+    calculate_case_gmean_data()
 
+    scatter_full_dict = tau.get_scatter_full_dict(test_model_list)
+    build_scatterplot(scatter_full_dict, y_data='solve_time_normalized', x_data='num_buses',
+                          y_units='s', x_units=None, file_tag='full', show_plot=show_plot,
+                          hue_group='base_model', style_group='build_mode', size_group='trim')
+
+    scatter_filered_dict = tau.get_scatter_filtered_dict(test_model_list)
+    build_scatterplot(scatter_filered_dict, y_data='solve_time_normalized', x_data='num_buses',
+                          y_units='s', x_units=None, file_tag='filtered', show_plot=show_plot,
+                          hue_group='base_model', style_group='build_mode', size_group=None)
+
+    for m in ['dlopf','clopf','plopf','ptdf']:
+        scatter_settings_dict = tau.get_scatter_settings_dict(test_model_list, model=m)
+        build_scatterplot(scatter_settings_dict, y_data='solve_time', x_data='num_buses',
+                              y_units='s', x_units=None, file_tag=m, show_plot=show_plot,
+                              hue_group='trim', style_group='build_mode', size_group=None)
+
+        scatter_settings_dict = tau.get_scatter_settings_dict(test_model_list, model=m)
+        build_scatterplot(scatter_settings_dict, y_data='num_nonzeros', x_data='num_buses',
+                              y_units='s', x_units=None, file_tag=m, show_plot=show_plot,
+                              hue_group='trim', style_group='build_mode', size_group=None)
+
+    # TODO: update speedup heatmaps (or may skip... similar info as violins)
+    #colors = get_colors(map_name='cubehelix', trim=0.8)
+    #speed_colors = get_colors(map_name='inferno')
+    #lazy_speedup_plot(test_model_list, colors=speed_colors, show_plot=show_plot)
+    #trunc_speedup_plot(test_model_list, colors=speed_colors, show_plot=show_plot)
+
+def pareto_plots(test_model_list, show_plot=True):
+
+    calculate_model_gmean_data()
+
+    scatter_pareto_dict = tau.get_scatter_pareto_dict(test_model_list)
+
+    build_scatterplot(scatter_pareto_dict, y_data='acpf_slack', x_data='solve_time_normalized',
+                          y_units='MW', x_units=None, file_tag='pareto1', show_plot=show_plot,
+                          yscale='log', data_file='case_gmean_data.csv',
+                          hue_group='base_model', style_group='build_mode', size_group=None)
+
+    build_scatterplot(scatter_pareto_dict, y_data='acpf_slack', x_data='solve_time_normalized',
+                          y_units='MW', x_units=None, file_tag='pareto2', show_plot=show_plot,
+                          yscale='log', data_file='model_gmean_data.csv',
+                          hue_group='base_model', style_group='build_mode', size_group=None)
 
 def create_full_summary(test_case, test_model_list, show_plot=True):
+
     create_detail_summary(test_case, test_model_list, show_plot=show_plot)
-    create_solution_time_summary(test_model_list, show_plot=show_plot)
-    create_pareto_all_summary(test_model_list, show_plot=show_plot)
+    violin_plots(show_plot=show_plot)
+    scatter_plots(test_model_list, show_plot=show_plot)
+    pareto_plots(test_model_list, show_plot=show_plot)
 
 if __name__ == '__main__':
     import sys
@@ -1417,36 +1773,7 @@ if __name__ == '__main__':
     except:
         test_case = tau.idx_to_test_case(0)
 
-    test_model_list = [
-         'acopf',
-         'slopf',
-         'dlopf_default',
-         'dlopf_lazy',
-         'dlopf_e5',
-         'dlopf_e4',
-         'dlopf_e3',
-         #'dlopf_e2',
-         'clopf_default',
-         'clopf_lazy',
-         'clopf_e5',
-         'clopf_e4',
-         'clopf_e3',
-         #'clopf_e2',
-         'plopf_default',
-         'plopf_lazy',
-         'plopf_e5',
-         'plopf_e4',
-         'plopf_e3',
-         #'plopf_e2',
-         'qcopf_btheta',
-         'dcopf_ptdf_default',
-         'dcopf_ptdf_lazy',
-         'dcopf_ptdf_e5',
-         'dcopf_ptdf_e4',
-         'dcopf_ptdf_e3',
-         #'dcopf_ptdf_e2',
-         'dcopf_btheta'
-         ]
+    from egret.models.tests.test_approximations import test_model_list
 
     #acpf_violations_plot(test_case,test_model_list)
     create_full_summary(test_case,test_model_list)
