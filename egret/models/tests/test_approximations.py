@@ -336,6 +336,8 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
 
     for tm in test_model_list:
 
+        print('>>>>> BEGIN SOLVE: {} <<<<<'.format(tm))
+
         tm_dict = test_model_dict[tm]
 
         solve_func = tm_dict['solve_func']

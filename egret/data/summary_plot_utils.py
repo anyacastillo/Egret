@@ -1703,8 +1703,8 @@ def create_detail_summary(test_case, test_model_list, show_plot=True):
 
     ## Generate plots
     acpf_violations_plot(test_case, test_model_list, colors=viol_colors, show_plot=show_plot)
-    build_sensitivity_plot(test_case, sensitivity_dict, y_data='acpf_slack', y_units='MW')
-    build_sensitivity_plot(test_case, sensitivity_dict, y_data='total_cost_normalized', y_units=None)
+    build_sensitivity_plot(test_case, sensitivity_dict, y_data='acpf_slack', y_units='MW', show_plot=show_plot)
+    build_sensitivity_plot(test_case, sensitivity_dict, y_data='total_cost_normalized', y_units=None, show_plot=show_plot)
 
     # TODO: summary table of # optimal/not/duals/normalized solve/normalized obj
     #generate_summary_data(test_case,test_model_list, shorten=False)
@@ -1763,6 +1763,7 @@ def create_full_summary(test_case, test_model_list, show_plot=True):
 
     create_detail_summary(test_case, test_model_list, show_plot=show_plot)
     violin_plots(show_plot=show_plot)
+    # TODO: remove 'test_model_list' from these methods
     scatter_plots(test_model_list, show_plot=show_plot)
     pareto_plots(test_model_list, show_plot=show_plot)
 
