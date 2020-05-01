@@ -473,7 +473,7 @@ def calculate_model_gmean_data():
     print('...out: {}'.format(filename))
     df_data.to_csv(os.path.join(destination, filename))
 
-def build_scatterplot(model_dict, x_data='num_buses', y_data='solve_time',
+def build_scatterplot(model_keys=None, x_data='num_buses', y_data='solve_time',
                       data_file="case_gmean_data.csv",
                       hue_group=None, style_group=None, size_group=None,
                       hue_order=None, style_order=None, size_order=None,
@@ -483,7 +483,12 @@ def build_scatterplot(model_dict, x_data='num_buses', y_data='solve_time',
     df = read_data_file(filename=data_file)
 
     # filter by model
-    model_list = [k for k,v in model_dict.items() if v]
+    all_models = list(set(list(df.model.values)))
+    if model_keys is None:
+        model_list = all_models
+    else:
+        model_list = [m for m in all_models if any(k in m for k in model_keys)]
+    #model_list = [k for k,v in model_dict.items() if v]
     df = df[df.model.isin(model_list)]
 
     model_order = ['acopf','slopf','dlopf','clopf','plopf','ptdf','btheta']
@@ -1709,36 +1714,32 @@ def create_detail_summary(test_case, test_model_list, show_plot=True):
     ## Generate plots
     acpf_violations_plot(test_case, test_model_list, colors=viol_colors, show_plot=show_plot)
     build_sensitivity_plot(test_case, sensitivity_dict, y_data='acpf_slack', y_units='MW', show_plot=show_plot)
+    # Note: 'total_cost_normalized' is only available if the acopf solve was successful
     build_sensitivity_plot(test_case, sensitivity_dict, y_data='total_cost_normalized', y_units=None, show_plot=show_plot)
-
-    # TODO: summary table of # optimal/not/duals/normalized solve/normalized obj
-    #generate_summary_data(test_case,test_model_list, shorten=False)
 
     # Skipping this plot for now, was not very imformative
     #pareto_test_case_plot(test_case, test_model_list, colors=colors, show_plot=show_plot)
 
-def scatter_plots(test_model_list, show_plot=True):
+def scatter_plots(show_plot=True):
 
     calculate_case_gmean_data()
 
-    scatter_full_dict = tau.get_scatter_full_dict(test_model_list)
-    build_scatterplot(scatter_full_dict, y_data='solve_time_normalized', x_data='num_buses',
+    full_list=None
+    build_scatterplot(model_keys=full_list, y_data='solve_time_normalized', x_data='num_buses',
                           y_units='s', x_units=None, file_tag='full', show_plot=show_plot,
                           hue_group='base_model', style_group='build_mode', size_group='trim')
 
-    scatter_filered_dict = tau.get_scatter_filtered_dict(test_model_list)
-    build_scatterplot(scatter_filered_dict, y_data='solve_time_normalized', x_data='num_buses',
+    filtered_list=['acopf','slopf','btheta','lopf_e2','lopf_lazy_e2']
+    build_scatterplot(model_keys=filtered_list, y_data='solve_time_normalized', x_data='num_buses',
                           y_units='s', x_units=None, file_tag='filtered', show_plot=show_plot,
                           hue_group='base_model', style_group='build_mode', size_group=None)
 
     for m in ['dlopf','clopf','plopf','ptdf']:
-        scatter_settings_dict = tau.get_scatter_settings_dict(test_model_list, model=m)
-        build_scatterplot(scatter_settings_dict, y_data='solve_time', x_data='num_buses',
+        build_scatterplot(model_keys=[m], y_data='solve_time', x_data='num_buses',
                               y_units='s', x_units=None, file_tag=m, show_plot=show_plot,
                               hue_group='trim', style_group='build_mode', size_group=None)
 
-        scatter_settings_dict = tau.get_scatter_settings_dict(test_model_list, model=m)
-        build_scatterplot(scatter_settings_dict, y_data='num_nonzeros', x_data='num_buses',
+        build_scatterplot(model_keys=[m], y_data='num_nonzeros', x_data='num_buses',
                               y_units='s', x_units=None, file_tag=m, show_plot=show_plot,
                               hue_group='trim', style_group='build_mode', size_group=None)
 
@@ -1748,18 +1749,17 @@ def scatter_plots(test_model_list, show_plot=True):
     #lazy_speedup_plot(test_model_list, colors=speed_colors, show_plot=show_plot)
     #trunc_speedup_plot(test_model_list, colors=speed_colors, show_plot=show_plot)
 
-def pareto_plots(test_model_list, show_plot=True):
+def pareto_plots(show_plot=True):
 
     calculate_model_gmean_data()
 
-    scatter_pareto_dict = tau.get_scatter_pareto_dict(test_model_list)
-
-    build_scatterplot(scatter_pareto_dict, y_data='acpf_slack', x_data='solve_time_normalized',
+    pareto_keys = ['slopf','btheta','_e2']
+    build_scatterplot(model_keys=pareto_keys, y_data='acpf_slack', x_data='solve_time_normalized',
                           y_units='MW', x_units=None, file_tag='pareto1', show_plot=show_plot,
                           yscale='log', data_file='case_gmean_data.csv',
                           hue_group='base_model', style_group='build_mode', size_group=None)
 
-    build_scatterplot(scatter_pareto_dict, y_data='acpf_slack', x_data='solve_time_normalized',
+    build_scatterplot(model_keys=pareto_keys, y_data='acpf_slack', x_data='solve_time_normalized',
                           y_units='MW', x_units=None, file_tag='pareto2', show_plot=show_plot,
                           yscale='log', data_file='model_gmean_data.csv',
                           hue_group='base_model', style_group='build_mode', size_group=None)
@@ -1768,9 +1768,8 @@ def create_full_summary(test_case, test_model_list, show_plot=True):
 
     create_detail_summary(test_case, test_model_list, show_plot=show_plot)
     violin_plots(show_plot=show_plot)
-    # TODO: remove 'test_model_list' from these methods
-    scatter_plots(test_model_list, show_plot=show_plot)
-    pareto_plots(test_model_list, show_plot=show_plot)
+    scatter_plots(show_plot=show_plot)
+    pareto_plots(tshow_plot=show_plot)
 
 if __name__ == '__main__':
     import sys

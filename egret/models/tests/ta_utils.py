@@ -100,11 +100,22 @@ def get_summary_file_location(folder):
 
 def get_sensitivity_dict(test_model_list):
 
+    dlist = [tm for tm in test_model_list if 'dlopf' in tm]
+    clist = [tm for tm in test_model_list if 'clopf' in tm]
+    plist = [tm for tm in test_model_list if 'plopf' in tm]
+    qlist = [tm for tm in test_model_list if 'ptdf' in tm]
+    dense_keepers = [dlist[0], clist[0], plist[0],qlist[0]]
+
     tm_dict = {}
     for key in test_model_list:
-        if '_lazy' in key or '_e' in key:
-            tm_dict[key] = False
-        elif 'qcopf' in key:
+        if 'lopf' in key or 'ptdf' in key:
+            if key in dense_keepers:
+                tm_dict[key] = True
+            elif 'slopf' in key:
+                tm_dict[key] = True
+            else:
+                tm_dict[key] = False
+        elif 'qcp' in key:
             tm_dict[key] = False
         else:
             tm_dict[key] = True
@@ -211,7 +222,27 @@ def get_trunc_speedup_dict(test_model_list):
     return tm_dict
 
 def get_violation_dict(test_model_list):
-    tm_dict = get_sensitivity_dict(test_model_list)
+
+    dlist = [tm for tm in test_model_list if 'dlopf' in tm]
+    clist = [tm for tm in test_model_list if 'clopf' in tm]
+    plist = [tm for tm in test_model_list if 'plopf' in tm]
+    qlist = [tm for tm in test_model_list if 'ptdf' in tm]
+    dense_keepers = [dlist[0], clist[0], plist[0],qlist[0]]
+
+    tm_dict = {}
+    for key in test_model_list:
+        if 'lopf' in key or 'ptdf' in key:
+            if key in dense_keepers:
+                tm_dict[key] = True
+            elif 'slopf' in key:
+                tm_dict[key] = True
+            else:
+                tm_dict[key] = False
+        elif 'qcp' in key:
+            tm_dict[key] = False
+        else:
+            tm_dict[key] = True
+
     return tm_dict
 
 def get_violin_dict(test_model_list):
