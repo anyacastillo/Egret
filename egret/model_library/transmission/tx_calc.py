@@ -1041,9 +1041,9 @@ def linsolve_theta_fdf(model, model_data, base_point=BasePointType.SOLUTION,
         Z = md.data['system']['va_SENSI']
         c = md.data['system']['va_CONST']
 
-        theta = Z.dot(m_p_nw) + c
-
-        return theta
+        if Z is not None:
+            theta = Z.dot(m_p_nw) + c
+            return theta
 
     print('solving theta with power flow Jacobian.')
 
@@ -1081,6 +1081,7 @@ def linsolve_theta_fdf(model, model_data, base_point=BasePointType.SOLUTION,
     b = -m - m_p_nw
 
     # Adjust reference bus coefficients to make M full rank and fix reference bus angle
+    reference_bus = md.data['system']['reference_bus']
     ref = mapping_bus_to_idx[reference_bus]
     #M = M.toarray()
     M[ref,:] = 0
@@ -1250,11 +1251,11 @@ def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_
             b = np.zeros((_len_branch, 1))
             b[idx] = 1
 
-            _tmp_J = np.matmul(J.transpose(), b)
+            _tmp_J = np.matmul(J.A.transpose(), b)
             _tmp_J = np.vstack([_tmp_J, 0])
             B_J = np.concatenate((B_J, _tmp_J), axis=1)
 
-            _tmp_L = np.matmul(L.transpose(), b)
+            _tmp_L = np.matmul(L.A.transpose(), b)
             _tmp_L = np.vstack([_tmp_L, 0])
             B_L = np.concatenate((B_L, _tmp_L), axis=1)
 
@@ -1262,17 +1263,24 @@ def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_
         PTDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
         _ptdf = sp.sparse.linalg.spsolve(J0.transpose().tocsr(), -B_J).T
         PTDF[row_idx] = _ptdf[:, :-1]
+        PTDF = PTDF.A
 
         PLDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
         _pldf = sp.sparse.linalg.spsolve(J0.transpose().tocsr(), -B_L).T
         PLDF[row_idx] = _pldf[:, :-1]
+        PLDF = PLDF.A
+
+        VA_SENSI = None
 
     M1 = A@Jc
     M2 = AA@Lc
     M = M1 + 0.5 * M2
     PT_constant = PTDF@M + Jc
     PL_constant = PLDF@M + Lc
-    VA_CONST = VA_SENSI@M
+    if VA_SENSI is not None:
+        VA_CONST = VA_SENSI@M
+    else:
+        VA_CONST = None
 
     return PTDF, PT_constant, PLDF, PL_constant, VA_SENSI, VA_CONST
 
@@ -1326,7 +1334,7 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
     M = M1 + 0.5 * M2
 
     # use sparse branch/bus mapping for large test cases
-    if _len_bus > 10:   # change to 1000 after debugging....
+    if _len_bus > 1000:   # change to 1000 after debugging....
         _len_cycle = _len_branch - _len_bus + 1
         sparse_index_set_branch = reduce_branches(branches, _len_cycle)
         sparse_index_set_bus = reduce_buses(buses, _len_bus / 4)
@@ -1346,32 +1354,34 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
         QTDF = np.matmul(-J.A, SENSI)
         QLDF = np.matmul(-L.A, SENSI)
     elif len(sparse_index_set_branch) < _len_branch or len(sparse_index_set_bus) < _len_bus:
-        B_J = np.array([], dtype=np.int64).reshape(_len_bus + 1, 0)
-        B_L = np.array([], dtype=np.int64).reshape(_len_bus + 1, 0)
+        B_J = np.array([], dtype=np.int64).reshape(_len_bus, 0)
+        B_L = np.array([], dtype=np.int64).reshape(_len_bus, 0)
         _sparse_mapping_branch = {i: branch_n for i, branch_n in enumerate(index_set_branch) if branch_n in sparse_index_set_branch}
 
         for idx, branch_name in _sparse_mapping_branch.items():
             b = np.zeros((_len_branch, 1))
             b[idx] = 1
 
-            _tmp_J = np.matmul(J.transpose(), b)
-            _tmp_J = np.vstack([_tmp_J, 0])
+            _tmp_J = np.matmul(J.A.transpose(), b)
+            #_tmp_J = np.vstack([_tmp_J, 0])
             B_J = np.concatenate((B_J, _tmp_J), axis=1)
 
-            _tmp_L = np.matmul(L.transpose(), b)
-            _tmp_L = np.vstack([_tmp_L, 0])
+            _tmp_L = np.matmul(L.A.transpose(), b)
+            #_tmp_L = np.vstack([_tmp_L, 0])
             B_L = np.concatenate((B_L, _tmp_L), axis=1)
 
         row_idx = list(_sparse_mapping_branch.keys())
         QTDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
         _qtdf = sp.sparse.linalg.spsolve(M.transpose().tocsr(), -B_J).T
-        QTDF[row_idx] = _qtdf[:, :-1]
+        QTDF[row_idx] = _qtdf[:, :]
+        QTDF = QTDF.A
 
         QLDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
-        _qldf = sp.sparselinalg.spsolve(M.transpose().tocsr(), -B_L).T
-        QLDF[row_idx] = _qldf[:, :-1]
+        _qldf = sp.sparse.linalg.spsolve(M.transpose().tocsr(), -B_L).T
+        QLDF[row_idx] = _qldf[:, :]
+        QLDF = QLDF.A
 
-        Bb = np.array([], dtype=np.int64).reshape(_len_bus + 1, 0)
+        Bb = np.array([], dtype=np.int64).reshape(_len_bus, 0)
         _sparse_mapping_bus = {i: bus_n for i, bus_n in enumerate(index_set_bus) if bus_n in sparse_index_set_bus}
 
         for idx, bus_name in _sparse_mapping_bus.items():
@@ -1382,7 +1392,8 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
         row_idx = list(_sparse_mapping_bus.keys())
         VM_SENSI = sp.sparse.lil_matrix((_len_bus, _len_bus))
         _vdf = sp.sparse.linalg.spsolve(M.transpose().tocsr(), -Bb).T
-        VM_SENSI[row_idx] = _vdf[:, :-1]
+        VM_SENSI[row_idx] = _vdf[:, :]
+        VM_SENSI = VM_SENSI.A
 
     M1 = A@Jc
     M2 = AA@Lc
@@ -1396,13 +1407,16 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
 
 
 def reduce_branches(branches, N):
-    from heapq import nlargest
+    from heapq import nlargest,nsmallest
 
     s_max = {k: branches[k]['rating_long_term'] for k in branches.keys()}
     sf = {k: math.sqrt(branches[k]['pf']**2 + branches[k]['qf']**2) for k in branches.keys()}
     st = {k: math.sqrt(branches[k]['pt']**2 + branches[k]['qt']**2) for k in branches.keys()}
-    loading = {k: max(sf[k], st[k]) / lim for k,lim in s_max.items()}
-    reduced_list = nlargest(int(N), loading)
+    rel_room = {k: 1 - max(sf[k], st[k]) / lim for k,lim in s_max.items()}
+    abs_room = {k: lim - max(sf[k], st[k]) for k,lim in s_max.items()}
+    rel_reduce = nsmallest(int(N), rel_room)
+    abs_reduce = nsmallest(int(N), abs_room)
+    reduced_list = list(set(rel_reduce + abs_reduce))
 
     return reduced_list
 

@@ -1147,6 +1147,7 @@ def test_dlopf(md):
         print(results.Solver)
         print(md.data['results'])
     except Exception as e:
+        raise e
         message = str(e)
         print(message)
 
