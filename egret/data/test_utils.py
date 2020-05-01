@@ -339,7 +339,7 @@ def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
         bus = buses[b]
         bus['acpf_viol'] = -viol
 
-    ## save scalar data in ModelData TODO: add detail (bus/branch violations to md.elements)
+    ## save scalar data in ModelData
     system_data['acpf_slack'] = acpf_p_slack
 
     system_data['sum_vm_UB_viol'] = sum(vm_UB_list)

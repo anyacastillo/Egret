@@ -159,12 +159,12 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
         v_rhs_kwargs, v_penalty_expr = _include_v_feasibility_slack(model, bus_attrs)
 
     ### declare the generator real and reactive power
-    pg_init = {k: (gen_attrs['p_min'][k] + gen_attrs['p_max'][k]) / 2.0 for k in gen_attrs['pg']}
+    pg_init = {k: gens[k]['pg'] for k in gens.keys()}
     libgen.declare_var_pg(model, gen_attrs['names'], initialize=pg_init,
                           bounds=zip_items(gen_attrs['p_min'], gen_attrs['p_max'])
                           )
 
-    qg_init = {k: (gen_attrs['q_min'][k] + gen_attrs['q_max'][k]) / 2.0 for k in gen_attrs['qg']}
+    qg_init = {k: gens[k]['qg'] for k in gens.keys()}
     libgen.declare_var_qg(model, gen_attrs['names'], initialize=qg_init,
                           bounds=zip_items(gen_attrs['q_min'], gen_attrs['q_max'])
                           )
@@ -187,7 +187,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
     libbus.declare_eq_q_net_withdraw_fdf(model,bus_attrs['names'],buses,bus_q_loads,gens_by_bus,bus_bs_fixed_shunts)
 
 
-    ### declare the current flows in the branches #TODO: Why are we calculating currents for FDF initialization? Only need P,Q,V,theta
+    ### declare the power flows in the branches
     s_max = {k: branches[k]['rating_long_term'] for k in branches.keys()}
     s_lbub = dict()
     for k in branches.keys():
@@ -199,15 +199,10 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
     qf_bounds = s_lbub
     pfl_bounds = s_lbub
     qfl_bounds = s_lbub
-    pf_init = dict()
-    pfl_init = dict()
-    qf_init = dict()
-    qfl_init = dict()
-    for branch_name, branch in branches.items():
-        pf_init[branch_name] = (branch['pf'] - branch['pt']) / 2
-        pfl_init[branch_name] = branch['pf'] + branch['pt']
-        qf_init[branch_name] = (branch['qf'] - branch['qt']) / 2
-        qfl_init[branch_name] = branch['qf'] + branch['qt']
+    pf_init = {k: (branches[k]['pf'] - branches[k]['pt']) / 2 for k in branches.keys()}
+    qf_init = {k: (branches[k]['qf'] - branches[k]['qt']) / 2 for k in branches.keys()}
+    pfl_init = {k: branches[k]['pfl'] for k in branches.keys()}
+    qfl_init = {k: branches[k]['qfl'] for k in branches.keys()}
 
     libbranch.declare_var_pfl(model=model,
                               index_set=branch_attrs['names'],
@@ -495,12 +490,12 @@ def create_ccm_model(model_data, include_feasibility_slack=False, include_v_feas
         v_rhs_kwargs, v_penalty_expr = _include_v_feasibility_slack(model, bus_attrs)
 
     ### declare the generator real and reactive power
-    pg_init = {k: (gen_attrs['p_min'][k] + gen_attrs['p_max'][k]) / 2.0 for k in gen_attrs['pg']}
+    pg_init = {k: gens[k]['pg'] for k in gens.keys()}
     libgen.declare_var_pg(model, gen_attrs['names'], initialize=pg_init,
                           bounds=zip_items(gen_attrs['p_min'], gen_attrs['p_max'])
                           )
 
-    qg_init = {k: (gen_attrs['q_min'][k] + gen_attrs['q_max'][k]) / 2.0 for k in gen_attrs['qg']}
+    qg_init = {k: gens[k]['qg'] for k in gens.keys()}
     libgen.declare_var_qg(model, gen_attrs['names'], initialize=qg_init,
                           bounds=zip_items(gen_attrs['q_min'], gen_attrs['q_max'])
                           )
@@ -518,9 +513,6 @@ def create_ccm_model(model_data, include_feasibility_slack=False, include_v_feas
     q_net_withdrawal_init = {k: 0 for k in bus_attrs['names']}
     libbus.declare_var_q_nw(model, bus_attrs['names'], initialize=q_net_withdrawal_init)
 
-    ### declare the current flows in the branches #TODO: Why are the currents being calculated??
-    vr_init = {k: bus_attrs['vm'][k] * pe.cos(bus_attrs['va'][k]) for k in bus_attrs['vm']}
-    vj_init = {k: bus_attrs['vm'][k] * pe.sin(bus_attrs['va'][k]) for k in bus_attrs['vm']}
     s_max = {k: branches[k]['rating_long_term'] for k in branches.keys()}
     s_lbub = dict()
     for k in branches.keys():
@@ -532,36 +524,15 @@ def create_ccm_model(model_data, include_feasibility_slack=False, include_v_feas
     qf_bounds = s_lbub
     pfl_bounds = s_lbub
     qfl_bounds = s_lbub
-    pf_init = dict()
-    pfl_init = dict()
-    qf_init = dict()
-    qfl_init = dict()
-    for branch_name, branch in branches.items():
-        from_bus = branch['from_bus']
-        to_bus = branch['to_bus']
-        y_matrix = tx_calc.calculate_y_matrix_from_branch(branch)
-        ifr_init = tx_calc.calculate_ifr(vr_init[from_bus], vj_init[from_bus], vr_init[to_bus],
-                                         vj_init[to_bus], y_matrix)
-        ifj_init = tx_calc.calculate_ifj(vr_init[from_bus], vj_init[from_bus], vr_init[to_bus],
-                                         vj_init[to_bus], y_matrix)
-        itr_init = tx_calc.calculate_itr(vr_init[from_bus], vj_init[from_bus], vr_init[to_bus],
-                                         vj_init[to_bus], y_matrix)
-        itj_init = tx_calc.calculate_itj(vr_init[from_bus], vj_init[from_bus], vr_init[to_bus],
-                                         vj_init[to_bus], y_matrix)
-        pf_init[branch_name] = (tx_calc.calculate_p(ifr_init, ifj_init, vr_init[from_bus], vj_init[from_bus])\
-                                -tx_calc.calculate_p(itr_init, itj_init, vr_init[to_bus], vj_init[to_bus]))/2
-        pfl_init[branch_name] = (tx_calc.calculate_p(ifr_init, ifj_init, vr_init[from_bus], vj_init[from_bus])\
-                                +tx_calc.calculate_p(itr_init, itj_init, vr_init[to_bus], vj_init[to_bus]))
-        qf_init[branch_name] = (tx_calc.calculate_q(ifr_init, ifj_init, vr_init[from_bus], vj_init[from_bus])\
-                                -tx_calc.calculate_q(itr_init, itj_init, vr_init[to_bus], vj_init[to_bus]))/2
-        qfl_init[branch_name] = (tx_calc.calculate_q(ifr_init, ifj_init, vr_init[from_bus], vj_init[from_bus])\
-                                +tx_calc.calculate_q(itr_init, itj_init, vr_init[to_bus], vj_init[to_bus]))
-
+    pf_init = {k: (branches[k]['pf'] - branches[k]['pt']) / 2 for k in branches.keys()}
+    qf_init = {k: (branches[k]['qf'] - branches[k]['qt']) / 2 for k in branches.keys()}
+    pfl_init = {k: branches[k]['pfl'] for k in branches.keys()}
+    qfl_init = {k: branches[k]['qfl'] for k in branches.keys()}
     libbranch.declare_var_pf(model=model,
                              index_set=branch_attrs['names'],
-                             initialize=pf_init)#,
-#                             bounds=pf_bounds
-#                             )
+                             initialize=pf_init,
+                             bounds=pf_bounds
+                             )
     libbranch.declare_var_pfl(model=model,
                              index_set=branch_attrs['names'],
                              initialize=pfl_init)#,
@@ -569,9 +540,9 @@ def create_ccm_model(model_data, include_feasibility_slack=False, include_v_feas
 #                             )
     libbranch.declare_var_qf(model=model,
                              index_set=branch_attrs['names'],
-                             initialize=qf_init)#,
-#                             bounds=qf_bounds
-#                             )
+                             initialize=qf_init,
+                             bounds=qf_bounds
+                             )
     decl.declare_var('qfl', model=model, index_set=branch_attrs['names'], initialize=qfl_init)#, bounds=qfl_bounds)
 
     ### declare net withdrawal definition constraints

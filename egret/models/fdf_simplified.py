@@ -177,12 +177,12 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
         v_rhs_kwargs, v_penalty_expr = _include_v_feasibility_slack(model, bus_attrs)
 
     ### declare the generator real and reactive power
-    pg_init = {k: (gen_attrs['p_min'][k] + gen_attrs['p_max'][k]) / 2.0 for k in gen_attrs['pg']}
+    pg_init = {k: gens[k]['pg'] for k in gens.keys()}
     libgen.declare_var_pg(model, gen_attrs['names'], initialize=pg_init,
                           bounds=zip_items(gen_attrs['p_min'], gen_attrs['p_max'])
                           )
 
-    qg_init = {k: (gen_attrs['q_min'][k] + gen_attrs['q_max'][k]) / 2.0 for k in gen_attrs['qg']}
+    qg_init = {k: gens[k]['qg'] for k in gens.keys()}
     libgen.declare_var_qg(model, gen_attrs['names'], initialize=qg_init,
                           bounds=zip_items(gen_attrs['q_min'], gen_attrs['q_max'])
                           )
@@ -205,7 +205,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
     libbus.declare_eq_q_net_withdraw_fdf(model, bus_attrs['names'], buses, bus_q_loads, gens_by_bus,
                                          bus_bs_fixed_shunts)
 
-    ### declare the current flows in the branches #TODO: Why are we calculating currents for FDF initialization? Only need P,Q,V,theta
+    ### declare the power flows in the branches
     s_max = {k: branches[k]['rating_long_term'] for k in branches.keys()}
     s_lbub = dict()
     for k in branches.keys():
@@ -217,11 +217,10 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
     qf_bounds = s_lbub
     pfl_bounds = s_lbub
     qfl_bounds = s_lbub
-    pf_init = dict()
-    qf_init = dict()
-    _len_branch = len(branch_attrs['names'])
-    ploss_init = sum(branches[bn]['pf'] + branches[bn]['pt'] for bn in branch_attrs['names']) / baseMVA
-    qloss_init = sum(branches[bn]['qf'] + branches[bn]['qt'] for bn in branch_attrs['names']) / baseMVA
+    pf_init = {k: (branches[k]['pf'] - branches[k]['pt']) / 2 for k in branches.keys()}
+    qf_init = {k: (branches[k]['qf'] - branches[k]['qt']) / 2 for k in branches.keys()}
+    ploss_init = sum(branches[bn]['pf'] + branches[bn]['pt'] for bn in branch_attrs['names'])
+    qloss_init = sum(branches[bn]['qf'] + branches[bn]['qt'] for bn in branch_attrs['names'])
     #ploss_init = 0
     #qloss_init = 0
 
