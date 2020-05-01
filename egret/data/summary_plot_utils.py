@@ -82,7 +82,7 @@ summary_functions = {}
 sf = summary_functions
 for func in mean_functions:
     key = func.__name__
-    sf[key] = {'function' : func}
+    sf[key] = {'function' : func, 'dtype' : 'float64'}
     if 'solve_time' in key:
         sf[key]['summarizers'] = ['avg','geomean','max']
     elif 'pct' in key:
@@ -97,7 +97,9 @@ for func in mean_functions:
         sf[key]['summarizers'] = ['avg']
 for func in sum_functions:
     key = func.__name__
-    sf[key] = {'function' : func, 'summarizers' : ['sum']}
+    sf[key] = {'function' : func, 'summarizers' : ['sum'], 'dtype' : 'int64'}
+    if 'duals' in key:
+        sf[key]['dtype'] = 'object'
 sf['solve_time']['summarizers'] = ['avg','geomean','max']
 sf['acpf_slack']['summarizers'] = ['avg','max']
 
@@ -269,6 +271,8 @@ def read_json_files(test_case):
         data[idx]['base_model'] = base_model
 
     df_data = pd.DataFrame(data).transpose()
+    for col,fdict in summary_functions.items():
+        df_data[col] = df_data[col].astype(fdict['dtype'])
     df_data = normalize_solve_time(df_data)
     df_data = normalize_total_cost(df_data)
 
@@ -276,9 +280,10 @@ def read_json_files(test_case):
 
 def normalize_solve_time(df_data, model_benchmark='acopf'):
 
-    is_benchmark = df_data['model']==model_benchmark
-    df_benchmark = df_data[is_benchmark]
-    arr = list(df_benchmark['solve_time'].values)
+    df_benchmark = df_data[df_data.model==model_benchmark]
+    df_benchmark = df_benchmark.select_dtypes(include='number')
+    arr = list(df_benchmark.solve_time.values)
+    arr = [a for a in arr if a != 0]
     gm_benchmark = gmean(arr)
 
     df_data['solve_time_normalized'] = df_data['solve_time'] / gm_benchmark
