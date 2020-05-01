@@ -101,6 +101,7 @@ from egret.parsers.matpower_parser import create_ModelData
 from os import listdir
 from os.path import isfile, join
 
+plt.switch_backend('agg')
 current_dir = os.path.dirname(os.path.abspath(__file__))
 # test_cases = [join('../../../download/pglib-opf-master/', f) for f in listdir('../../../download/pglib-opf-master/') if isfile(join('../../../download/pglib-opf-master/', f)) and f.endswith('.m')]
 #test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
