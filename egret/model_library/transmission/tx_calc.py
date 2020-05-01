@@ -1160,7 +1160,9 @@ def linsolve_vmag_fdf(model, model_data, base_point=BasePointType.SOLUTION,
 
     return vmag
 
-def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_bus,base_point=BasePointType.SOLUTION,sparse_index_set_branch=None,mapping_bus_to_idx=None):
+def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_bus,
+                        base_point=BasePointType.SOLUTION,sparse_index_set_branch=None,
+                        mapping_bus_to_idx=None):
     """
     Calculates the following:
         PTDF:   real power transfer distribution factor
@@ -1217,6 +1219,11 @@ def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_
     ref_bus_col = sp.sparse.coo_matrix(([1],([_ref_bus_idx],[0])), shape=(_len_bus,1))
 
     J0 = sp.sparse.bmat([[M,ref_bus_col],[ref_bus_row,0]], format='coo')
+
+    # use sparse branch/bus mapping for large test cases
+    if _len_bus > 10:   # change to 1000 after debugging....
+        _len_cycle = _len_branch - _len_bus + 1
+        sparse_index_set_branch = reduce_branches(branches, _len_cycle)
 
     if sparse_index_set_branch is None or len(sparse_index_set_branch) == _len_branch:
         ## the resulting matrix after inversion will be fairly dense,
@@ -1318,6 +1325,12 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
     M2 = AA@L
     M = M1 + 0.5 * M2
 
+    # use sparse branch/bus mapping for large test cases
+    if _len_bus > 10:   # change to 1000 after debugging....
+        _len_cycle = _len_branch - _len_bus + 1
+        sparse_index_set_branch = reduce_branches(branches, _len_cycle)
+        sparse_index_set_bus = reduce_buses(buses, _len_bus / 4)
+
     if (sparse_index_set_branch is None or len(sparse_index_set_branch) == _len_branch) and \
             (sparse_index_set_bus is None or len(sparse_index_set_bus) == _len_bus):
         ## the resulting matrix after inversion will be fairly dense,
@@ -1367,9 +1380,9 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
             Bb = np.concatenate((Bb, b), axis=1)
 
         row_idx = list(_sparse_mapping_bus.keys())
-        VDF = sp.sparse.lil_matrix((_len_bus, _len_bus))
+        VM_SENSI = sp.sparse.lil_matrix((_len_bus, _len_bus))
         _vdf = sp.sparse.linalg.spsolve(M.transpose().tocsr(), -Bb).T
-        VDF[row_idx] = _vdf[:, :-1]
+        VM_SENSI[row_idx] = _vdf[:, :-1]
 
     M1 = A@Jc
     M2 = AA@Lc
@@ -1378,14 +1391,31 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
     QLDF_constant = QLDF@M + Lc
     VM_CONST = VM_SENSI@M
 
-    #VDFc1 = VDF@M1
-    #VDFc2 = VDF@(0.5*M2)
-    #show_me = {'vdf_c' : VDF_constant}
-    #show_me.update({'c1' : VDFc1})
-    #show_me.update({'c2' : VDFc2})
-    #print(pd.DataFrame(show_me))
 
     return QTDF, QTDF_constant, QLDF, QLDF_constant, VM_SENSI, VM_CONST
+
+
+def reduce_branches(branches, N):
+    from heapq import nlargest
+
+    s_max = {k: branches[k]['rating_long_term'] for k in branches.keys()}
+    sf = {k: math.sqrt(branches[k]['pf']**2 + branches[k]['qf']**2) for k in branches.keys()}
+    st = {k: math.sqrt(branches[k]['pt']**2 + branches[k]['qt']**2) for k in branches.keys()}
+    loading = {k: max(sf[k], st[k]) / lim for k,lim in s_max.items()}
+    reduced_list = nlargest(int(N), loading)
+
+    return reduced_list
+
+
+def reduce_buses(buses, N):
+    from heapq import nsmallest
+
+    LB = {k: abs(bus['vm'] - bus['v_min']) for k,bus in buses.items()}
+    UB = {k: abs(bus['v_max'] - bus['vm']) for k,bus in buses.items()}
+    room = {k: min(LB[k],UB[k]) for k in buses.keys()}
+    reduced_list = nsmallest(int(N), room)
+
+    return reduced_list
 
 
 def calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx):

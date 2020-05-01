@@ -1103,7 +1103,7 @@ def test_dlopf(md):
     from egret.models.tests.test_approximations import create_new_model_data
 
     logger = logging.getLogger('egret')
-    logger.setLevel(logging.WARNING)
+    logger.setLevel(logging.CRITICAL)
 
     def acpf_to_md(md):
         try:
@@ -1125,7 +1125,7 @@ def test_dlopf(md):
     print(results.Solver)
 
 
-    md_ac = create_new_model_data(md_ac,0.900)
+    md_ac = create_new_model_data(md_ac,1.0)
 
 
     #solve D-LOPF tolerances
@@ -1203,15 +1203,15 @@ if __name__ == '__main__':
     #filename = 'pglib_opf_case14_ieee.m'
     #filename = 'pglib_opf_case30_ieee.m'
     #filename = 'pglib_opf_case57_ieee.m'
-    #filename = 'pglib_opf_case118_ieee.m'
+    filename = 'pglib_opf_case118_ieee.m'
     #filename = 'pglib_opf_case162_ieee_dtc.m'
     #filename = 'pglib_opf_case179_goc.m'
     #filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
-    filename = 'pglib_opf_case1888_rte.m'
+    #filename = 'pglib_opf_case1354_pegase.m'
+    #filename = 'pglib_opf_case1888_rte.m'
     #filename = 'pglib_opf_case1951_rte.m'
     #filename = 'pglib_opf_case2000_tamu.m'
-    #filename = 'pglib_opf_case1354_pegase.m'
     #filename = 'pglib_opf_case2869_pegase.m'
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
     md = create_ModelData(matpower_file)
