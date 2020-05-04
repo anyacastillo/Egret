@@ -231,7 +231,7 @@ def get_violation_dict(test_model_list):
 
     tm_dict = {}
     for key in test_model_list:
-        if 'lopf' in key or 'ptdf' in key:
+        if 'lopf' in key :
             if key in dense_keepers:
                 tm_dict[key] = True
             elif 'slopf' in key:
@@ -241,10 +241,27 @@ def get_violation_dict(test_model_list):
         elif 'qcp' in key:
             tm_dict[key] = False
         else:
-            tm_dict[key] = True
+            tm_dict[key] = False
 
     return tm_dict
 
 def get_violin_dict(test_model_list):
     tm_dict = get_case_size_dict(test_model_list)
+    return tm_dict
+
+
+def get_error_settings_dict(test_model_list, model='dlopf'):
+
+    tm_list = [tm for tm in test_model_list if model in tm]
+    lazy_list = [tm for tm in tm_list if 'lazy' in tm]
+    if tm_list != lazy_list:
+        tm_list = [tm for tm in tm_list if tm not in lazy_list]
+
+    tm_dict = {}
+    for key in test_model_list:
+        if key in tm_list:
+            tm_dict[key] = True
+        else:
+            tm_dict[key] = False
+
     return tm_dict

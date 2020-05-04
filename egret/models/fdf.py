@@ -992,7 +992,7 @@ def compare_fdf_options(md):
 
     def acpf_to_md(md):
         try:
-            acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, termination = solve_infeas_model(md)
+            acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, _, _, termination = solve_infeas_model(md)
         except Exception as e:
             return e
         vm_viol = vm_UB_viol.update(vm_LB_viol)
@@ -1107,7 +1107,7 @@ def test_dlopf(md):
 
     def acpf_to_md(md):
         try:
-            acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, termination = solve_infeas_model(md)
+            acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, _, _, termination = solve_infeas_model(md)
         except Exception as e:
             return e
         vm_viol = vm_UB_viol.update(vm_LB_viol)

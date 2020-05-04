@@ -736,7 +736,7 @@ def generate_violation_data(test_case, test_model_list, data_generator=None):
     df_data.to_csv(os.path.join(destination, filename))
 
 def generate_violation_heatmap(test_case, test_model_dict=None, viol_name=None, index_name=None, units=None,
-                               colormap=None, show_plot=False):
+                               file_tag=None, colormap=None, show_plot=False):
 
     src_folder, case_name = os.path.split(test_case)
     case_name, ext = os.path.splitext(case_name)
@@ -752,15 +752,17 @@ def generate_violation_heatmap(test_case, test_model_dict=None, viol_name=None, 
 
     filename = viol_name + "_" + case_name + ".csv"
     df_data = get_data(filename, test_model_dict=test_model_dict)
+    if df_data.empty:
+        return
 
-    data = df_data.values
-    vmin = data.min()
-    vmax = data.max()
+    data = df_data.fillna(0).values
+    vmin = min(data.min(), -0.001)
+    vmax = max(data.max(), 0.001)
 
     kwargs={}
     cbar_dict = {}
     cbar_dict['label'] = viol_name + ' (' + units + ')'
-    if viol_name is 'vm_viol':
+    if viol_name is not 'thermal_viol':
         kwargs['vmin'] = min(vmin,-vmax)
         kwargs['vmax'] = max(vmax,-vmin)
     kwargs['linewidth'] = 0
@@ -775,14 +777,18 @@ def generate_violation_heatmap(test_case, test_model_dict=None, viol_name=None, 
     plt.xticks(rotation=90)
     plt.yticks(rotation=0)
 
-    ax.set_title(case_name + " " + viol_name)
+    #ax.set_title(case_name + " " + viol_name)
     ax.set_xlabel("Model")
     ax.set_ylabel(index_name)
 
     plt.tight_layout()
 
     ## save FIGURE as png
-    filename = case_name + "_" + viol_name + ".png"
+    filename = case_name + "_" + viol_name
+    if file_tag is not None:
+        filename += "_" + file_tag
+    filename += ".png"
+    print('...out: {}'.format(filename))
     destination = tau.get_summary_file_location('figures')
     plt.savefig(os.path.join(destination, filename))
 
@@ -1675,6 +1681,23 @@ def acpf_violations_plot(test_case, test_model_list, colors=None, show_plot=True
     generate_violation_heatmap(test_case, test_model_dict=violation_dict,viol_name='vm_viol',
                                index_name='Bus', units='p.u', colormap=colors,show_plot=show_plot)
 
+    # using these methods to plot errors (rather than violations)
+    generate_violation_data(test_case, test_model_list, data_generator=tu.pf_error)
+    generate_violation_data(test_case, test_model_list, data_generator=tu.qf_error)
+    generate_violation_heatmap(test_case, test_model_dict=violation_dict, viol_name='pf_error',
+                               index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
+    generate_violation_heatmap(test_case, test_model_dict=violation_dict, viol_name='qf_error',
+                               index_name='Branch', units='MVar', colormap=colors, show_plot=show_plot)
+
+    model_list = ['dlopf','clopf','plopf','ptdf']
+    for m in model_list:
+        violation_dict = tau.get_error_settings_dict(test_model_list, model=m)
+        generate_violation_heatmap(test_case, test_model_dict=violation_dict, viol_name='pf_error', file_tag=m,
+                                   index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
+        if m != 'ptdf':
+            generate_violation_heatmap(test_case, test_model_dict=violation_dict, viol_name='qf_error', file_tag=m,
+                                       index_name='Branch', units='MVar', colormap=colors, show_plot=show_plot)
+
 def create_pareto_all_summary(test_model_list, colors=None, show_plot=True):
 
     if colors is None:
@@ -1769,7 +1792,7 @@ def create_full_summary(test_case, test_model_list, show_plot=True):
     create_detail_summary(test_case, test_model_list, show_plot=show_plot)
     violin_plots(show_plot=show_plot)
     scatter_plots(show_plot=show_plot)
-    pareto_plots(tshow_plot=show_plot)
+    pareto_plots(show_plot=show_plot)
 
 if __name__ == '__main__':
     import sys

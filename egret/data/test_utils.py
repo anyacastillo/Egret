@@ -233,13 +233,17 @@ def vmag(md):
 
 
 def solve_infeas_model(model_data):
+    # TODO: Change outputs from (summarized) slack & violation to (detailed) slack, violation, and error in ModelData
 
     # initial reference bus dispatch
-    gens = dict(model_data.elements(element_type='generator'))
-    buses = dict(model_data.elements(element_type='bus'))
-    gens_by_bus = tx_utils.gens_by_bus(buses, gens)
+    lin_gens = dict(model_data.elements(element_type='generator'))
+    lin_buses = dict(model_data.elements(element_type='bus'))
+    lin_branches = dict(model_data.elements(element_type='branch'))
+    gens_by_bus = tx_utils.gens_by_bus(lin_buses, lin_gens)
     ref_bus = model_data.data['system']['reference_bus']
-    slack_p_init = sum(gens[gen_name]['pg'] for gen_name in gens_by_bus[ref_bus])
+    slack_p_init = sum(lin_gens[gen_name]['pg'] for gen_name in gens_by_bus[ref_bus])
+
+    is_acopf = 'acopf' in model_data.data['system']['filename']
 
     # solve ACPF or return empty results and print exception message
     try:
@@ -262,19 +266,19 @@ def solve_infeas_model(model_data):
     vm_LB_viol_dict = dict()
     thermal_viol_dict = dict()
 
-    gens = dict(md.elements(element_type='generator'))
-    buses = dict(md.elements(element_type='bus'))
-    branches = dict(md.elements(element_type='branch'))
-    gens_by_bus = tx_utils.gens_by_bus(buses, gens)
-    buses_with_gens = tx_utils.buses_with_gens(gens)
+    AC_gens = dict(md.elements(element_type='generator'))
+    AC_buses = dict(md.elements(element_type='bus'))
+    AC_branches = dict(md.elements(element_type='branch'))
+    gens_by_bus = tx_utils.gens_by_bus(AC_buses, AC_gens)
+    buses_with_gens = tx_utils.buses_with_gens(AC_gens)
 
     # calculate change in slackbus P dispatch
     ref_bus = md.data['system']['reference_bus']
-    slack_p_acpf = sum(gens[gen_name]['pg'] for gen_name in gens_by_bus[ref_bus])
+    slack_p_acpf = sum(AC_gens[gen_name]['pg'] for gen_name in gens_by_bus[ref_bus])
     slack_p = slack_p_acpf - slack_p_init
 
     # calculate voltage infeasibilities
-    for bus_name, bus_dict in buses.items():
+    for bus_name, bus_dict in AC_buses.items():
         if bus_name != ref_bus and bus_name not in buses_with_gens:
             vm = bus_dict['vm']
             if vm > bus_dict['v_max']:
@@ -283,7 +287,7 @@ def solve_infeas_model(model_data):
                 vm_LB_viol_dict[bus_name] = bus_dict['v_min'] - vm
 
     # calculate thermal infeasibilities
-    for branch_name, branch_dict in branches.items():
+    for branch_name, branch_dict in AC_branches.items():
         sf = sqrt(branch_dict["pf"]**2 + branch_dict["qf"]**2)
         st = sqrt(branch_dict["pt"]**2 + branch_dict["qt"]**2)
         if sf > st: # to avoid double counting
@@ -292,7 +296,23 @@ def solve_infeas_model(model_data):
         elif st > branch_dict['rating_long_term']:
             thermal_viol_dict[branch_name] = st - branch_dict['rating_long_term']
 
-    return slack_p, vm_UB_viol_dict, vm_LB_viol_dict, thermal_viol_dict, termination
+    # calculate flow errors
+    pf_error = {}
+    qf_error = {}
+    for k, branch in lin_branches.items():
+        if is_acopf:
+            pf_ac = AC_branches[k]['pf']
+            qf_ac = AC_branches[k]['qf']
+        else:
+            pf_ac = (AC_branches[k]['pf'] - AC_branches[k]['pt']) / 2
+            qf_ac = (AC_branches[k]['qf'] - AC_branches[k]['qt']) / 2
+        pf_error[k] = branch['pf'] - pf_ac
+        if branch['qf'] is not None:
+            qf_error[k] = branch['qf'] - qf_ac
+        else:
+            qf_error[k] = None
+
+    return slack_p, vm_UB_viol_dict, vm_LB_viol_dict, thermal_viol_dict, pf_error, qf_error, termination
 
 def get_infeas_from_model_data(md, infeas_name='acpf_slack', overwrite_existing=False):
 
@@ -306,7 +326,7 @@ def get_infeas_from_model_data(md, infeas_name='acpf_slack', overwrite_existing=
 
 def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
 
-    acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, termination = solve_infeas_model(md)
+    acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, pf_error, qf_error, termination = solve_infeas_model(md)
 
     system_data = md.data['system']
     buses = dict(md.elements(element_type='bus'))
@@ -338,6 +358,9 @@ def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
     for b,viol in vm_LB_viol.items():
         bus = buses[b]
         bus['acpf_viol'] = -viol
+    for k,branch in branches.items():
+        branch['pf_error'] = pf_error[k]
+        branch['qf_error'] = qf_error[k]
 
     ## save scalar data in ModelData
     system_data['acpf_slack'] = acpf_p_slack
@@ -695,3 +718,41 @@ def vm_viol(md):
             viol[b] = 0
 
     return viol
+
+def acpf_error(md,key='pf_error'):
+
+    system_data = md.data['system']
+    branches = dict(md.elements(element_type='branch'))
+    bn = [k for k in branches.keys()]
+    branch_keys = [k for k in branches[bn[1]].keys()]
+
+    if not optimal(md):
+        return None
+
+    if 'acpf_termination' in system_data.keys() and key in branch_keys:
+        if not system_data['acpf_termination'] == 'optimal':
+            nan_dict = {b: np.nan for b in branches.keys()}
+            return nan_dict
+        else:
+            pass
+    else:
+        print('Repopulating ACPF violations for {}.'.format(system_data['filename']))
+        repopulate_acpf_to_modeldata(md)
+
+    error = {}
+
+    for k,branch in branches.items():
+        if key in branch.keys():
+            error[k] = branch[key]
+        else:
+            error[k] = 0
+
+    return error
+
+def pf_error(md):
+    error = acpf_error(md, key='pf_error')
+    return error
+
+def qf_error(md):
+    error = acpf_error(md, key='qf_error')
+    return error
