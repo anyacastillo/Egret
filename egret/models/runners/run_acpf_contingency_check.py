@@ -227,7 +227,7 @@ if __name__ == '__main__':
                 # set the 'islanded' parameter to None since there are no islands
                 md.data['system']['islanded'] = None
                 # solve acpf for the full grid
-                md, m, results = solve_acpf(md, "ipopt", solver_tee=False, return_model=True, return_results=True, write_results=True,
+                _, m, results = solve_acpf(md, "ipopt", solver_tee=False, return_model=True, return_results=True, write_results=True,
                                                 runid='sample.{}_branch.{}'.format(samples,_label))
             else:
                 if run_islands:
