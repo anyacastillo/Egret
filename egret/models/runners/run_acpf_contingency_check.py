@@ -155,7 +155,7 @@ if __name__ == '__main__':
 
     random.seed(23) # repeatable
 
-    run_islands = False  # if True, then solve ACPF for islands; otherwise ignore contingency all together
+    run_islands = True  # if True, then solve ACPF for islands; otherwise ignore contingency all together
 
     choose_k_contingency = 1 # The number of contingencies to consider per sample
 
@@ -214,13 +214,8 @@ if __name__ == '__main__':
             for branch in _k:
                 # set contingency branch out-of-service
                 md.data['elements']['branch'][branch]['in_service'] = False
-                # remove any ACOPF solution artifacts for these lines that are out-of-service
-                md.data['elements']['branch'][branch]['pf'] = 0.
-                md.data['elements']['branch'][branch]['qf'] = 0.
-                md.data['elements']['branch'][branch]['pt'] = 0.
-                md.data['elements']['branch'][branch]['qt'] = 0.
 
-                # create filename label that specifies branches out of service
+            # create filename label that specifies branches out of service
             if len(_k) > 1:
                 _label = '_'.join([str(elem) for elem in _k])
             else:
