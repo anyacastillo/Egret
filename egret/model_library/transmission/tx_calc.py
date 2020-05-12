@@ -1242,7 +1242,12 @@ def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_
         PTDF = np.matmul(-J.A, SENSI)
         PLDF = np.matmul(-L.A, SENSI)
     elif len(sparse_index_set_branch) < _len_branch: #TODO: the steps below aren't clear and need comments to decirbe what is happening
-        print('Warning: Something is happenening with the power flow Jacobian.')
+        SENSI = np.linalg.inv(J0.A)
+        SENSI = SENSI[:-1, :-1]
+        org_PTDF = np.matmul(-J.A, SENSI)
+        org_PLDF = np.matmul(-L.A, SENSI)
+
+
         B_J = np.array([], dtype=np.int64).reshape(_len_bus + 1, 0)
         B_L = np.array([], dtype=np.int64).reshape(_len_bus + 1, 0)
         _sparse_mapping_branch = {i: branch_n for i, branch_n in enumerate(index_set_branch) if branch_n in sparse_index_set_branch}
@@ -1265,10 +1270,20 @@ def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_
         PTDF[row_idx] = _ptdf[:, :-1]
         PTDF = PTDF.A
 
+        print("checking sparse PTDF... ")
+        assert (org_PTDF[list(_sparse_mapping_branch.keys()), :] - PTDF[list(_sparse_mapping_branch.keys()),
+                                                                :]).all() < 1e-6
+        print("sparse PTDF correct")
+
         PLDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
         _pldf = sp.sparse.linalg.spsolve(J0.transpose().tocsr(), -B_L).T
         PLDF[row_idx] = _pldf[:, :-1]
         PLDF = PLDF.A
+
+        print("checking sparse PLDF... ")
+        assert (org_PLDF[list(_sparse_mapping_branch.keys()), :] - PLDF[list(_sparse_mapping_branch.keys()),
+                                                                :]).all() < 1e-6
+        print("sparse PLDF correct")
 
         VA_SENSI = None
 
@@ -1334,7 +1349,7 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
     M = M1 + 0.5 * M2
 
     # use sparse branch/bus mapping for large test cases
-    if _len_bus > 1000:   # change to 1000 after debugging....
+    if _len_bus > 10:   # change to 1000 after debugging....
         _len_cycle = _len_branch - _len_bus + 1
         sparse_index_set_branch = reduce_branches(branches, _len_cycle)
         sparse_index_set_bus = reduce_buses(buses, _len_bus / 4)
@@ -1354,6 +1369,11 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
         QTDF = np.matmul(-J.A, SENSI)
         QLDF = np.matmul(-L.A, SENSI)
     elif len(sparse_index_set_branch) < _len_branch or len(sparse_index_set_bus) < _len_bus:
+        SENSI = np.linalg.inv(M.A)
+        org_VM_SENSI = -SENSI
+        org_QTDF = np.matmul(-J.A, SENSI)
+        org_QLDF = np.matmul(-L.A, SENSI)
+
         B_J = np.array([], dtype=np.int64).reshape(_len_bus, 0)
         B_L = np.array([], dtype=np.int64).reshape(_len_bus, 0)
         _sparse_mapping_branch = {i: branch_n for i, branch_n in enumerate(index_set_branch) if branch_n in sparse_index_set_branch}
@@ -1376,10 +1396,20 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
         QTDF[row_idx] = _qtdf[:, :]
         QTDF = QTDF.A
 
+        print("checking sparse QTDF... ")
+        assert (org_QTDF[list(_sparse_mapping_branch.keys()), :] - QTDF[list(_sparse_mapping_branch.keys()),
+                                                                :]).all() < 1e-6
+        print("sparse QTDF correct")
+
         QLDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
         _qldf = sp.sparse.linalg.spsolve(M.transpose().tocsr(), -B_L).T
         QLDF[row_idx] = _qldf[:, :]
         QLDF = QLDF.A
+
+        print("checking sparse QLDF... ")
+        assert (org_QLDF[list(_sparse_mapping_branch.keys()), :] - QLDF[list(_sparse_mapping_branch.keys()),
+                                                                :]).all() < 1e-6
+        print("sparse QLDF correct")
 
         Bb = np.array([], dtype=np.int64).reshape(_len_bus, 0)
         _sparse_mapping_bus = {i: bus_n for i, bus_n in enumerate(index_set_bus) if bus_n in sparse_index_set_bus}
@@ -1394,6 +1424,11 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
         _vdf = sp.sparse.linalg.spsolve(M.transpose().tocsr(), -Bb).T
         VM_SENSI[row_idx] = _vdf[:, :]
         VM_SENSI = VM_SENSI.A
+
+        print("checking sparse VM_SENSI... ")
+        assert (org_VM_SENSI[list(_sparse_mapping_bus.keys()), :] - VM_SENSI[list(_sparse_mapping_bus.keys()),
+                                                                :]).all() < 1e-6
+        print("sparse VM_SENSI correct")
 
     M1 = A@Jc
     M2 = AA@Lc
