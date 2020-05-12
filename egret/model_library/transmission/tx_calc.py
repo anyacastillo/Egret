@@ -1162,7 +1162,7 @@ def linsolve_vmag_fdf(model, model_data, base_point=BasePointType.SOLUTION,
     return vmag
 
 def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_bus,
-                        base_point=BasePointType.SOLUTION,sparse_index_set_branch=None,
+                        base_point=BasePointType.SOLUTION, active_index_set_branch=None,
                         mapping_bus_to_idx=None):
     """
     Calculates the following:
@@ -1184,8 +1184,8 @@ def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_
         The reference bus key value
     base_point: egret.model_library_defn.BasePointType
         The base-point type for calculating the PTDF and LDF matrix
-    sparse_index_set_branch: list
-        The list of keys for branches needed to compute a sparse PTDF matrix
+    active_index_set_branch: list
+        The list of keys for branches needed to compute the active PTDF matrix
     mapping_bus_to_idx: dict
         A map from bus names to indices for matrix construction. If None,
         will be inferred from index_set_bus.
@@ -1226,7 +1226,7 @@ def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_
         _len_cycle = _len_branch - _len_bus + 1
         sparse_index_set_branch = reduce_branches(branches, _len_cycle)
 
-    if sparse_index_set_branch is None or len(sparse_index_set_branch) == _len_branch:
+    if active_index_set_branch is None or len(active_index_set_branch) == _len_branch:
         ## the resulting matrix after inversion will be fairly dense,
         ## the scipy documenation recommends using dense for the inversion
         ## as well
@@ -1241,47 +1241,61 @@ def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_
         VA_SENSI = -SENSI
         PTDF = np.matmul(-J.A, SENSI)
         PLDF = np.matmul(-L.A, SENSI)
-    elif len(sparse_index_set_branch) < _len_branch: #TODO: the steps below aren't clear and need comments to decirbe what is happening
+
+    elif len(active_index_set_branch) < _len_branch: #TODO: the steps below aren't clear and need comments to decirbe what is happening
+        # TODO: Will calculate PTDFs and PLDFs by solving J0^T * PTDF^T = -B_J^T and J0^T * PLDF^T = -B_L^T
+
+        # explicit calculation to compare with partial computation
         SENSI = np.linalg.inv(J0.A)
         SENSI = SENSI[:-1, :-1]
         org_PTDF = np.matmul(-J.A, SENSI)
         org_PLDF = np.matmul(-L.A, SENSI)
 
-
+        # TODO: initialize B_J and B_L empty matrices.
         B_J = np.array([], dtype=np.int64).reshape(_len_bus + 1, 0)
         B_L = np.array([], dtype=np.int64).reshape(_len_bus + 1, 0)
-        _sparse_mapping_branch = {i: branch_n for i, branch_n in enumerate(index_set_branch) if branch_n in sparse_index_set_branch}
 
-        for idx, branch_name in _sparse_mapping_branch.items():
+        # mapping of array indices to branch names
+        _active_mapping_branch = {i: branch_n for i, branch_n in enumerate(index_set_branch) if branch_n in active_index_set_branch}
+
+        # TODO: fill B_J and B_L with desired rows (i.e. partial mapping) of PTDF and PLDF
+        for idx, branch_name in _active_mapping_branch.items():
+            # the 'idx' column of the identity matrix
             b = np.zeros((_len_branch, 1))
             b[idx] = 1
 
+            # TODO: add the 'idx' (row?/column?) of real power flow Jacobian into B_J
             _tmp_J = np.matmul(J.A.transpose(), b)
             _tmp_J = np.vstack([_tmp_J, 0])
             B_J = np.concatenate((B_J, _tmp_J), axis=1)
 
+            # TODO: add the 'idx' (row?/column?) of real power loss Jacobian into B_L
             _tmp_L = np.matmul(L.A.transpose(), b)
             _tmp_L = np.vstack([_tmp_L, 0])
             B_L = np.concatenate((B_L, _tmp_L), axis=1)
 
-        row_idx = list(_sparse_mapping_branch.keys())
-        PTDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
+        # TODO: solve system ( J0^T PTDF^T = -B_J^T ) for selected rows of PTDF
         _ptdf = sp.sparse.linalg.spsolve(J0.transpose().tocsr(), -B_J).T
+
+        row_idx = list(_active_mapping_branch.keys())
+        PTDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
         PTDF[row_idx] = _ptdf[:, :-1]
         PTDF = PTDF.A
 
         print("checking sparse PTDF... ")
-        assert (org_PTDF[list(_sparse_mapping_branch.keys()), :] - PTDF[list(_sparse_mapping_branch.keys()),
+        assert (org_PTDF[list(_active_mapping_branch.keys()), :] - PTDF[list(_active_mapping_branch.keys()),
                                                                 :]).all() < 1e-6
         print("sparse PTDF correct")
 
-        PLDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
+        # TODO: solve system ( J0^T PLDF^T = -B_L^T ) for selected rows of PLDF
         _pldf = sp.sparse.linalg.spsolve(J0.transpose().tocsr(), -B_L).T
+
+        PLDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
         PLDF[row_idx] = _pldf[:, :-1]
         PLDF = PLDF.A
 
         print("checking sparse PLDF... ")
-        assert (org_PLDF[list(_sparse_mapping_branch.keys()), :] - PLDF[list(_sparse_mapping_branch.keys()),
+        assert (org_PLDF[list(_active_mapping_branch.keys()), :] - PLDF[list(_active_mapping_branch.keys()),
                                                                 :]).all() < 1e-6
         print("sparse PLDF correct")
 
@@ -1299,9 +1313,8 @@ def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_
 
     return PTDF, PT_constant, PLDF, PL_constant, VA_SENSI, VA_CONST
 
-# change sparse_index_set_branch --> active_index_set_branch
-# change sparse_index_set_bus --> active_index_set_bus
-def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_bus,base_point=BasePointType.SOLUTION,sparse_index_set_branch=None,sparse_index_set_bus=None,mapping_bus_to_idx=None):
+def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_bus,base_point=BasePointType.SOLUTION,
+                        active_index_set_branch=None,active_index_set_bus=None,mapping_bus_to_idx=None):
     """
     Calculates the sensitivity of the voltage magnitude to the reactive power injections and losses on the lines. Includes the
     calculation of the constant term for the quadratic losses on the lines.
@@ -1354,8 +1367,8 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
         sparse_index_set_branch = reduce_branches(branches, _len_cycle)
         sparse_index_set_bus = reduce_buses(buses, _len_bus / 4)
 
-    if (sparse_index_set_branch is None or len(sparse_index_set_branch) == _len_branch) and \
-            (sparse_index_set_bus is None or len(sparse_index_set_bus) == _len_bus):
+    if (active_index_set_branch is None or len(active_index_set_branch) == _len_branch) and \
+            (active_index_set_bus is None or len(active_index_set_bus) == _len_bus):
         ## the resulting matrix after inversion will be fairly dense,
         ## the scipy documenation recommends using dense for the inversion
         ## as well
@@ -1368,65 +1381,84 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
         VM_SENSI = -SENSI
         QTDF = np.matmul(-J.A, SENSI)
         QLDF = np.matmul(-L.A, SENSI)
-    elif len(sparse_index_set_branch) < _len_branch or len(sparse_index_set_bus) < _len_bus:
+    elif len(active_index_set_branch) < _len_branch or len(active_index_set_bus) < _len_bus:
+        # TODO: Will calculate QTDFs, QLDFs, and VDFs by solving M^T * xDF^T = -B_x^T
+
+        # explicit calculation to compare with partial computation
         SENSI = np.linalg.inv(M.A)
         org_VM_SENSI = -SENSI
         org_QTDF = np.matmul(-J.A, SENSI)
         org_QLDF = np.matmul(-L.A, SENSI)
 
+        # TODO: initialize B_J and B_L empty matrices.
         B_J = np.array([], dtype=np.int64).reshape(_len_bus, 0)
         B_L = np.array([], dtype=np.int64).reshape(_len_bus, 0)
-        _sparse_mapping_branch = {i: branch_n for i, branch_n in enumerate(index_set_branch) if branch_n in sparse_index_set_branch}
 
-        for idx, branch_name in _sparse_mapping_branch.items():
+        # mapping of array indices to branch names
+        _active_mapping_branch = {i: branch_n for i, branch_n in enumerate(index_set_branch) if branch_n in active_index_set_branch}
+
+        # TODO: fill B_J and B_L with desired rows (i.e. partial mapping) of QTDF and QLDF
+        for idx, branch_name in _active_mapping_branch.items():
             b = np.zeros((_len_branch, 1))
             b[idx] = 1
 
+            # TODO: add the 'idx' (row?/column?) of reactive power flow Jacobian into B_J
             _tmp_J = np.matmul(J.A.transpose(), b)
             #_tmp_J = np.vstack([_tmp_J, 0])
             B_J = np.concatenate((B_J, _tmp_J), axis=1)
 
+            # TODO: add the 'idx' (row?/column?) of reactive power loss Jacobian into B_L
             _tmp_L = np.matmul(L.A.transpose(), b)
             #_tmp_L = np.vstack([_tmp_L, 0])
             B_L = np.concatenate((B_L, _tmp_L), axis=1)
 
-        row_idx = list(_sparse_mapping_branch.keys())
-        QTDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
+        # TODO: solve system ( M^T QTDF^T = -B_J^T ) for selected rows of QTDF
         _qtdf = sp.sparse.linalg.spsolve(M.transpose().tocsr(), -B_J).T
+
+        row_idx = list(_active_mapping_branch.keys())
+        QTDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
         QTDF[row_idx] = _qtdf[:, :]
         QTDF = QTDF.A
 
         print("checking sparse QTDF... ")
-        assert (org_QTDF[list(_sparse_mapping_branch.keys()), :] - QTDF[list(_sparse_mapping_branch.keys()),
+        assert (org_QTDF[list(_active_mapping_branch.keys()), :] - QTDF[list(_active_mapping_branch.keys()),
                                                                 :]).all() < 1e-6
         print("sparse QTDF correct")
 
-        QLDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
+        # TODO: solve system ( M^T QLDF^T = -B_L^T ) for selected rows of QLDF
         _qldf = sp.sparse.linalg.spsolve(M.transpose().tocsr(), -B_L).T
+
+        QLDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
         QLDF[row_idx] = _qldf[:, :]
         QLDF = QLDF.A
 
         print("checking sparse QLDF... ")
-        assert (org_QLDF[list(_sparse_mapping_branch.keys()), :] - QLDF[list(_sparse_mapping_branch.keys()),
+        assert (org_QLDF[list(_active_mapping_branch.keys()), :] - QLDF[list(_active_mapping_branch.keys()),
                                                                 :]).all() < 1e-6
         print("sparse QLDF correct")
 
+        # TODO: initialize Bb empty matrix.
         Bb = np.array([], dtype=np.int64).reshape(_len_bus, 0)
-        _sparse_mapping_bus = {i: bus_n for i, bus_n in enumerate(index_set_bus) if bus_n in sparse_index_set_bus}
 
-        for idx, bus_name in _sparse_mapping_bus.items():
+        # mapping of array indices to bus names
+        _active_mapping_bus = {i: bus_n for i, bus_n in enumerate(index_set_bus) if bus_n in active_index_set_bus}
+
+        # TODO: Bb is selected indices of the identity matrix
+        for idx, bus_name in _active_mapping_bus.items():
             b = np.zeros((_len_bus, 1))
             b[idx] = 1
             Bb = np.concatenate((Bb, b), axis=1)
 
-        row_idx = list(_sparse_mapping_bus.keys())
-        VM_SENSI = sp.sparse.lil_matrix((_len_bus, _len_bus))
+        # TODO: solve system ( M^T VDF^T = -I ) for selected rows of VDF
         _vdf = sp.sparse.linalg.spsolve(M.transpose().tocsr(), -Bb).T
+
+        row_idx = list(_active_mapping_bus.keys())
+        VM_SENSI = sp.sparse.lil_matrix((_len_bus, _len_bus))
         VM_SENSI[row_idx] = _vdf[:, :]
         VM_SENSI = VM_SENSI.A
 
         print("checking sparse VM_SENSI... ")
-        assert (org_VM_SENSI[list(_sparse_mapping_bus.keys()), :] - VM_SENSI[list(_sparse_mapping_bus.keys()),
+        assert (org_VM_SENSI[list(_active_mapping_bus.keys()), :] - VM_SENSI[list(_active_mapping_bus.keys()),
                                                                 :]).all() < 1e-6
         print("sparse VM_SENSI correct")
 
