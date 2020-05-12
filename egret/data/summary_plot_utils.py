@@ -65,6 +65,10 @@ mean_functions = [tu.num_buses,
                   #tu.vm_viol_pct,
                   #tu.thermal_viol_pct,
                   #tu.thermal_and_vm_viol_pct,
+                  tu.pf_error_1_norm,
+                  tu.qf_error_1_norm,
+                  tu.pf_error_inf_norm,
+                  tu.qf_error_inf_norm,
                   tu.total_cost
                   ]
 
@@ -93,6 +97,10 @@ for func in mean_functions:
         sf[key]['summarizers'] = ['avg','max']
     elif 'sum' in key:
         sf[key]['summarizers'] = ['avg','sum']
+    elif '1_norm' in key:
+        sf[key]['summarizers'] = ['sum']
+    elif 'inf_norm' in key:
+        sf[key]['summarizers'] = ['avg','max']
     else:
         sf[key]['summarizers'] = ['avg']
 for func in sum_functions:
@@ -1785,6 +1793,16 @@ def pareto_plots(show_plot=True):
     build_scatterplot(model_keys=pareto_keys, y_data='acpf_slack', x_data='solve_time_normalized',
                           y_units='MW', x_units=None, file_tag='pareto2', show_plot=show_plot,
                           yscale='log', data_file='model_gmean_data.csv',
+                          hue_group='base_model', style_group='build_mode', size_group=None)
+
+    build_scatterplot(model_keys=pareto_keys, y_data='pf_error_1_norm', x_data='solve_time_normalized',
+                          y_units='MW', x_units=None, file_tag=None, show_plot=show_plot,
+                          yscale='log', data_file='case_gmean_data.csv',
+                          hue_group='base_model', style_group='build_mode', size_group=None)
+
+    build_scatterplot(model_keys=pareto_keys, y_data='pf_error_inf_norm', x_data='solve_time_normalized',
+                          y_units='MW', x_units=None, file_tag=None, show_plot=show_plot,
+                          yscale='log', data_file='case_gmean_data.csv',
                           hue_group='base_model', style_group='build_mode', size_group=None)
 
 def create_full_summary(test_case, test_model_list, show_plot=True):

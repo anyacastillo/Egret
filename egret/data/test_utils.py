@@ -347,6 +347,9 @@ def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
     vm_LB_list = list(vm_LB_viol.values())
     vm_list = vm_UB_list + vm_LB_list
 
+    pf_error_list = [p if p is not None else 0 for p in pf_error.values()]
+    qf_error_list = [q if q is not None else 0 for q in qf_error.values()]
+
     ## save violations in ModelData
     system_data['acpf_termination'] = termination
     for k,viol in thermal_viol.items():
@@ -369,6 +372,11 @@ def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
     system_data['sum_vm_LB_viol'] = sum(vm_LB_list)
     system_data['sum_vm_viol'] = sum(vm_list)
     system_data['sum_thermal_viol'] = sum(thermal_list)
+
+    system_data['pf_error_1_norm'] = np.linalg.norm(pf_error_list,ord=1)
+    system_data['qf_error_1_norm'] = np.linalg.norm(qf_error_list,ord=1)
+    system_data['pf_error_inf_norm'] = np.linalg.norm(pf_error_list,ord=np.inf)
+    system_data['qf_error_inf_norm'] = np.linalg.norm(pf_error_list,ord=np.inf)
 
     if len(vm_UB_list) > 0:
         system_data['avg_vm_UB_viol'] = sum(vm_UB_list) / len(vm_UB_list)
@@ -640,6 +648,55 @@ def thermal_viol_pct(md):
     pct_thermal_viol = get_infeas_from_model_data(md, infeas_name='pct_thermal_viol')
 
     return pct_thermal_viol
+
+
+def pf_error_1_norm(md):
+    '''
+    Returns the 1-norm of real power flow error
+    '''
+
+    if not optimal(md):
+        return None
+    pf_error_1_norm = get_infeas_from_model_data(md, infeas_name='pf_error_1_norm')
+
+    return pf_error_1_norm
+
+
+def qf_error_1_norm(md):
+    '''
+    Returns the 1-norm of reactive power flow error
+    '''
+
+    if not optimal(md):
+        return None
+    qf_error_1_norm = get_infeas_from_model_data(md, infeas_name='qf_error_1_norm')
+
+    return qf_error_1_norm
+
+
+def pf_error_inf_norm(md):
+    '''
+    Returns the infinity-norm of real power flow error
+    '''
+
+    if not optimal(md):
+        return None
+    pf_error_inf_norm = get_infeas_from_model_data(md, infeas_name='pf_error_inf_norm')
+
+    return pf_error_inf_norm
+
+
+def qf_error_inf_norm(md):
+    '''
+    Returns the infinity-norm of reactive power flow error
+    '''
+
+    if not optimal(md):
+        return None
+    qf_error_inf_norm = get_infeas_from_model_data(md, infeas_name='qf_error_inf_norm')
+
+    return qf_error_inf_norm
+
 
 def thermal_and_vm_viol_pct(md):
 

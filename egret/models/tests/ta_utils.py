@@ -103,22 +103,21 @@ def get_sensitivity_dict(test_model_list):
     dlist = [tm for tm in test_model_list if 'dlopf' in tm]
     clist = [tm for tm in test_model_list if 'clopf' in tm]
     plist = [tm for tm in test_model_list if 'plopf' in tm]
-    qlist = [tm for tm in test_model_list if 'ptdf' in tm]
-    dense_keepers = [dlist[0], clist[0], plist[0],qlist[0]]
+    dense_keepers = [dlist[0], clist[0], plist[0]]
 
     tm_dict = {}
     for key in test_model_list:
-        if 'lopf' in key or 'ptdf' in key:
+        if 'lopf' in key:
             if key in dense_keepers:
                 tm_dict[key] = True
             elif 'slopf' in key:
                 tm_dict[key] = True
             else:
                 tm_dict[key] = False
-        elif 'qcp' in key:
-            tm_dict[key] = False
-        else:
+        elif 'acopf' in key:
             tm_dict[key] = True
+        else:
+            tm_dict[key] = False
 
     return tm_dict
 
