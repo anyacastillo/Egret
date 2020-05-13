@@ -308,7 +308,7 @@ def _calculate_J11(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_
             vm = 1.
             tn = 0.
             tm = 0.
-        elif base_point == BasePointType.SOLUTION: # TODO: check that we are loading the correct values (or results)
+        elif base_point == BasePointType.SOLUTION:
             vn = buses[from_bus]['vm']
             vm = buses[to_bus]['vm']
             tn = buses[from_bus]['va']
@@ -361,7 +361,7 @@ def _calculate_J22(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_
             vm = 1.
             tn = 0.
             tm = 0.
-        elif base_point == BasePointType.SOLUTION: # TODO: check that we are loading the correct values (or results)
+        elif base_point == BasePointType.SOLUTION:
             vn = buses[from_bus]['vm']
             vm = buses[to_bus]['vm']
             tn = buses[from_bus]['va']
@@ -471,7 +471,7 @@ def _calculate_L22(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_
             vm = 1.
             tn = 0.
             tm = 0.
-        elif base_point == BasePointType.SOLUTION: # TODO: check that we are loading the correct values (or results)
+        elif base_point == BasePointType.SOLUTION:
             vn = buses[from_bus]['vm']
             vm = buses[to_bus]['vm']
             tn = buses[from_bus]['va']
@@ -715,7 +715,6 @@ def _calculate_pf_constant(branches,buses,index_set_branch,base_point=BasePointT
         pf_constant[idx_row] = 0.5 * g * ((vn/tau) ** 2 - vm ** 2) \
                                - b * vn * vm * sin(tn - tm + shift) \
                                + b * vn * vm * cos(tn - tm + shift)*(tn - tm)
-                               #- b * vn * vm * (sin(tn - tm + shift) - cos(tn - tm + shift)*(tn - tm))
 
     return pf_constant
 
@@ -793,7 +792,7 @@ def _calculate_pfl_constant(branches,buses,index_set_branch,base_point=BasePoint
             vm = 1.
             tn = 0.
             tm = 0.
-        elif base_point == BasePointType.SOLUTION: # TODO: check that we are loading the correct values (or results)
+        elif base_point == BasePointType.SOLUTION:
             vn = buses[from_bus]['vm']
             vm = buses[to_bus]['vm']
             tn = buses[from_bus]['va']
@@ -836,7 +835,7 @@ def _calculate_qfl_constant(branches,buses,index_set_branch,base_point=BasePoint
             vm = 1.
             tn = 0.
             tm = 0.
-        elif base_point == BasePointType.SOLUTION: # TODO: check that we are loading the correct values (or results)
+        elif base_point == BasePointType.SOLUTION:
             vn = buses[from_bus]['vm']
             vm = buses[to_bus]['vm']
             tn = buses[from_bus]['va']
@@ -1242,23 +1241,17 @@ def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_
         PTDF = np.matmul(-J.A, SENSI)
         PLDF = np.matmul(-L.A, SENSI)
 
-    elif len(active_index_set_branch) < _len_branch: #TODO: the steps below aren't clear and need comments to decirbe what is happening
-        # TODO: Will calculate PTDFs and PLDFs by solving J0^T * PTDF^T = -B_J^T and J0^T * PLDF^T = -B_L^T
+    elif len(active_index_set_branch) < _len_branch:
+        # calculate PTDFs and PLDFs by solving J0^T * PTDF^T = -B_J^T and J0^T * PLDF^T = -B_L^T
 
-        # explicit calculation to compare with partial computation
-        SENSI = np.linalg.inv(J0.A)
-        SENSI = SENSI[:-1, :-1]
-        org_PTDF = np.matmul(-J.A, SENSI)
-        org_PLDF = np.matmul(-L.A, SENSI)
-
-        # TODO: initialize B_J and B_L empty matrices.
+        # initialize B_J and B_L empty matrices.
         B_J = np.array([], dtype=np.int64).reshape(_len_bus + 1, 0)
         B_L = np.array([], dtype=np.int64).reshape(_len_bus + 1, 0)
 
         # mapping of array indices to branch names
         _active_mapping_branch = {i: branch_n for i, branch_n in enumerate(index_set_branch) if branch_n in active_index_set_branch}
 
-        # TODO: fill B_J and B_L with desired rows (i.e. partial mapping) of PTDF and PLDF
+        # fill B_J and B_L with desired rows (i.e. partial mapping) of PTDF and PLDF
         for idx, branch_name in _active_mapping_branch.items():
             # the 'idx' column of the identity matrix
             b = np.zeros((_len_branch, 1))
@@ -1274,7 +1267,7 @@ def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_
             _tmp_L = np.vstack([_tmp_L, 0])
             B_L = np.concatenate((B_L, _tmp_L), axis=1)
 
-        # TODO: solve system ( J0^T PTDF^T = -B_J^T ) for selected rows of PTDF
+        # solve system ( J0^T PTDF^T = -B_J^T ) for selected rows of PTDF
         _ptdf = sp.sparse.linalg.spsolve(J0.transpose().tocsr(), -B_J).T
 
         row_idx = list(_active_mapping_branch.keys())
@@ -1282,22 +1275,12 @@ def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_
         PTDF[row_idx] = _ptdf[:, :-1]
         PTDF = PTDF.A
 
-        print("checking sparse PTDF... ")
-        assert (org_PTDF[list(_active_mapping_branch.keys()), :] - PTDF[list(_active_mapping_branch.keys()),
-                                                                :]).all() < 1e-6
-        print("sparse PTDF correct")
-
-        # TODO: solve system ( J0^T PLDF^T = -B_L^T ) for selected rows of PLDF
+        # solve system ( J0^T PLDF^T = -B_L^T ) for selected rows of PLDF
         _pldf = sp.sparse.linalg.spsolve(J0.transpose().tocsr(), -B_L).T
 
         PLDF = sp.sparse.lil_matrix((_len_branch, _len_bus))
         PLDF[row_idx] = _pldf[:, :-1]
         PLDF = PLDF.A
-
-        print("checking sparse PLDF... ")
-        assert (org_PLDF[list(_active_mapping_branch.keys()), :] - PLDF[list(_active_mapping_branch.keys()),
-                                                                :]).all() < 1e-6
-        print("sparse PLDF correct")
 
         VA_SENSI = None
 
