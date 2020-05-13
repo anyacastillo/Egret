@@ -865,7 +865,7 @@ def calculate_ptdf(branches,buses,index_set_branch,index_set_bus,reference_bus,b
     base_point: egret.model_library_defn.BasePointType
         The base-point type for calculating the PTDF matrix
     active_index_set_branch: list
-        The list of keys for branches needed to compute a sparse PTDF matrix
+        The list of keys for branches needed to compute a partial PTDF matrix
         If this is None, a dense PTDF matrix is returned
     mapping_bus_to_idx: dict
         A map from bus names to indices for matrix construction. If None,
@@ -1160,6 +1160,151 @@ def linsolve_vmag_fdf(model, model_data, base_point=BasePointType.SOLUTION,
 
     return vmag
 
+def remove_reference_bus_row(M, mapping_bus_to_idx, reference_bus, _len_bus):
+
+    _ref_bus_idx = mapping_bus_to_idx[reference_bus]
+    ref_bus_row = np.zeros([1,_len_bus])
+    ref_bus_row[:, _ref_bus_idx] = 1
+    M[_ref_bus_idx, :] = ref_bus_row
+
+    return M
+
+def implicit_factor_solve(sens_mat, rhs_mat, index_set, active_index_set=None):
+    # solves A^T x = B^T for x, where:
+    # sens_mat = A
+    # rhs_mat = B
+    # index_set defines the names of the rows of B
+    # active_index set is the rows of x to be calculated
+
+    # initialize B_J and B_L empty matrices.
+    _len_row, _len_col = rhs_mat.transpose().shape
+    rhs_act = np.array([], dtype=np.int64).reshape(_len_row, 0)
+
+    # mapping of array indices to branch names
+    if active_index_set is None:
+        active_index_set = index_set
+    _active_mapping = {idx: name for idx, name in enumerate(index_set) if name in active_index_set}
+
+    # fill RHS desired rows from active set
+    for idx, name in _active_mapping.items():
+        # the 'idx' column of the identity matrix
+        b = np.zeros((_len_col, 1))
+        b[idx] = 1
+
+        # add the 'idx' column of RHS into active RHS
+        _tmp_rhs = np.matmul(rhs_mat.A.transpose(), b)
+        rhs_act = np.concatenate((rhs_act, _tmp_rhs), axis=1)
+
+    # solve system ( A^T x^T = B^T ) for selected rows of x
+    _sens = sp.sparse.linalg.spsolve(sens_mat.transpose().tocsr(), -rhs_act).T
+
+    row_idx = list(_active_mapping.keys())
+    print(row_idx)
+    print(_sens)
+    SENS = sp.sparse.lil_matrix((_len_col, _len_row))
+    SENS[row_idx] = _sens[:,:]
+    SENS = SENS.A
+
+    return SENS
+
+def implicit_calc_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_bus,
+                       base_point=BasePointType.SOLUTION, active_index_set_branch=None,
+                       mapping_bus_to_idx=None):
+
+    # use active branch/bus mapping for large test cases
+    _len_bus = len(index_set_bus)
+    _len_branch = len(index_set_branch)
+    if _len_bus > 10:   # change to 1000 after debugging....
+        _len_cycle = _len_branch - _len_bus + 1
+        active_index_set_branch = reduce_branches(branches, _len_cycle)
+
+    if mapping_bus_to_idx is None:
+        mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}
+
+    F = _calculate_J11(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_idx,base_point,approximation_type=ApproximationType.PTDF_LOSSES)
+    F0 = _calculate_pf_constant(branches,buses,index_set_branch,base_point)
+    L = _calculate_L11(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_idx,base_point)
+    L0 = _calculate_pfl_constant(branches,buses,index_set_branch,base_point)
+    A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
+    AA = calculate_absolute_adjacency_matrix(A)
+
+    M = A @ F + 0.5 * AA @ L
+    M0 = A @ F0 + 0.5 * AA @ L0
+    M_ref = remove_reference_bus_row(M, mapping_bus_to_idx, reference_bus, _len_bus)
+
+    #----- calculate PTDFs by solving M^T * PTDF^T = -F^T  -----#
+    PTDF = implicit_factor_solve(M_ref, -F, index_set_branch, active_index_set=active_index_set_branch)
+    PT_constant = PTDF @ M0 + F0
+
+    PLDF = implicit_factor_solve(M_ref, -L, index_set_branch, active_index_set=active_index_set_branch)
+    PL_constant = PLDF @ M0 + L0
+
+    return PTDF, PT_constant, PLDF, PL_constant
+
+def implicit_calc_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_bus,
+                       base_point=BasePointType.SOLUTION, active_index_set_branch=None,
+                       mapping_bus_to_idx=None):
+
+    # use active branch/bus mapping for large test cases
+    _len_bus = len(index_set_bus)
+    _len_branch = len(index_set_branch)
+    if _len_bus > 10:   # change to 1000 after debugging....
+        _len_cycle = _len_branch - _len_bus + 1
+        active_index_set_branch = reduce_branches(branches, _len_cycle)
+
+    if mapping_bus_to_idx is None:
+        mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}
+
+    G = _calculate_J22(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_idx,base_point,approximation_type=ApproximationType.PTDF_LOSSES)
+    G0 = _calculate_qf_constant(branches,buses,index_set_branch,base_point)
+    K = _calculate_L22(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_idx,base_point)
+    K0 = _calculate_qfl_constant(branches,buses,index_set_branch,base_point)
+    A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
+    AA = calculate_absolute_adjacency_matrix(A)
+
+    M = A @ G + 0.5 * AA @ K
+    M0 = A @ G0 + 0.5 * AA @ K0
+    # M_ref = remove_reference_bus_row(M, mapping_bus_to_idx, reference_bus, _len_bus)
+
+    #----- calculate PTDFs by solving M^T * PTDF^T = -F^T  -----#
+    QTDF = implicit_factor_solve(M, -G, index_set_branch, active_index_set=active_index_set_branch)
+    QT_constant = QTDF @ M0 + G0
+
+    QLDF = implicit_factor_solve(M, -K, index_set_branch, active_index_set=active_index_set_branch)
+    QL_constant = QLDF @ M0 + K0
+
+    return QTDF, QT_constant, QLDF, QL_constant
+
+def implicit_calc_ploss_sens(branches,buses,index_set_branch,index_set_bus,reference_bus,
+                       base_point=BasePointType.SOLUTION, mapping_bus_to_idx=None):
+
+    # use active branch/bus mapping for large test cases
+    _len_bus = len(index_set_bus)
+
+    if mapping_bus_to_idx is None:
+        mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}
+
+    F = _calculate_J11(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_idx,base_point,approximation_type=ApproximationType.PTDF_LOSSES)
+    F0 = _calculate_pf_constant(branches,buses,index_set_branch,base_point)
+    L = _calculate_L11(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_idx,base_point)
+    L0 = _calculate_pfl_constant(branches,buses,index_set_branch,base_point)
+    A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
+    AA = calculate_absolute_adjacency_matrix(A)
+
+    M = A @ F + 0.5 * AA @ L
+    M0 = A @ F0 + 0.5 * AA @ L0
+    M_ref = remove_reference_bus_row(M.transpose(), mapping_bus_to_idx, reference_bus, _len_bus)
+    _ref_bus_idx = mapping_bus_to_idx[reference_bus]
+    e = np.zeros((_len_bus,1))
+    e[_ref_bus_idx] = 1
+
+    #----- calculate PTDFs by solving M^T * PTDF^T = -F^T  -----#
+    U = sp.sparse.linalg.spsolve(M_ref.tocsr(), e)
+    LF = np.ones(_len_bus) - U
+    LF_offset = LF @ M0 + sum(L0)
+
+    return LF, LF_offset
+
 def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_bus,
                         base_point=BasePointType.SOLUTION, active_index_set_branch=None,
                         mapping_bus_to_idx=None):
@@ -1316,7 +1461,7 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
     base_point: egret.model_library_defn.BasePointType
         The base-point type for calculating the PTDF and LDF matrix
     active_index_set_branch: list
-        The list of keys for branches needed to compute a sparse PTDF matrix
+        The list of keys for branches needed to compute a partial PTDF matrix
     mapping_bus_to_idx: dict
         A map from bus names to indices for matrix construction. If None,
         will be inferred from index_set_bus.
@@ -1344,8 +1489,8 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
     M2 = AA@L
     M = M1 + 0.5 * M2
 
-    # use sparse branch/bus mapping for large test cases
-    if _len_bus > 10:   # change to 1000 after debugging....
+    # use active branch/bus mapping for large test cases
+    if _len_bus > 1000:   # change to 1000 after debugging....
         _len_cycle = _len_branch - _len_bus + 1
         active_index_set_branch = reduce_branches(branches, _len_cycle)
         active_index_set_bus = reduce_buses(buses, _len_bus / 4)
@@ -1441,6 +1586,10 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
         VM_SENSI = VM_SENSI.A
 
         print("checking sparse VM_SENSI... ")
+        print('org_VM_SENSI: {}'.format(org_VM_SENSI))
+        print('VM_SENSI: {}'.format(VM_SENSI))
+        diff = sum(org_VM_SENSI[list(_active_mapping_bus.keys()), :] - VM_SENSI[list(_active_mapping_bus.keys()),:])
+        print('diff = {}'.format(sum(abs(diff))))
         assert (org_VM_SENSI[list(_active_mapping_bus.keys()), :] - VM_SENSI[list(_active_mapping_bus.keys()),
                                                                 :]).all() < 1e-6
         print("sparse VM_SENSI correct")
