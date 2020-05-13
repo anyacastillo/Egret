@@ -848,7 +848,7 @@ def _calculate_qfl_constant(branches,buses,index_set_branch,base_point=BasePoint
     return qfl_constant
 
 
-def calculate_ptdf(branches,buses,index_set_branch,index_set_bus,reference_bus,base_point=BasePointType.FLATSTART,sparse_index_set_branch=None,mapping_bus_to_idx=None):
+def calculate_ptdf(branches,buses,index_set_branch,index_set_bus,reference_bus,base_point=BasePointType.FLATSTART,active_index_set_branch=None,mapping_bus_to_idx=None):
     """
     Calculates the sensitivity of the voltage angle to real power injections
     Parameters
@@ -865,7 +865,7 @@ def calculate_ptdf(branches,buses,index_set_branch,index_set_bus,reference_bus,b
         The reference bus key value
     base_point: egret.model_library_defn.BasePointType
         The base-point type for calculating the PTDF matrix
-    sparse_index_set_branch: list
+    active_index_set_branch: list
         The list of keys for branches needed to compute a sparse PTDF matrix
         If this is None, a dense PTDF matrix is returned
     mapping_bus_to_idx: dict
@@ -890,7 +890,7 @@ def calculate_ptdf(branches,buses,index_set_branch,index_set_bus,reference_bus,b
  
     J0 = sp.sparse.bmat([[M,ref_bus_col],[ref_bus_row,0]], format='coo')
 
-    if sparse_index_set_branch is None or len(sparse_index_set_branch) == _len_branch:
+    if active_index_set_branch is None or len(active_index_set_branch) == _len_branch:
         ## the resulting matrix after inversion will be fairly dense,
         ## the scipy documenation recommends using dense for the inversion
         ## as well
@@ -901,20 +901,20 @@ def calculate_ptdf(branches,buses,index_set_branch,index_set_bus,reference_bus,b
             SENSI = np.linalg.pinv(J0.A,rcond=1e-7)
         SENSI = SENSI[:-1,:-1]
         PTDF = np.matmul(-J.A,SENSI)
-    elif len(sparse_index_set_branch) < _len_branch:
+    elif len(active_index_set_branch) < _len_branch:
         B = np.array([], dtype=np.int64).reshape(_len_bus + 1,0)
-        _sparse_mapping_branch = {i: branch_n for i, branch_n in enumerate(index_set_branch) if branch_n in sparse_index_set_branch}
+        _active_mapping_branch = {i: branch_n for i, branch_n in enumerate(index_set_branch) if branch_n in active_index_set_branch}
 
         ## TODO: Maybe just keep the sparse PTDFs as a dict of ndarrays?
         ## Right now the return type depends on the options
         ## passed in
-        for idx, branch_name in _sparse_mapping_branch.items():
+        for idx, branch_name in _active_mapping_branch.items():
             b = np.zeros((_len_branch,1))
             b[idx] = 1
             _tmp = np.matmul(J.transpose(),b)
             _tmp = np.vstack([_tmp,0])
             B = np.concatenate((B,_tmp), axis=1)
-        row_idx = list(_sparse_mapping_branch.keys())
+        row_idx = list(_active_mapping_branch.keys())
         PTDF = sp.sparse.lil_matrix((_len_branch,_len_bus))
         _ptdf = sp.sparse.linalg.spsolve(J0.transpose().tocsr(), -B).T
         PTDF[row_idx] = _ptdf[:,:-1]
@@ -1224,7 +1224,7 @@ def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_
     # use sparse branch/bus mapping for large test cases
     if _len_bus > 10:   # change to 1000 after debugging....
         _len_cycle = _len_branch - _len_bus + 1
-        sparse_index_set_branch = reduce_branches(branches, _len_cycle)
+        active_index_set_branch = reduce_branches(branches, _len_cycle)
 
     if active_index_set_branch is None or len(active_index_set_branch) == _len_branch:
         ## the resulting matrix after inversion will be fairly dense,
@@ -1332,7 +1332,7 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
         The reference bus key value
     base_point: egret.model_library_defn.BasePointType
         The base-point type for calculating the PTDF and LDF matrix
-    sparse_index_set_branch: list
+    active_index_set_branch: list
         The list of keys for branches needed to compute a sparse PTDF matrix
     mapping_bus_to_idx: dict
         A map from bus names to indices for matrix construction. If None,
@@ -1364,8 +1364,8 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
     # use sparse branch/bus mapping for large test cases
     if _len_bus > 10:   # change to 1000 after debugging....
         _len_cycle = _len_branch - _len_bus + 1
-        sparse_index_set_branch = reduce_branches(branches, _len_cycle)
-        sparse_index_set_bus = reduce_buses(buses, _len_bus / 4)
+        active_index_set_branch = reduce_branches(branches, _len_cycle)
+        active_index_set_bus = reduce_buses(buses, _len_bus / 4)
 
     if (active_index_set_branch is None or len(active_index_set_branch) == _len_branch) and \
             (active_index_set_bus is None or len(active_index_set_bus) == _len_bus):
