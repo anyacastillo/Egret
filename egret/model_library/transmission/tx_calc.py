@@ -1196,25 +1196,23 @@ def implicit_factor_solve(sens_mat, rhs_mat, index_set, active_index_set=None):
         rhs_act = np.concatenate((rhs_act, _tmp_rhs), axis=1)
 
     # solve system ( A^T x^T = B^T ) for selected rows of x
-    _sens = sp.sparse.linalg.spsolve(sens_mat.transpose().tocsr(), -rhs_act).T
+    _sens = sp.sparse.linalg.spsolve(sens_mat.transpose().tocsr(), rhs_act).T
 
     row_idx = list(_active_mapping.keys())
-    print(row_idx)
-    print(_sens)
     SENS = sp.sparse.lil_matrix((_len_col, _len_row))
     SENS[row_idx] = _sens[:,:]
     SENS = SENS.A
 
     return SENS
 
-def implicit_calc_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_bus,
+def implicit_calc_p_sens(branches,buses,index_set_branch,index_set_bus,reference_bus,
                        base_point=BasePointType.SOLUTION, active_index_set_branch=None,
                        mapping_bus_to_idx=None):
 
     # use active branch/bus mapping for large test cases
     _len_bus = len(index_set_bus)
     _len_branch = len(index_set_branch)
-    if _len_bus > 10:   # change to 1000 after debugging....
+    if _len_bus > 1000:   # change to 1000 after debugging....
         _len_cycle = _len_branch - _len_bus + 1
         active_index_set_branch = reduce_branches(branches, _len_cycle)
 
@@ -1228,6 +1226,10 @@ def implicit_calc_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,refere
     A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
     AA = calculate_absolute_adjacency_matrix(A)
 
+    _ref_bus_idx = mapping_bus_to_idx[reference_bus]
+    e = np.zeros((_len_bus,1))
+    e[_ref_bus_idx] = 1
+
     M = A @ F + 0.5 * AA @ L
     M0 = A @ F0 + 0.5 * AA @ L0
     M_ref = remove_reference_bus_row(M, mapping_bus_to_idx, reference_bus, _len_bus)
@@ -1239,28 +1241,59 @@ def implicit_calc_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,refere
     PLDF = implicit_factor_solve(M_ref, -L, index_set_branch, active_index_set=active_index_set_branch)
     PL_constant = PLDF @ M0 + L0
 
-    return PTDF, PT_constant, PLDF, PL_constant
+    #----- calculate LFs by solving M^T * LF = e  -----#
+    U = sp.sparse.linalg.spsolve(M_ref.tocsr(), e)
+    LF = np.ones(_len_bus) - U
+    LF_const = LF @ M0 + sum(L0)
 
-def implicit_calc_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_bus,
+    #----- calculate branch loss distribution factors -----#
+    branch_ploss = [branch['pf'] + branch['pt'] for bn,branch in branches.items()]
+    total_ploss = sum(branch_ploss)
+    if total_ploss > 0:
+        ploss_dist = [ ploss / total_ploss for ploss in branch_ploss ]
+    else:
+        ploss_dist = [0 for ploss in branch_ploss]
+
+
+    sens_dict = {}
+    sens_dict['ptdf'] = PTDF
+    sens_dict['ptdf_c'] = PT_constant
+    sens_dict['pldf'] = PLDF
+    sens_dict['pldf_c'] = PL_constant
+    sens_dict['ploss_sens'] = LF
+    sens_dict['ploss_const'] = LF_const
+    sens_dict['ploss_resid_sens'] = LF - sum(PLDF)
+    sens_dict['ploss_resid_const'] = LF_const - sum(PL_constant)
+    sens_dict['ploss_distribution'] = ploss_dist
+
+    return sens_dict
+
+def implicit_calc_q_sens(branches,buses,index_set_branch,index_set_bus,reference_bus,
                        base_point=BasePointType.SOLUTION, active_index_set_branch=None,
-                       mapping_bus_to_idx=None):
+                       active_index_set_bus=None, mapping_bus_to_idx=None):
 
     # use active branch/bus mapping for large test cases
     _len_bus = len(index_set_bus)
     _len_branch = len(index_set_branch)
-    if _len_bus > 10:   # change to 1000 after debugging....
+    if _len_bus > 1000:   # change to 1000 after debugging....
         _len_cycle = _len_branch - _len_bus + 1
         active_index_set_branch = reduce_branches(branches, _len_cycle)
+        active_index_set_bus = reduce_buses(buses, _len_bus / 4)
 
     if mapping_bus_to_idx is None:
         mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}
 
-    G = _calculate_J22(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_idx,base_point,approximation_type=ApproximationType.PTDF_LOSSES)
+    G = _calculate_J22(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_idx,base_point)
     G0 = _calculate_qf_constant(branches,buses,index_set_branch,base_point)
     K = _calculate_L22(branches,buses,index_set_branch,index_set_bus,mapping_bus_to_idx,base_point)
     K0 = _calculate_qfl_constant(branches,buses,index_set_branch,base_point)
     A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
     AA = calculate_absolute_adjacency_matrix(A)
+    I = sp.sparse.coo_matrix(np.identity(_len_bus))
+
+    _ref_bus_idx = mapping_bus_to_idx[reference_bus]
+    e = np.zeros((_len_bus,1))
+    e[_ref_bus_idx] = 1
 
     M = A @ G + 0.5 * AA @ K
     M0 = A @ G0 + 0.5 * AA @ K0
@@ -1273,7 +1306,37 @@ def implicit_calc_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,refere
     QLDF = implicit_factor_solve(M, -K, index_set_branch, active_index_set=active_index_set_branch)
     QL_constant = QLDF @ M0 + K0
 
-    return QTDF, QT_constant, QLDF, QL_constant
+    VDF = implicit_factor_solve(M, -I, index_set_bus, active_index_set=active_index_set_bus)
+    V_constant = VDF @ M0
+
+    #----- calculate LFs by solving M^T * LF = e  -----#
+    U = sp.sparse.linalg.spsolve(M.tocsr(), e)
+    QLF = np.ones(_len_bus) - U
+    QLF_const = QLF @ M0 + sum(K0)
+
+    #----- calculate branch loss distribution factors -----#
+    branch_qloss = [branch['qf'] + branch['qt'] for bn,branch in branches.items()]
+    total_qloss = sum(branch_qloss)
+    if total_qloss > 0:
+        qloss_dist = [ qloss / total_qloss for qloss in branch_qloss ]
+    else:
+        qloss_dist = [0 for qloss in branch_qloss]
+
+
+    sens_dict = {}
+    sens_dict['qtdf'] = QTDF
+    sens_dict['qtdf_c'] = QT_constant
+    sens_dict['qldf'] = QLDF
+    sens_dict['qldf_c'] = QL_constant
+    sens_dict['vdf'] = VDF
+    sens_dict['vdf_c'] = V_constant
+    sens_dict['qloss_sens'] = QLF
+    sens_dict['qloss_const'] = QLF_const
+    sens_dict['qloss_resid_sens'] = QLF - sum(QLDF)
+    sens_dict['qloss_resid_const'] = QLF_const - sum(QL_constant)
+    sens_dict['qloss_distribution'] = qloss_dist
+
+    return sens_dict
 
 def implicit_calc_ploss_sens(branches,buses,index_set_branch,index_set_bus,reference_bus,
                        base_point=BasePointType.SOLUTION, mapping_bus_to_idx=None):
@@ -1298,7 +1361,7 @@ def implicit_calc_ploss_sens(branches,buses,index_set_branch,index_set_bus,refer
     e = np.zeros((_len_bus,1))
     e[_ref_bus_idx] = 1
 
-    #----- calculate PTDFs by solving M^T * PTDF^T = -F^T  -----#
+    #----- calculate LFs by solving M^T * LF = e  -----#
     U = sp.sparse.linalg.spsolve(M_ref.tocsr(), e)
     LF = np.ones(_len_bus) - U
     LF_offset = LF @ M0 + sum(L0)
@@ -1366,7 +1429,7 @@ def calculate_ptdf_pldf(branches,buses,index_set_branch,index_set_bus,reference_
     J0 = sp.sparse.bmat([[M,ref_bus_col],[ref_bus_row,0]], format='coo')
 
     # use sparse branch/bus mapping for large test cases
-    if _len_bus > 10:   # change to 1000 after debugging....
+    if _len_bus > 1000:   # change to 1000 after debugging....
         _len_cycle = _len_branch - _len_bus + 1
         active_index_set_branch = reduce_branches(branches, _len_cycle)
 
