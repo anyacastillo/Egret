@@ -215,6 +215,9 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
     #                          bounds=qfl_bounds
     #                          )
 
+    libbranch.declare_var_ploss(model=model, initialize=0)
+    libbranch.declare_var_qloss(model=model, initialize=0)
+
     if ptdf_options['lazy']:
 
         monitor_init = set()
@@ -328,7 +331,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
             abs_slack = min( abs(vm - v_min) , abs(v_max - vm) )
             rel_slack =  abs_slack / (v_max - v_min)
             if abs_slack < ptdf_options['abs_vm_init_tol'] or rel_slack < ptdf_options['rel_vm_init_tol']:
-                logger.warning('adding vm {}: {} <= {} <= {}'.format(bus_name, v_min, vm, v_max))
+                logger.info('adding vm {}: {} <= {} <= {}'.format(bus_name, v_min, vm, v_max))
                 monitor_init.add(bus_name)
 
         model.eq_vm_bus = pe.Constraint(bus_attrs['names'])
@@ -377,6 +380,22 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                                rel_tol=ptdf_options['rel_qldf_tol'],
                                                abs_tol=ptdf_options['abs_qldf_tol'],
                                                )
+
+    # residual loss functions
+    libbranch.declare_eq_ploss_fdf_simplified(model=model,
+                                           sensitivity=bus_attrs['ploss_resid_sens'],
+                                           constant=system_attrs['ploss_resid_const'],
+                                           rel_tol=ptdf_options['rel_ploss_tol'],
+                                           abs_tol=ptdf_options['abs_ploss_tol'],
+                                           )
+
+    libbranch.declare_eq_qloss_fdf_simplified(model=model,
+                                           sensitivity=bus_attrs['qloss_resid_sens'],
+                                           constant=system_attrs['qloss_resid_const'],
+                                           rel_tol=ptdf_options['rel_qloss_tol'],
+                                           abs_tol=ptdf_options['abs_qloss_tol'],
+                                           )
+
 
     ### declare the p balance
     libbus.declare_eq_p_balance_fdf(model=model,
@@ -1103,7 +1122,7 @@ def test_dlopf(md):
     from egret.models.tests.test_approximations import create_new_model_data
 
     logger = logging.getLogger('egret')
-    logger.setLevel(logging.CRITICAL)
+    logger.setLevel(logging.WARNING)
 
     def acpf_to_md(md):
         try:
@@ -1204,15 +1223,25 @@ if __name__ == '__main__':
     #filename = 'pglib_opf_case14_ieee.m'
     #filename = 'pglib_opf_case30_ieee.m'
     #filename = 'pglib_opf_case57_ieee.m'
-    filename = 'pglib_opf_case118_ieee.m'
+    #filename = 'pglib_opf_case118_ieee.m'
     #filename = 'pglib_opf_case162_ieee_dtc.m'
     #filename = 'pglib_opf_case179_goc.m'
     #filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
+    filename = 'pglib_opf_case588_sdet.m'
     #filename = 'pglib_opf_case1354_pegase.m'
     #filename = 'pglib_opf_case1888_rte.m'
     #filename = 'pglib_opf_case1951_rte.m'
     #filename = 'pglib_opf_case2000_tamu.m'
+    #filename = 'pglib_opf_case2316_sdet.m'
+    #filename = 'pglib_opf_case2383wp_k.m'
+    #filename = 'pglib_opf_case2736sp_k.m'
+    #filename = 'pglib_opf_case2737sop_k.m'
+    #filename = 'pglib_opf_case2746wop_k.m'
+    #filename = 'pglib_opf_case2746wp_k.m'
+    #filename = 'pglib_opf_case2848_rte.m'
+    #filename = 'pglib_opf_case2853_sdet.m'
+    #filename = 'pglib_opf_case2868_rte.m'
     #filename = 'pglib_opf_case2869_pegase.m'
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
     md = create_ModelData(matpower_file)

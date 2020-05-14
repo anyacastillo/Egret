@@ -175,18 +175,23 @@ def create_dicts_of_fdf(md, base_point=BasePointType.SOLUTION):
 
     if update_dense_p:
         md.data['system']['ploss_const'] = p_sens['ploss_const']
+        md.data['system']['ploss_resid_const'] = p_sens['ploss_resid_const']
     if update_dense_q:
         md.data['system']['qloss_const'] = q_sens['qloss_const']
+        md.data['system']['qloss_resid_const'] = q_sens['qloss_resid_const']
 
     for idx, bus_name in enumerate(bus_name_list):
         bus = buses[bus_name]
         if update_dense_p:
             bus['ploss_sens'] = p_sens['ploss_sens'][idx]
+            bus['ploss_resid_sens'] = p_sens['ploss_resid_sens'][idx]
 
         if update_dense_q:
             bus['qloss_sens'] = q_sens['qloss_sens'][idx]
+            bus['qloss_resid_sens'] = q_sens['qloss_resid_sens'][idx]
             bus['vdf'] = _make_sensi_dict_from_dense(bus_name_list, q_sens['vdf'][idx])
             bus['vdf_c'] = q_sens['vdf_c'][idx]
+
 
 def create_dicts_of_lccm(md, base_point=BasePointType.SOLUTION):
     branches = dict(md.elements(element_type='branch'))

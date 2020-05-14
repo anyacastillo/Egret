@@ -1160,8 +1160,9 @@ def linsolve_vmag_fdf(model, model_data, base_point=BasePointType.SOLUTION,
 
     return vmag
 
-def remove_reference_bus_row(M, mapping_bus_to_idx, reference_bus, _len_bus):
+def remove_reference_bus_row(mat, mapping_bus_to_idx, reference_bus, _len_bus):
 
+    M = mat.copy()
     _ref_bus_idx = mapping_bus_to_idx[reference_bus]
     ref_bus_row = np.zeros([1,_len_bus])
     ref_bus_row[:, _ref_bus_idx] = 1
@@ -1212,7 +1213,7 @@ def implicit_calc_p_sens(branches,buses,index_set_branch,index_set_bus,reference
     # use active branch/bus mapping for large test cases
     _len_bus = len(index_set_bus)
     _len_branch = len(index_set_branch)
-    if _len_bus > 1000:   # change to 1000 after debugging....
+    if _len_bus > 10:   # change to 1000 after debugging....
         _len_cycle = _len_branch - _len_bus + 1
         active_index_set_branch = reduce_branches(branches, _len_cycle)
 
@@ -1242,8 +1243,9 @@ def implicit_calc_p_sens(branches,buses,index_set_branch,index_set_bus,reference
     PL_constant = PLDF @ M0 + L0
 
     #----- calculate LFs by solving M^T * LF = e  -----#
+    M_ref = remove_reference_bus_row(M.transpose(), mapping_bus_to_idx, reference_bus, _len_bus)
     U = sp.sparse.linalg.spsolve(M_ref.tocsr(), e)
-    LF = np.ones(_len_bus) - U
+    LF = U - np.ones(_len_bus)
     LF_const = LF @ M0 + sum(L0)
 
     #----- calculate branch loss distribution factors -----#
@@ -1275,7 +1277,7 @@ def implicit_calc_q_sens(branches,buses,index_set_branch,index_set_bus,reference
     # use active branch/bus mapping for large test cases
     _len_bus = len(index_set_bus)
     _len_branch = len(index_set_branch)
-    if _len_bus > 1000:   # change to 1000 after debugging....
+    if _len_bus > 10:   # change to 1000 after debugging....
         _len_cycle = _len_branch - _len_bus + 1
         active_index_set_branch = reduce_branches(branches, _len_cycle)
         active_index_set_bus = reduce_buses(buses, _len_bus / 4)
@@ -1308,6 +1310,12 @@ def implicit_calc_q_sens(branches,buses,index_set_branch,index_set_bus,reference
 
     VDF = implicit_factor_solve(M, -I, index_set_bus, active_index_set=active_index_set_bus)
     V_constant = VDF @ M0
+
+    # set vm of inactive bus to vm = V_constant
+    _inactive_bus = list(set(index_set_bus) - set(active_index_set_bus))
+    _inactive_dict = {bus:idx for bus,idx in mapping_bus_to_idx.items() if bus in _inactive_bus}
+    for bus_name,idx in _inactive_dict.items():
+        V_constant[idx] = buses[bus_name]['vm']
 
     #----- calculate LFs by solving M^T * LF = e  -----#
     U = sp.sparse.linalg.spsolve(M.tocsr(), e)

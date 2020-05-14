@@ -304,6 +304,7 @@ def declare_eq_p_balance_fdf(model, index_set, buses, bus_p_loads, gens_by_bus, 
                 p_expr += eval("m." + val)
             if idx == 'include_losses':
                 p_expr -= sum(m.pfl[branch_name] for branch_name in val)
+                p_expr -= m.ploss
 
     m.eq_p_balance = pe.Constraint(expr = p_expr == 0.0)
 

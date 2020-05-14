@@ -124,9 +124,6 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
     tx_utils.scale_ModelData_to_pu(md, inplace=True)
 
     data_utils_deprecated.create_dicts_of_fdf_simplified(md)
-    # TO BE DELETED: below and other functions called in create_dicts... method above
-    # calculate_ptdf_ldf(branches, buses, index_set_branch, index_set_bus, reference_bus,
-    #                   base_point=BasePointType.SOLUTION, sparse_index_set_branch=None, mapping_bus_to_idx=None)
 
     gens = dict(md.elements(element_type='generator'))
     buses = dict(md.elements(element_type='bus'))

@@ -64,19 +64,19 @@ def populate_default_ptdf_options(ptdf_options):
     if 'abs_thermal_init_tol' not in ptdf_options:
         ptdf_options['abs_thermal_init_tol'] = 1
     if 'rel_thermal_init_tol' not in ptdf_options:
-        ptdf_options['rel_thermal_init_tol'] = 0.1
+        ptdf_options['rel_thermal_init_tol'] = 0.4
     if 'abs_vm_init_tol' not in ptdf_options:
         ptdf_options['abs_vm_init_tol'] = 0.01
     if 'rel_vm_init_tol' not in ptdf_options:
-        ptdf_options['rel_vm_init_tol'] = 0.05
+        ptdf_options['rel_vm_init_tol'] = 0.2
     if 'iteration_limit' not in ptdf_options:
         ptdf_options['iteration_limit'] = 100000
     if 'lp_iteration_limit' not in ptdf_options:
         ptdf_options['lp_iteration_limit'] = 100
     if 'max_violations_per_iteration' not in ptdf_options:
-        ptdf_options['max_violations_per_iteration'] = 15
+        ptdf_options['max_violations_per_iteration'] = 50
     if 'vm_max_violations_per_iteration' not in ptdf_options:
-        ptdf_options['vm_max_violations_per_iteration'] = 15
+        ptdf_options['vm_max_violations_per_iteration'] = 50
     if 'lazy' not in ptdf_options:
         ptdf_options['lazy'] = False
     if 'lazy_reactive' not in ptdf_options:
@@ -196,6 +196,9 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
     viol_num = t_viol_num + v_viol_num
     monitored_viol_num = t_monitored_viol_num + v_monitored_viol_num
 
+    log_message = 'Monitoring {} thermal constraints and {} voltage constraints.'.format(len(thermal_idx_monitored),len(vm_idx_monitored))
+    logger.warning(log_message)
+
     return SV, t_viol_lazy, VMAG, v_viol_lazy, viol_num, monitored_viol_num
 
 def _find_violation_set(mb, md, index_set, actuals, lb_limits, ub_limits, idx_monitored, max_viol_add,
@@ -225,7 +228,7 @@ def _find_violation_set(mb, md, index_set, actuals, lb_limits, ub_limits, idx_mo
     baseMVA = md.data['system']['baseMVA']
     for i in viol_in_mb:
         bn = index_set[i]
-        logger.warning(warning_generator(mb, bn, lb_limits[i], actuals[i], ub_limits[i], baseMVA, time))
+        logger.info(warning_generator(mb, bn, lb_limits[i], actuals[i], ub_limits[i], baseMVA, time))
 
     ## thermal_viol_lazy will hold the lines we're adding
     ## this iteration -- don't want to add lines
@@ -438,7 +441,7 @@ def _lazy_model_solve_loop(m, md, solver, timelimit, solver_tee=True, symbolic_s
         if mon_viol_num:
             iter_status_str += " ({} already monitored)".format(mon_viol_num)
 
-        logger.info(iter_status_str)
+        logger.warning(iter_status_str)
 
         if viol_num <= 0:
             ## in this case, there are no violations!
