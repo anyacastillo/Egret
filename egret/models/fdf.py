@@ -1170,6 +1170,8 @@ def test_dlopf(md):
         message = str(e)
         print(message)
 
+    return
+
     #solve D-LOPF tolerances
     print('Solve D-LOPF (lazy full)....')
     kwargs = {}
