@@ -64,19 +64,19 @@ def populate_default_ptdf_options(ptdf_options):
     if 'abs_thermal_init_tol' not in ptdf_options:
         ptdf_options['abs_thermal_init_tol'] = 1
     if 'rel_thermal_init_tol' not in ptdf_options:
-        ptdf_options['rel_thermal_init_tol'] = 0 #0.4
+        ptdf_options['rel_thermal_init_tol'] = 0.4
     if 'abs_vm_init_tol' not in ptdf_options:
         ptdf_options['abs_vm_init_tol'] = 0.01
     if 'rel_vm_init_tol' not in ptdf_options:
-        ptdf_options['rel_vm_init_tol'] = 0 #0.2
+        ptdf_options['rel_vm_init_tol'] = 0.2
     if 'iteration_limit' not in ptdf_options:
         ptdf_options['iteration_limit'] = 100000
     if 'lp_iteration_limit' not in ptdf_options:
         ptdf_options['lp_iteration_limit'] = 100
     if 'max_violations_per_iteration' not in ptdf_options:
-        ptdf_options['max_violations_per_iteration'] = 1 #15
+        ptdf_options['max_violations_per_iteration'] = 15
     if 'vm_max_violations_per_iteration' not in ptdf_options:
-        ptdf_options['vm_max_violations_per_iteration'] = 1 #15
+        ptdf_options['vm_max_violations_per_iteration'] = 15
     if 'lazy' not in ptdf_options:
         ptdf_options['lazy'] = False
     if 'lazy_reactive' not in ptdf_options:

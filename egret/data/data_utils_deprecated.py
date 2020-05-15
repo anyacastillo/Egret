@@ -204,6 +204,12 @@ def create_dicts_of_lccm(md, base_point=BasePointType.SOLUTION):
 
     reference_bus = md.data['system']['reference_bus']
 
+    mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(bus_name_list)}
+    A = tx_calc.calculate_adjacency_matrix_transpose(branches, branch_name_list, bus_name_list, mapping_bus_to_idx)
+    AA = tx_calc.calculate_absolute_adjacency_matrix(A)
+    md.data['system']['AdjacencyMat'] = A
+    md.data['system']['AbsAdj'] = AA
+
     update_sparse_flow_sys = missing_sparse_sys_flow_sensitivities(md)
     update_sparse_loss_sys = missing_sparse_sys_loss_sensitivities(md)
     update_sparse_branch_p = missing_sparse_branch_p_sensitivities(md, branches)
