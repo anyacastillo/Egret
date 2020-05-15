@@ -16,9 +16,11 @@ import numpy as np
 import scipy as sp
 import pandas as pd
 import scipy.sparse
+from scipy.sparse.linalg import dsolve,isolve
 from math import cos, sin
 from egret.model_library.defn import BasePointType, ApproximationType
 from pyomo.environ import value
+from egret.common.log import logger
 
 def calculate_conductance(branch):
     rs = branch['resistance']
@@ -1052,19 +1054,24 @@ def linsolve_theta_fdf(model, model_data, base_point=BasePointType.SOLUTION,
     Jc = md.data['system']['ft_c']
     Lc = md.data['system']['lt_c']
 
-    ## TODO: we should be getting A from somewhere else,
-    ##       not constructing it each time
     if mapping_bus_to_idx is None:
         mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}
 
-    if index_set_branch is None:
-        branch_attrs = md.attributes(element_type='branch')
-        index_set_branch = branch_attrs['names']
+    if 'AdjacencyMat' in list(md.data['system'].keys()):
+        A = md.data['system']['AdjacencyMat']
+        AA = md.data['system']['AbsAdj']
+    else:
+        klist = list(md.data['system'].keys())
+        print(klist)
+        if index_set_branch is None:
+            branch_attrs = md.attributes(element_type='branch')
+            index_set_branch = branch_attrs['names']
 
-    branches = dict(md.elements(element_type='branch'))
+        branches = dict(md.elements(element_type='branch'))
 
-    A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
-    AA = calculate_absolute_adjacency_matrix(A)
+        A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
+        AA = calculate_absolute_adjacency_matrix(A)
+        logger.warning('WARNING: recalculating adjacency matrix in THETA calc.')
 
     # Nodal power transfer matrix (square)
     M1 = A @ J
@@ -1089,6 +1096,7 @@ def linsolve_theta_fdf(model, model_data, base_point=BasePointType.SOLUTION,
 
     # Solve linear system
     theta = sp.sparse.linalg.spsolve(M, b)
+    #theta = dsolve.spsolve(M,b)
 
     return theta
 
@@ -1133,14 +1141,19 @@ def linsolve_vmag_fdf(model, model_data, base_point=BasePointType.SOLUTION,
     if mapping_bus_to_idx is None:
         mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}
 
-    if index_set_branch is None:
-        branch_attrs = md.attributes(element_type='branch')
-        index_set_branch = branch_attrs['names']
+    if 'AdjacencyMat' in list(md.data['system'].keys()):
+        A = md.data['system']['AdjacencyMat']
+        AA = md.data['system']['AbsAdj']
+    else:
+        if index_set_branch is None:
+            branch_attrs = md.attributes(element_type='branch')
+            index_set_branch = branch_attrs['names']
 
-    branches = dict(md.elements(element_type='branch'))
+        branches = dict(md.elements(element_type='branch'))
 
-    A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
-    AA = calculate_absolute_adjacency_matrix(A)
+        A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
+        AA = calculate_absolute_adjacency_matrix(A)
+        logger.warning('WARNING: recalculating adjacency matrix in VMAG calc.')
 
     # Nodal power transfer matrix (square)
     M1 = A @ J
