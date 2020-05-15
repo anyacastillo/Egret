@@ -64,11 +64,11 @@ def populate_default_ptdf_options(ptdf_options):
     if 'abs_thermal_init_tol' not in ptdf_options:
         ptdf_options['abs_thermal_init_tol'] = 1
     if 'rel_thermal_init_tol' not in ptdf_options:
-        ptdf_options['rel_thermal_init_tol'] = 0.4
+        ptdf_options['rel_thermal_init_tol'] = 0.25
     if 'abs_vm_init_tol' not in ptdf_options:
         ptdf_options['abs_vm_init_tol'] = 0.01
     if 'rel_vm_init_tol' not in ptdf_options:
-        ptdf_options['rel_vm_init_tol'] = 0.2
+        ptdf_options['rel_vm_init_tol'] = 0.15
     if 'iteration_limit' not in ptdf_options:
         ptdf_options['iteration_limit'] = 100000
     if 'lp_iteration_limit' not in ptdf_options:
@@ -363,7 +363,7 @@ def add_thermal_violations(thermal_viol_lazy, SV, mb, md, solver, ptdf_options, 
 
 ## voltage violation adder
 def add_vmag_violations(vmag_viol_lazy, VMAG, mb, md, solver, ptdf_options, bus_attrs,
-                    time=None):
+                    time=None, **rhs_kwargs):
 
     model = mb.model()
 
@@ -394,6 +394,12 @@ def add_vmag_violations(vmag_viol_lazy, VMAG, mb, md, solver, ptdf_options, bus_
                 ## add eq_pf_branch constraint
                 expr = libbus.get_vm_expr_vdf_approx(mb, bn, ba_vdf[bn], ba_vdf_c[bn],
                                                         rel_tol=rel_vdf_tol, abs_tol=abs_vdf_tol)
+                if rhs_kwargs:
+                    for idx, val in rhs_kwargs.items():
+                        if idx == 'include_feasibility_slack_pos':
+                            expr -= eval("mb." + val + "[bn]")
+                        if idx == 'include_feasibility_slack_neg':
+                            expr += eval("mb." + val + "[bn]")
                 constr[bn] = vm[bn] == expr
             yield i, bn
 
@@ -406,7 +412,7 @@ def add_vmag_violations(vmag_viol_lazy, VMAG, mb, md, solver, ptdf_options, bus_
 
 
 def _lazy_model_solve_loop(m, md, solver, timelimit, solver_tee=True, symbolic_solver_labels=False, iteration_limit=100000,
-                           vars_to_load=None):
+                           vars_to_load=None, **rhs_kwargs):
 
 
     branch_attrs = md.attributes(element_type='branch')
@@ -457,7 +463,7 @@ def _lazy_model_solve_loop(m, md, solver, timelimit, solver_tee=True, symbolic_s
         add_thermal_violations(thermal_viol_lazy, SV, m, md, solver, ptdf_options, branch_attrs)
 
         if ptdf_options['lazy_voltage']:
-            add_vmag_violations(vmag_viol_lazy, VMAG, m, md, solver, ptdf_options, bus_attrs)
+            add_vmag_violations(vmag_viol_lazy, VMAG, m, md, solver, ptdf_options, bus_attrs, **rhs_kwargs)
 
 
         #m.ineq_pf_branch_thermal_lb.pprint()

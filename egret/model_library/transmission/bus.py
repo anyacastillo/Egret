@@ -639,7 +639,7 @@ def get_vm_expr_vdf_approx(model, bus_name, vdf, vdf_c, rel_tol=0., abs_tol=0.):
     """
     return _get_df_expr(model.q_nw, vdf, vdf_c, rel_tol, abs_tol)
 
-def declare_eq_vm_vdf_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.):
+def declare_eq_vm_vdf_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0., **rhs_kwargs):
     """
     Create the equality constraints or expressions for voltage magnitude
     (from VDF approximation) in the bus
@@ -662,6 +662,14 @@ def declare_eq_vm_vdf_approx(model, index_set, sensitivity, constant, rel_tol=0.
         vdf_c = constant[bus_name]
         expr = \
             get_vm_expr_vdf_approx(m, bus_name, vdf, vdf_c, rel_tol=rel_tol, abs_tol=abs_tol)
+
+        # add slacks
+        if rhs_kwargs:
+            for idx, val in rhs_kwargs.items():
+                if idx == 'include_feasibility_slack_pos':
+                    expr -= eval("m." + val + "[bus_name]")
+                if idx == 'include_feasibility_slack_neg':
+                    expr += eval("m." + val + "[bus_name]")
 
         if vm_is_var:
             m.eq_vm_bus[bus_name] = \

@@ -58,7 +58,7 @@ def _include_system_feasibility_slack(model, gen_attrs, bus_p_loads, bus_q_loads
     return p_rhs_kwargs, q_rhs_kwargs, penalty_expr
 
 
-def _include_v_feasibility_slack(model, bus_attrs, penalty=100):
+def _include_v_feasibility_slack(model, bus_attrs, penalty=1000):
     import egret.model_library.decl as decl
     slack_init = {k: 0 for k in bus_attrs['names']}
     slack_bounds = {k: (0,inf) for k in bus_attrs['names']}
@@ -72,13 +72,20 @@ def _include_v_feasibility_slack(model, bus_attrs, penalty=100):
 
     penalty_expr = penalty * (sum(model.v_slack_pos[k] + model.v_slack_neg[k] for k in bus_attrs["names"]))
 
+    model._v_rhs_kwargs = v_rhs_kwargs
+
     return v_rhs_kwargs, penalty_expr
 
 
 def create_fixed_fdf_model(model_data, **kwargs):
     ## creates an FDF model with fixed m.pg and m.qg, and relaxed power balance
 
-    model, md = create_fdf_model(model_data, include_feasibility_slack=True, include_v_feasibility_slack=True, **kwargs)
+    kwlist = list(kwargs.keys())
+    if 'include_feasibility_slack' not in kwlist:
+        kwargs['include_feasibility_slack'] = True
+    if 'include_v_feasibility_slack' not in kwlist:
+        kwargs['include_v_feasibility_slack']  = True
+    model, md = create_fdf_model(model_data, **kwargs)
 
     gens = dict(model_data.elements(element_type='generator'))
     baseMVA = model_data.data['system']['baseMVA']
@@ -225,11 +232,12 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
             pf = pf_init[branch_name]
             qf = qf_init[branch_name]
             lim = s_max[branch_name]
-            abs_slack = sqrt(lim**2 - (pf**2 + qf**2))
-            rel_slack =  abs_slack / lim
+            if lim is not None:
+                abs_slack = sqrt(lim**2 - (pf**2 + qf**2))
+                rel_slack =  abs_slack / lim
 
-            if abs_slack < ptdf_options['abs_thermal_init_tol'] or rel_slack < ptdf_options['rel_thermal_init_tol']:
-                monitor_init.add(branch_name)
+                if abs_slack < ptdf_options['abs_thermal_init_tol'] or rel_slack < ptdf_options['rel_thermal_init_tol']:
+                    monitor_init.add(branch_name)
 
         libbranch.declare_var_pf(model=model,
                                  index_set=branch_attrs['names'],
@@ -348,6 +356,13 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                         rel_tol=ptdf_options['rel_vdf_tol'],
                                         abs_tol=ptdf_options['abs_vdf_tol'],
                                                      )
+                if v_rhs_kwargs:
+                    for idx, val in v_rhs_kwargs.items():
+                        if idx == 'include_feasibility_slack_pos':
+                            expr -= eval("model." + val + "[bn]")
+                        if idx == 'include_feasibility_slack_neg':
+                            expr += eval("model." + val + "[bn]")
+
                 model.eq_vm_bus[bn] = model.vm[bn] == expr
                 model._vm_idx_monitored.append(i)
         mon_message = '{} of {} voltage constraints added to initial monitored set'.format(len(monitor_init),
@@ -362,6 +377,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                         constant=bus_attrs['vdf_c'],
                                         rel_tol=ptdf_options['rel_vdf_tol'],
                                         abs_tol=ptdf_options['abs_vdf_tol'],
+                                        **v_rhs_kwargs
                                         )
 
 
@@ -775,6 +791,10 @@ def solve_fdf(model_data,
     from pyomo.solvers.plugins.solvers.persistent_solver import PersistentSolver
 
     m, md = fdf_model_generator(model_data, **kwargs)
+    if hasattr(m,'_v_rhs_kwargs'):
+        v_rhs_kwargs = m._v_rhs_kwargs
+    else:
+        v_rhs_kwargs = None
 
     m.dual = pe.Suffix(direction=pe.Suffix.IMPORT)
 
@@ -809,7 +829,7 @@ def solve_fdf(model_data,
         iter_limit = m._ptdf_options['iteration_limit']
         term_cond, results, iterations = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee,
                                            symbolic_solver_labels=symbolic_solver_labels,iteration_limit=iter_limit,
-                                           vars_to_load = vars_to_load)
+                                           vars_to_load = vars_to_load, **v_rhs_kwargs)
 
         ## in this case, either we're not using lazy or
         ## we never re-solved
@@ -923,8 +943,17 @@ def compare_to_acopf(md):
 
     # keyword arguments
     kwargs = {}
-    # kwargs = {'include_v_feasibility_slack':True,'include_feasibility_slack':True}
-
+    ptdf_options = {}
+    ptdf_options['lazy'] = True
+    ptdf_options['lazy_voltage'] = True
+    ptdf_options['rel_ptdf_tol'] = 1e-2
+    ptdf_options['rel_qtdf_tol'] = 1e-2
+    ptdf_options['rel_pldf_tol'] = 1e-2
+    ptdf_options['rel_qldf_tol'] = 1e-2
+    ptdf_options['rel_vdf_tol'] = 1e-2
+    kwargs['ptdf_options'] = ptdf_options
+    kwargs['include_v_feasibility_slack'] = True
+    kwargs['include_feasibility_slack'] = False
     # solve (fixed) FDF
     md, m, results = solve_fdf(md_ac, "gurobi", fdf_model_generator=create_fdf_model, return_model=True,
                                return_results=True, solver_tee=False, **kwargs)
@@ -960,7 +989,7 @@ def compare_to_acopf(md):
 
     for mv,results in compare_dict.items():
         print('-{}:'.format(mv))
-        compare_results(results,'fdf', 'acopf', display_results=True)
+        compare_results(results,'fdf', 'acopf', display_results=False)
 
 
 def compare_fdf_options(md):
@@ -1230,8 +1259,8 @@ if __name__ == '__main__':
     #filename = 'pglib_opf_case179_goc.m'
     #filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
-    filename = 'pglib_opf_case588_sdet.m'
-    #filename = 'pglib_opf_case1354_pegase.m'
+    #filename = 'pglib_opf_case588_sdet.m'
+    filename = 'pglib_opf_case1354_pegase.m'
     #filename = 'pglib_opf_case1888_rte.m'
     #filename = 'pglib_opf_case1951_rte.m'
     #filename = 'pglib_opf_case2000_tamu.m'
@@ -1248,5 +1277,6 @@ if __name__ == '__main__':
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
     md = create_ModelData(matpower_file)
 
+    compare_to_acopf(md)
     #compare_fdf_options(md)
-    test_dlopf(md)
+    #test_dlopf(md)

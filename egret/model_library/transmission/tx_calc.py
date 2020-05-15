@@ -1226,9 +1226,11 @@ def implicit_calc_p_sens(branches,buses,index_set_branch,index_set_bus,reference
     # use active branch/bus mapping for large test cases
     _len_bus = len(index_set_bus)
     _len_branch = len(index_set_branch)
-    if _len_bus > 10:   # change to 1000 after debugging....
+    if _len_bus > 1000:   # change to 1000 after debugging....
         _len_cycle = _len_branch - _len_bus + 1
         active_index_set_branch = reduce_branches(branches, _len_cycle)
+    else:
+        active_index_set_branch = index_set_branch
 
     if mapping_bus_to_idx is None:
         mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}
@@ -1290,10 +1292,13 @@ def implicit_calc_q_sens(branches,buses,index_set_branch,index_set_bus,reference
     # use active branch/bus mapping for large test cases
     _len_bus = len(index_set_bus)
     _len_branch = len(index_set_branch)
-    if _len_bus > 10:   # change to 1000 after debugging....
+    if _len_bus > 1000:   # change to 1000 after debugging....
         _len_cycle = _len_branch - _len_bus + 1
         active_index_set_branch = reduce_branches(branches, _len_cycle)
         active_index_set_bus = reduce_buses(buses, _len_bus / 4)
+    else:
+        active_index_set_branch = index_set_branch
+        active_index_set_bus = index_set_bus
 
     if mapping_bus_to_idx is None:
         mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}

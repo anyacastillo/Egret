@@ -77,7 +77,12 @@ def _include_v_feasibility_slack(model, bus_attrs, penalty=100):
 def create_fixed_lccm_model(model_data, **kwargs):
     ## creates an FDF model with fixed m.pg and m.qg, and relaxed power balance
 
-    model, md = create_lccm_model(model_data, include_feasibility_slack=True, include_v_feasibility_slack=True, **kwargs)
+    kwlist = list(kwargs.keys())
+    if 'include_feasibility_slack' not in kwlist:
+        kwargs['include_feasibility_slack'] = True
+    if 'include_v_feasibility_slack' not in kwlist:
+        kwargs['include_v_feasibility_slack']  = True
+    model, md = create_lccm_model(model_data, **kwargs)
 
     for g, pg in model.pg.items():
         pg.value = value(m_ac.pg[g])
@@ -455,50 +460,18 @@ if __name__ == '__main__':
     branch = md_ac.attributes(element_type='branch')
     pg_dict = {'acopf' : gen['pg']}
     qg_dict = {'acopf' : gen['qg']}
-    pt_dict = {'acopf' : branch['pt']}
-    pf_dict = {'acopf' : branch['pf']}
+    tmp_pf = branch['pf']
+    tmp_pt = branch['pt']
+    tmp = {key: (tmp_pf[key] - tmp_pt.get(key, 0)) / 2 for key in tmp_pf.keys()}
+    pf_dict = {'acopf': tmp}
     pfl_dict = {'acopf' : branch['pfl']}
-    qt_dict = {'acopf' : branch['qt']}
-    qf_dict = {'acopf' : branch['qf']}
+    tmp_qf = branch['qf']
+    tmp_qt = branch['qt']
+    tmp = {key: (tmp_qf[key] - tmp_qt.get(key, 0)) / 2 for key in tmp_qf.keys()}
+    qf_dict = {'acopf': tmp}
     qfl_dict = {'acopf' : branch['qfl']}
     va_dict = {'acopf' : bus['va']}
     vm_dict = {'acopf' : bus['vm']}
-
-    # solve D-LOPF
-    kwargs={}
-    options={}
-    options['method'] = 1
-    ptdf_options = {}
-    ptdf_options['lazy'] = True
-    ptdf_options['lazy_voltage'] = True
-    ptdf_options['abs_ptdf_tol'] = 1e-6
-    ptdf_options['abs_qtdf_tol'] = 5e-6
-    ptdf_options['rel_vdf_tol'] = 10e-6
-    kwargs['ptdf_options'] = ptdf_options
-    from egret.models.fdf import solve_fdf
-    md_dl, m_dl, results_dl = solve_fdf(md_ac, "gurobi_persistent", return_model=True,
-                               return_results=True, solver_tee=False, options=options, **kwargs)
-
-    print('DL-OPF cost: $%3.2f' % m_dl.obj.expr())
-    print(results_dl.Solver)
-
-    gen = md_dl.attributes(element_type='generator')
-    bus = md_dl.attributes(element_type='bus')
-    branch = md_dl.attributes(element_type='branch')
-    pg_dict.update({'dlopf': gen['pg']})
-    qg_dict.update({'dlopf': gen['qg']})
-    pt_dict.update({'dlopf': branch['pt']})
-    pf_dict.update({'dlopf': branch['pf']})
-    pfl_dict.update({'dlopf': branch['pfl']})
-    qt_dict.update({'dlopf': branch['qt']})
-    qf_dict.update({'dlopf': branch['qf']})
-    qfl_dict.update({'dlopf': branch['qfl']})
-    va_dict.update({'dlopf': bus['va']})
-    vm_dict.update({'dlopf': bus['vm']})
-
-    # keyword arguments
-    kwargs = {}
-    #kwargs = {'include_v_feasibility_slack':True,'include_feasibility_slack':True}
 
     # solve S-LOPF
     md, m, results = solve_lccm(md_ac, "gurobi", lccm_model_generator=create_lccm_model, return_model=True,return_results=True,solver_tee=False, **kwargs)
@@ -511,10 +484,8 @@ if __name__ == '__main__':
     branch = md.attributes(element_type='branch')
     pg_dict.update({'slopf' : gen['pg']})
     qg_dict.update({'slopf' : gen['qg']})
-    pt_dict.update({'slopf' : branch['pt']})
     pf_dict.update({'slopf' : branch['pf']})
     pfl_dict.update({'slopf' : branch['pfl']})
-    qt_dict.update({'slopf' : branch['qt']})
     qf_dict.update({'slopf' : branch['qf']})
     qfl_dict.update({'slopf' : branch['qfl']})
     va_dict.update({'slopf' : bus['va']})
@@ -523,31 +494,31 @@ if __name__ == '__main__':
     # display results in dataframes
     from egret.models.fdf import compare_results
     print('-pg:')
-    compare_results(pg_dict,'slopf','dlopf')
+    compare_results(pg_dict,'slopf','acopf')
 #    print(pd.DataFrame(pg_dict))
     print('-qg:')
-    compare_results(qg_dict,'slopf','dlopf')
+    compare_results(qg_dict,'slopf','acopf')
 #    print(pd.DataFrame(qg_dict))
 #    print('-pt:')
 #    print(pd.DataFrame(pt_dict))
     print('-pf:')
-    compare_results(pf_dict,'slopf','dlopf')
+    compare_results(pf_dict,'slopf','acopf')
 #    print(pd.DataFrame(pf_dict))
     print('-pfl:')
-    compare_results(pfl_dict,'slopf','dlopf')
+    compare_results(pfl_dict,'slopf','acopf')
 #    print(pd.DataFrame(pfl_dict))
 #    print('-qt:')
 #    print(pd.DataFrame(qt_dict))
     print('-qf:')
-    compare_results(qf_dict,'slopf','dlopf')
+    compare_results(qf_dict,'slopf','acopf')
 #    print(pd.DataFrame(qf_dict))
     print('-qfl:')
-    compare_results(qfl_dict,'slopf','dlopf')
+    compare_results(qfl_dict,'slopf','acopf')
 #    print(pd.DataFrame(qfl_dict))
 #    print('-va:')
 #    print(pd.DataFrame(va_dict))
     print('-vm:')
-    compare_results(vm_dict,'slopf','dlopf')
+    compare_results(vm_dict,'slopf','acopf')
 #    print(pd.DataFrame(vm_dict))
 
 
