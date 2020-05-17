@@ -174,6 +174,8 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
             _find_violation_set(mb, md, index_set_branch, SV, -branch_limits, branch_limits, thermal_idx_monitored,
                                 max_viol_add, warning_generator=_generate_flow_viol_warning)
 
+        log_message = 'Monitoring {} thermal constraints'.format(len(thermal_idx_monitored))
+
     ## find vmag violations
     if m._ptdf_options['lazy_voltage']:
         v_min = bus_attrs['v_min']
@@ -190,13 +192,15 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
         v_viol_num, v_monitored_viol_num, v_viol_lazy = \
             _find_violation_set(mb, md, index_set_bus, VMAG, vmag_lb_limits, vmag_ub_limits, vm_idx_monitored,
                                 max_viol_add_vm, warning_generator=_generate_vmag_viol_warning)
+
+        log_message += 'and {} voltage constraints'.format(len(vm_idx_monitored))
+
     else:
         v_viol_num, v_monitored_viol_num, v_viol_lazy = (0,0,set())
 
     viol_num = t_viol_num + v_viol_num
     monitored_viol_num = t_monitored_viol_num + v_monitored_viol_num
 
-    log_message = 'Monitoring {} thermal constraints and {} voltage constraints.'.format(len(thermal_idx_monitored),len(vm_idx_monitored))
     logger.warning(log_message)
 
     return SV, t_viol_lazy, VMAG, v_viol_lazy, viol_num, monitored_viol_num

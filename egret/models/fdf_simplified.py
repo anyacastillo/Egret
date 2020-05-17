@@ -636,6 +636,8 @@ def solve_fdf_simplified(model_data,
         results_init = results
 
         iter_limit = m._ptdf_options['iteration_limit']
+        if v_rhs_kwargs is None:
+            v_rhs_kwargs = {}
         term_cond, results, iterations = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee,
                                            symbolic_solver_labels=symbolic_solver_labels,iteration_limit=iter_limit,
                                            vars_to_load = vars_to_load, **v_rhs_kwargs)
@@ -788,7 +790,7 @@ def compare_to_acopf():
     # solve LCCM
     print('begin LCCM...')
     from egret.models.lccm import solve_lccm
-    md, m, results = solve_lccm(md_ac, "gurobi", return_model=True, return_results=True, solver_tee=False, **kwargs)
+    md, m, results = solve_lccm(md_ac, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False, **kwargs)
     print('LCCM cost: $%3.2f' % md.data['system']['total_cost'])
     print(results.Solver)
     if 'm.p_slack_pos' in locals():
@@ -907,7 +909,7 @@ if __name__ == '__main__':
     options={}
     print('begin S-LOPF...')
     from egret.models.lccm import solve_lccm
-    md_sl, m_sl, results_sl = solve_lccm(md_ac, "gurobi", return_model=True,
+    md_sl, m_sl, results_sl = solve_lccm(md_ac, "gurobi_persistent", return_model=True,
                                return_results=True, solver_tee=False, options=options, **kwargs)
 
     print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])

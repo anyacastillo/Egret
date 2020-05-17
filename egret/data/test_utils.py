@@ -258,7 +258,9 @@ def solve_infeas_model(model_data):
             vm_UB_viol_dict = {}
             vm_LB_viol_dict = {}
             thermal_viol_dict = {}
-            return slack_p, vm_UB_viol_dict, vm_LB_viol_dict, thermal_viol_dict, termination
+            pf_error = {}
+            qf_error = {}
+            return slack_p, vm_UB_viol_dict, vm_LB_viol_dict, thermal_viol_dict, pf_error, qf_error, termination
         else:
             raise e
 

@@ -1048,40 +1048,47 @@ def linsolve_theta_fdf(model, model_data, base_point=BasePointType.SOLUTION,
 
     print('solving theta with power flow Jacobian.')
 
-    # Rectangular sensitivity matrices
-    J = md.data['system']['Ft']
-    L = md.data['system']['Lt']
-    Jc = md.data['system']['ft_c']
-    Lc = md.data['system']['lt_c']
-
+    md_sys = md.data['system']
     if mapping_bus_to_idx is None:
         mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}
 
-    if 'AdjacencyMat' in list(md.data['system'].keys()):
-        A = md.data['system']['AdjacencyMat']
-        AA = md.data['system']['AbsAdj']
+
+    if 'nodal_jacobian_p' in list(md_sys.keys()):
+        M = md_sys['nodal_jacobian_p']
+        m = md_sys['offset_jacobian_p']
+
     else:
-        klist = list(md.data['system'].keys())
-        print(klist)
-        if index_set_branch is None:
-            branch_attrs = md.attributes(element_type='branch')
-            index_set_branch = branch_attrs['names']
+        # Rectangular sensitivity matrices
+        J = md_sys['Ft']
+        L = md_sys['Lt']
+        Jc = md_sys['ft_c']
+        Lc = md_sys['lt_c']
 
-        branches = dict(md.elements(element_type='branch'))
+        if 'AdjacencyMat' in list(md.data['system'].keys()):
+            A = md_sys['AdjacencyMat']
+            AA = md_sys['AbsAdj']
+        else:
+            klist = list(md.data['system'].keys())
+            print(klist)
+            if index_set_branch is None:
+                branch_attrs = md.attributes(element_type='branch')
+                index_set_branch = branch_attrs['names']
 
-        A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
-        AA = calculate_absolute_adjacency_matrix(A)
-        logger.warning('WARNING: recalculating adjacency matrix in THETA calc.')
+            branches = dict(md.elements(element_type='branch'))
 
-    # Nodal power transfer matrix (square)
-    M1 = A @ J
-    M2 = AA @ L
-    M = M1 + 0.5 * M2
+            A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
+            AA = calculate_absolute_adjacency_matrix(A)
+            logger.warning('WARNING: recalculating nodal matrix in THETA calc.')
 
-    # Transfer matrix linearization constant (vector)
-    m1 = A @ Jc
-    m2 = AA @ Lc
-    m = m1 + 0.5 * m2
+        # Nodal power transfer matrix (square)
+        M1 = A @ J
+        M2 = AA @ L
+        M = M1 + 0.5 * M2
+
+        # Transfer matrix linearization constant (vector)
+        m1 = A @ Jc
+        m2 = AA @ Lc
+        m = m1 + 0.5 * m2
 
     # aggregate constants to solve M*theta = b
     b = -m - m_p_nw
@@ -1130,40 +1137,44 @@ def linsolve_vmag_fdf(model, model_data, base_point=BasePointType.SOLUTION,
 
     print('solving vmag with power flow Jacobian.')
 
-    # Rectangular sensitivity matrices
-    J = md.data['system']['Fv']
-    L = md.data['system']['Lv']
-    Jc = md.data['system']['fv_c']
-    Lc = md.data['system']['lv_c']
-
-    ## TODO: we should be getting A from somewhere else,
-    ##       not constructing it each time
     if mapping_bus_to_idx is None:
         mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}
+    md_sys = md.data['system']
 
-    if 'AdjacencyMat' in list(md.data['system'].keys()):
-        A = md.data['system']['AdjacencyMat']
-        AA = md.data['system']['AbsAdj']
+    if 'nodal_jacobian_p' in list(md_sys.keys()):
+        M = md_sys['nodal_jacobian_p']
+        m = md_sys['offset_jacobian_p']
+
     else:
-        if index_set_branch is None:
-            branch_attrs = md.attributes(element_type='branch')
-            index_set_branch = branch_attrs['names']
+        # Rectangular sensitivity matrices
+        J = md_sys['Fv']
+        L = md_sys['Lv']
+        Jc = md_sys['fv_c']
+        Lc = md_sys['lv_c']
 
-        branches = dict(md.elements(element_type='branch'))
+        if 'AdjacencyMat' in list(md.data['system'].keys()):
+            A = md_sys['AdjacencyMat']
+            AA = md_sys['AbsAdj']
+        else:
+            if index_set_branch is None:
+                branch_attrs = md.attributes(element_type='branch')
+                index_set_branch = branch_attrs['names']
 
-        A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
-        AA = calculate_absolute_adjacency_matrix(A)
-        logger.warning('WARNING: recalculating adjacency matrix in VMAG calc.')
+            branches = dict(md.elements(element_type='branch'))
 
-    # Nodal power transfer matrix (square)
-    M1 = A @ J
-    M2 = AA @ L
-    M = M1 + 0.5 * M2
+            A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
+            AA = calculate_absolute_adjacency_matrix(A)
+            logger.warning('WARNING: recalculating adjacency matrix in VMAG calc.')
 
-    # Transfer matrix linearization constant (vector)
-    m1 = A @ Jc
-    m2 = AA @ Lc
-    m = m1 + 0.5 * m2
+        # Nodal power transfer matrix (square)
+        M1 = A @ J
+        M2 = AA @ L
+        M = M1 + 0.5 * M2
+
+        # Transfer matrix linearization constant (vector)
+        m1 = A @ Jc
+        m2 = AA @ Lc
+        m = m1 + 0.5 * m2
 
     # aggregate constants to solve M*theta = b
     b = -m - m_q_nw
@@ -1264,7 +1275,7 @@ def implicit_calc_p_sens(branches,buses,index_set_branch,index_set_bus,reference
     LF_const = LF @ M0 + sum(L0)
 
     #----- calculate branch loss distribution factors -----#
-    branch_ploss = [branch['pf'] + branch['pt'] for bn,branch in branches.items()]
+    branch_ploss = [branch['pf'] + branch['pt'] if branch['pt'] is not None else 0 for bn,branch in branches.items() ]
     total_ploss = sum(branch_ploss)
     if total_ploss > 0:
         ploss_dist = [ ploss / total_ploss for ploss in branch_ploss ]
@@ -1282,6 +1293,8 @@ def implicit_calc_p_sens(branches,buses,index_set_branch,index_set_bus,reference
     sens_dict['ploss_resid_sens'] = LF - sum(PLDF)
     sens_dict['ploss_resid_const'] = LF_const - sum(PL_constant)
     sens_dict['ploss_distribution'] = ploss_dist
+    sens_dict['nodal_jacobian_p'] = M
+    sens_dict['offset_jacobian_p'] = M0
 
     return sens_dict
 
@@ -1341,7 +1354,7 @@ def implicit_calc_q_sens(branches,buses,index_set_branch,index_set_bus,reference
     QLF_const = QLF @ M0 + sum(K0)
 
     #----- calculate branch loss distribution factors -----#
-    branch_qloss = [branch['qf'] + branch['qt'] for bn,branch in branches.items()]
+    branch_qloss = [branch['qf'] + branch['qt'] if branch['pt'] is not None else 0 for bn,branch in branches.items()]
     total_qloss = sum(branch_qloss)
     if total_qloss > 0:
         qloss_dist = [ qloss / total_qloss for qloss in branch_qloss ]
@@ -1361,6 +1374,8 @@ def implicit_calc_q_sens(branches,buses,index_set_branch,index_set_bus,reference
     sens_dict['qloss_resid_sens'] = QLF - sum(QLDF)
     sens_dict['qloss_resid_const'] = QLF_const - sum(QL_constant)
     sens_dict['qloss_distribution'] = qloss_dist
+    sens_dict['nodal_jacobian_q'] = M
+    sens_dict['offset_jacobian_q'] = M0
 
     return sens_dict
 

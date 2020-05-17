@@ -354,7 +354,7 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
             raise Exception('test_model_dict must provide valid inital_solution')
 
         try:
-            md_out,m,results = solve_func(md_input, solver, **kwargs)
+            md_out,m,results = solve_func(md_input, solver=solver, **kwargs)
         except Exception as e:
             md_out = md_input.clone()
             md_out.data['results'] = {}

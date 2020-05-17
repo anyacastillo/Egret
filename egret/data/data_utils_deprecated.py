@@ -146,11 +146,15 @@ def create_dicts_of_fdf(md, base_point=BasePointType.SOLUTION):
         p_sens = tx_calc.implicit_calc_p_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point)
         md.data['system']['va_SENSI'] = None
         md.data['system']['va_CONST'] = None
+        md.data['system']['nodal_jacobian_p'] = p_sens['nodal_jacobian_p']
+        md.data['system']['offset_jacobian_p'] = p_sens['offset_jacobian_p']
 
     if update_dense_q:
         q_sens = tx_calc.implicit_calc_q_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point)
         md.data['system']['vm_SENSI'] = q_sens['vdf']
         md.data['system']['vm_CONST'] = q_sens['vdf_c']
+        md.data['system']['nodal_jacobian_q'] = q_sens['nodal_jacobian_q']
+        md.data['system']['offset_jacobian_q'] = q_sens['offset_jacobian_q']
 
     branches = md.data['elements']['branch']
     buses = md.data['elements']['bus']
@@ -273,6 +277,8 @@ def create_dicts_of_ptdf_losses(md, base_point=BasePointType.SOLUTION):
         p_sens = tx_calc.implicit_calc_p_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point)
         md.data['system']['va_SENSI'] = None
         md.data['system']['va_CONST'] = None
+        md.data['system']['nodal_jacobian_p'] = p_sens['nodal_jacobian_p']
+        md.data['system']['offset_jacobian_p'] = p_sens['offset_jacobian_p']
 
     branches = md.data['elements']['branch']
     buses = md.data['elements']['bus']
@@ -316,6 +322,8 @@ def create_dicts_of_ptdf(md, base_point=BasePointType.FLATSTART):
         p_sens = tx_calc.implicit_calc_p_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point)
         md.data['system']['va_SENSI'] = None
         md.data['system']['va_CONST'] = None
+        md.data['system']['nodal_jacobian_p'] = p_sens['nodal_jacobian_p']
+        md.data['system']['offset_jacobian_p'] = p_sens['offset_jacobian_p']
 
     branches = md.data['elements']['branch']
     buses = md.data['elements']['bus']
@@ -335,7 +343,11 @@ def destroy_dicts_of_fdf(md):
     buses = dict(md.elements(element_type='bus'))
 
     # delete sensitivity matrices from 'system'. May need to add these back to modelData when opening the .json file.
-    sensi = ['Ft', 'ft_c', 'Fv', 'fv_c', 'Lt', 'lt_c', 'Lv', 'lv_c', 'va_SENSI', 'va_CONST', 'vm_SENSI', 'vm_CONST','ploss_const','qloss_const','ploss','qloss']
+    sensi = ['Ft', 'ft_c', 'Fv', 'fv_c', 'Lt', 'lt_c', 'Lv', 'lv_c',
+             'va_SENSI', 'va_CONST', 'vm_SENSI', 'vm_CONST',
+             'ploss_const', 'qloss_const', 'ploss', 'qloss',
+             'nodal_jacobian_p', 'offset_jacobian_p', 'nodal_jacobian_q', 'offset_jacobian_q',
+             'AdjacencyMat', 'AbsAdj']
     for s in sensi:
         if s in md.data['system']:
             del md.data['system'][s]
