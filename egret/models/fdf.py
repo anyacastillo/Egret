@@ -827,6 +827,8 @@ def solve_fdf(model_data,
         results_init = results
 
         iter_limit = m._ptdf_options['iteration_limit']
+        if v_rhs_kwargs is None:
+            v_rhs_kwargs = {}
         term_cond, results, iterations = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee,
                                            symbolic_solver_labels=symbolic_solver_labels,iteration_limit=iter_limit,
                                            vars_to_load = vars_to_load, **v_rhs_kwargs)
@@ -955,7 +957,7 @@ def compare_to_acopf(md):
     kwargs['include_v_feasibility_slack'] = True
     kwargs['include_feasibility_slack'] = False
     # solve (fixed) FDF
-    md, m, results = solve_fdf(md_ac, "gurobi", fdf_model_generator=create_fdf_model, return_model=True,
+    md, m, results = solve_fdf(md_ac, "gurobi_persistent", fdf_model_generator=create_fdf_model, return_model=True,
                                return_results=True, solver_tee=False, **kwargs)
     print('FDF cost: $%3.2f' % md.data['system']['total_cost'])
     print(results.Solver)
@@ -1068,7 +1070,7 @@ def compare_fdf_options(md):
     ptdf_options['lazy_voltage'] = False
     kwargs['ptdf_options'] = ptdf_options
     try:
-        md, m, results = solve_fdf(md_ac, "gurobi_direct", return_model=True,return_results=True, solver_tee=False, **kwargs)
+        md, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True,return_results=True, solver_tee=False, **kwargs)
         print('Default cost: $%3.2f' % md.data['system']['total_cost'])
         print(results.Solver)
         print(md.data['results'])
@@ -1109,7 +1111,7 @@ def compare_fdf_options(md):
 
     from egret.models.lccm import solve_lccm
     try:
-        md_lccm, m, results = solve_lccm(md_ac, "gurobi_direct", return_model=True, return_results=True, solver_tee=False)
+        md_lccm, m, results = solve_lccm(md_ac, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False)
         print('S-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
         print(results.Solver)
         print(md_lccm.data['results'])
