@@ -643,6 +643,8 @@ def solve_fdf_simplified(model_data,
         results_init = results
 
         iter_limit = m._ptdf_options['iteration_limit']
+        if v_rhs_kwargs is None:
+            v_rhs_kwargs = {}
         term_cond, results, iterations = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee,
                                            symbolic_solver_labels=symbolic_solver_labels,iteration_limit=iter_limit,
                                            vars_to_load = vars_to_load)

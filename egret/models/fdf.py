@@ -197,7 +197,16 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
     q_rhs_kwargs = {}
     if include_feasibility_slack:
         p_rhs_kwargs, q_rhs_kwargs, penalty_expr = _include_system_feasibility_slack(model, gen_attrs, bus_p_loads, bus_q_loads)
-g
+
+    pf_rhs_kwargs = {}
+    qf_rhs_kwargs = {}
+    v_rhs_kwargs = {}
+    if include_pf_feasibility_slack:
+        pf_rhs_kwargs, pf_penalty_expr = _include_pf_feasibility_slack(model, branch_attrs)
+    if include_qf_feasibility_slack:
+        qf_rhs_kwargs, qf_penalty_expr = _include_qf_feasibility_slack(model, branch_attrs)
+    if include_v_feasibility_slack:
+        v_rhs_kwargs, v_penalty_expr = _include_v_feasibility_slack(model, bus_attrs, gen_attrs)
 
     ### declare the generator real and reactive power
     pg_init = {k: gens[k]['pg'] for k in gens.keys()}
