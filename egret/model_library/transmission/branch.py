@@ -329,7 +329,8 @@ def declare_eq_branch_power(model, index_set, branches, branch_attrs, coordinate
              g21 * m.c[(from_bus,to_bus)])
 
 
-def declare_eq_branch_power_btheta_approx(model, index_set, branches, approximation_type=ApproximationType.BTHETA):
+def declare_eq_branch_power_btheta_approx(model, index_set, branches, approximation_type=ApproximationType.BTHETA,
+                                          **rhs_kwargs):
     """
     Create the equality constraints for power (from BTHETA approximation)
     in the branch
@@ -357,9 +358,17 @@ def declare_eq_branch_power_btheta_approx(model, index_set, branches, approximat
         elif approximation_type == ApproximationType.BTHETA_LOSSES:
             b = tx_calc.calculate_susceptance(branch)/tau
 
-        m.eq_pf_branch[branch_name] = \
-            m.pf[branch_name] == \
-            b * (m.va[from_bus] - m.va[to_bus] + shift)
+        expr = b * (m.va[from_bus] - m.va[to_bus] + shift)
+
+        # add slacks
+        if rhs_kwargs:
+            for idx, val in rhs_kwargs.items():
+                if idx == 'include_feasibility_slack_pos':
+                    expr -= eval("m." + val + "[branch_name]")
+                if idx == 'include_feasibility_slack_neg':
+                    expr += eval("m." + val + "[branch_name]")
+
+        m.eq_pf_branch[branch_name] = m.pf[branch_name] == expr
 
 
 def declare_eq_branch_loss_btheta_approx(model, index_set, branches, relaxation_type = RelaxationType.NONE):
@@ -432,13 +441,23 @@ def _get_df_expr( var_or_expr, coefs, const, rel_tol=0., abs_tol=0.):
         raise Exception("Sensitivity constraints must be simple linear constraints of variables and "
                         "coefficients or expressions and coefficients.")
 
-def get_expr_branch_pf_fdf_approx(model, branch_name, ptdf, ptdf_c, rel_tol=0., abs_tol=0.):
+def get_expr_branch_pf_fdf_approx(model, branch_name, ptdf, ptdf_c, rel_tol=0., abs_tol=0., **rhs_kwargs):
     """
     Create a pyomo power flow expression from PTDF matrix
     """
-    return _get_df_expr(model.p_nw, ptdf, ptdf_c, rel_tol, abs_tol)
+    expr = _get_df_expr(model.p_nw, ptdf, ptdf_c, rel_tol, abs_tol)
 
-def declare_eq_branch_pf_fdf_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.):
+    # add slacks
+    if rhs_kwargs:
+        for idx, val in rhs_kwargs.items():
+            if idx == 'include_feasibility_slack_pos':
+                expr -= eval("model." + val + "[branch_name]")
+            if idx == 'include_feasibility_slack_neg':
+                expr += eval("model." + val + "[branch_name]")
+
+    return expr
+
+def declare_eq_branch_pf_fdf_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0., **rhs_kwargs):
     """
     Create the equality constraints or expressions for power (from PTDF 
     approximation) in the branch
@@ -460,7 +479,8 @@ def declare_eq_branch_pf_fdf_approx(model, index_set, sensitivity, constant, rel
         ptdf = sensitivity[branch_name]
         ptdf_c = constant[branch_name]
         expr = \
-            get_expr_branch_pf_fdf_approx(m, branch_name, ptdf, ptdf_c, rel_tol=rel_tol, abs_tol=abs_tol)
+            get_expr_branch_pf_fdf_approx(m, branch_name, ptdf, ptdf_c, rel_tol=rel_tol, abs_tol=abs_tol
+                                          , **rhs_kwargs)
 
         if pf_is_var:
             m.eq_pf_branch[branch_name] = \
@@ -501,13 +521,23 @@ def declare_eq_branch_pfl_fdf_approx(model, index_set, sensitivity, constant, re
         else:
             m.pfl[branch_name] = expr
 
-def get_expr_branch_qf_fdf_approx(model, branch_name, qtdf, qtdf_c, rel_tol=0., abs_tol=0.):
+def get_expr_branch_qf_fdf_approx(model, branch_name, qtdf, qtdf_c, rel_tol=0., abs_tol=0., **rhs_kwargs):
     """
     Create a pyomo power flow expression from QTDF matrix (reactive power flows)
     """
-    return _get_df_expr(model.q_nw, qtdf, qtdf_c, rel_tol, abs_tol)
+    expr = _get_df_expr(model.q_nw, qtdf, qtdf_c, rel_tol, abs_tol)
 
-def declare_eq_branch_qf_fdf_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.):
+    # add slacks
+    if rhs_kwargs:
+        for idx, val in rhs_kwargs.items():
+            if idx == 'include_feasibility_slack_pos':
+                expr -= eval("model." + val + "[branch_name]")
+            if idx == 'include_feasibility_slack_neg':
+                expr += eval("model." + val + "[branch_name]")
+
+    return expr
+
+def declare_eq_branch_qf_fdf_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0., **rhs_kwargs):
     """
     Create the equality constraints or expressions for power (from QTDF
     approximation) in the branch
@@ -529,7 +559,8 @@ def declare_eq_branch_qf_fdf_approx(model, index_set, sensitivity, constant, rel
         qtdf = sensitivity[branch_name]
         qtdf_c = constant[branch_name]
         expr = \
-            get_expr_branch_qf_fdf_approx(m, branch_name, qtdf, qtdf_c, rel_tol=rel_tol, abs_tol=abs_tol)
+            get_expr_branch_qf_fdf_approx(m, branch_name, qtdf, qtdf_c, rel_tol=rel_tol, abs_tol=abs_tol
+                                          **rhs_kwargs)
 
         if qf_is_var:
             m.eq_qf_branch[branch_name] = \
@@ -570,13 +601,24 @@ def declare_eq_branch_qfl_fdf_approx(model, index_set, sensitivity, constant, re
         else:
             m.qfl[branch_name] = expr
 
-def get_expr_branch_pf_lccm_approx(model, branch_name, pf_sens, pf_const, rel_tol=0., abs_tol=0.):
+def get_expr_branch_pf_lccm_approx(model, branch_name, pf_sens, pf_const, rel_tol=0., abs_tol=0., **rhs_kwargs):
     """
     Create a pyomo power flow expression from CCM sensitivity
     """
-    return _get_df_expr(model.va, pf_sens, pf_const, rel_tol, abs_tol)
+    expr = _get_df_expr(model.va, pf_sens, pf_const, rel_tol, abs_tol)
 
-def declare_eq_branch_pf_lccm_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.):
+    # add slacks
+    if rhs_kwargs:
+        for idx, val in rhs_kwargs.items():
+            if idx == 'include_feasibility_slack_pos':
+                expr -= eval("model." + val + "[branch_name]")
+            if idx == 'include_feasibility_slack_neg':
+                expr += eval("model." + val + "[branch_name]")
+
+    return expr
+
+def declare_eq_branch_pf_lccm_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.,
+                                     **rhs_kwargs):
     """
     Create the equality constraints or expressions for power (from LCCM approximation) in the branch
     """
@@ -597,7 +639,8 @@ def declare_eq_branch_pf_lccm_approx(model, index_set, sensitivity, constant, re
         pf_sens = sensitivity[branch_name]
         pf_const = constant[branch_name]
         expr = \
-            get_expr_branch_pf_lccm_approx(m, branch_name, pf_sens, pf_const, rel_tol=rel_tol, abs_tol=abs_tol)
+            get_expr_branch_pf_lccm_approx(m, branch_name, pf_sens, pf_const, rel_tol=rel_tol, abs_tol=abs_tol,
+                                           **rhs_kwargs)
 
         if pf_is_var:
             m.eq_pf_branch[branch_name] = \
@@ -1016,7 +1059,7 @@ def add_constr_branch_thermal_limit(model, branch, branch_name, thermal_limit, p
 
         ## Taylor series form using LinearExpression
         model.ineq_branch_thermal_limit[branch_name,x,y] = (None,
-                                                            LinearExpression(constant=0, 
+                                                            LinearExpression(constant=0,
                                                                              linear_coefs = coef_list,
                                                                              linear_vars  = vars_list
                                                                             ),

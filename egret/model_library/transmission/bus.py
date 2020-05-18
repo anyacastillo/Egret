@@ -633,11 +633,19 @@ def declare_ineq_vm_bus_lbub(model, index_set, buses, coordinate_type=Coordinate
                 m.vr[bus_name]**2 + m.vj[bus_name]**2 <= buses[bus_name]['v_max']**2
 
 
-def get_vm_expr_vdf_approx(model, bus_name, vdf, vdf_c, rel_tol=0., abs_tol=0.):
+def get_vm_expr_vdf_approx(model, bus_name, vdf, vdf_c, rel_tol=0., abs_tol=0., **rhs_kwargs):
     """
     Create a pyomo power flow expression from VDF matrix (voltage magnitudes)
     """
-    return _get_df_expr(model.q_nw, vdf, vdf_c, rel_tol, abs_tol)
+    expr = _get_df_expr(model.q_nw, vdf, vdf_c, rel_tol, abs_tol)
+    if rhs_kwargs:
+        for idx, val in rhs_kwargs.items():
+            if idx == 'include_feasibility_slack_pos':
+                expr -= eval("model." + val + "[bus_name]")
+            if idx == 'include_feasibility_slack_neg':
+                expr += eval("model." + val + "[bus_name]")
+
+    return expr
 
 def declare_eq_vm_vdf_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0., **rhs_kwargs):
     """
@@ -661,7 +669,8 @@ def declare_eq_vm_vdf_approx(model, index_set, sensitivity, constant, rel_tol=0.
         vdf = sensitivity[bus_name]
         vdf_c = constant[bus_name]
         expr = \
-            get_vm_expr_vdf_approx(m, bus_name, vdf, vdf_c, rel_tol=rel_tol, abs_tol=abs_tol)
+            get_vm_expr_vdf_approx(m, bus_name, vdf, vdf_c, rel_tol=rel_tol, abs_tol=abs_tol,
+                                   **rhs_kwargs)
 
         # add slacks
         if rhs_kwargs:

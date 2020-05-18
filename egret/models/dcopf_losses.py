@@ -29,12 +29,15 @@ import egret.common.lazy_ptdf_utils as lpu
 
 from egret.model_library.defn import CoordinateType, ApproximationType, RelaxationType, BasePointType
 from egret.data.model_data import map_items, zip_items
-from egret.models.copperplate_dispatch import _include_system_feasibility_slack
+#from egret.models.copperplate_dispatch import _include_system_feasibility_slack
 from egret.models.dcopf import _include_feasibility_slack
+import egret.models.fdf as fdf
+from egret.common.log import logger
 from math import pi, radians, sqrt
 
 
-def create_btheta_losses_dcopf_model(model_data, relaxation_type=RelaxationType.SOC, include_angle_diff_limits=False, include_feasibility_slack=False):
+def create_btheta_losses_dcopf_model(model_data, relaxation_type=RelaxationType.SOC, include_angle_diff_limits=False,
+                                     include_feasibility_slack=False, include_pf_feasibility_slack=False):
     # model_data.return_in_service()
     # md = model_data
     md = model_data.clone_in_service()
@@ -82,7 +85,9 @@ def create_btheta_losses_dcopf_model(model_data, relaxation_type=RelaxationType.
     p_rhs_kwargs = {}
     penalty_expr = None
     if include_feasibility_slack:
-        p_rhs_kwargs, penalty_expr = _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads)
+        p_rhs_kwargs, penalty_expr = fdf._include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads)
+    if include_pf_feasibility_slack:
+        pf_rhs_kwargs, pf_penalty_expr = fdf._include_pf_feasibility_slack(model, branch_attrs)
 
     ### fix the reference bus
     ref_bus = md.data['system']['reference_bus']
@@ -135,7 +140,8 @@ def create_btheta_losses_dcopf_model(model_data, relaxation_type=RelaxationType.
     libbranch.declare_eq_branch_power_btheta_approx(model=model,
                                                     index_set=branch_attrs['names'],
                                                     branches=branches,
-                                                    approximation_type=ApproximationType.BTHETA_LOSSES
+                                                    approximation_type=ApproximationType.BTHETA_LOSSES,
+                                                    **pf_rhs_kwargs
                                                     )
 
     ### declare the branch power loss approximation constraints
@@ -182,13 +188,16 @@ def create_btheta_losses_dcopf_model(model_data, relaxation_type=RelaxationType.
     obj_expr = sum(model.pg_operating_cost[gen_name] for gen_name in model.pg_operating_cost)
     if include_feasibility_slack:
         obj_expr += penalty_expr
+    if include_pf_feasibility_slack:
+        obj_expr += pf_penalty_expr
 
     model.obj = pe.Objective(expr=obj_expr)
 
     return model, md
 
 
-def create_ptdf_losses_dcopf_model(model_data, include_feasibility_slack=False, ptdf_options=None):
+def create_ptdf_losses_dcopf_model(model_data, include_feasibility_slack=False,
+                                   include_pf_feasibility_slack=False, ptdf_options=None):
 
     if ptdf_options is None:
         ptdf_options = dict()
@@ -246,7 +255,10 @@ def create_ptdf_losses_dcopf_model(model_data, include_feasibility_slack=False, 
     ### include the feasibility slack for the system balance
     p_rhs_kwargs = {}
     if include_feasibility_slack:
-        p_rhs_kwargs, penalty_expr = _include_system_feasibility_slack(model, gen_attrs, bus_p_loads)
+        p_rhs_kwargs, penalty_expr = fdf._include_system_feasibility_slack(model, gen_attrs, bus_p_loads)
+    pf_rhs_kwargs = {}
+    if include_pf_feasibility_slack:
+        pf_rhs_kwargs, pf_penalty_expr = fdf._include_pf_feasibility_slack(model, branch_attrs)
 
     ### declare net withdraw expression for use in PTDF power flows
     p_net_withdrawal_init = {k: 0 for k in bus_attrs['names']}
@@ -283,15 +295,46 @@ def create_ptdf_losses_dcopf_model(model_data, include_feasibility_slack=False, 
     ### declare the branch power flow variables and approximation constraints
     if ptdf_options['lazy']:
 
+        monitor_init = set()
+        for branch_name, branch in branches.items():
+            pf = pf_init[branch_name]
+            lim = s_max[branch_name]
+            if lim is not None:
+                abs_slack = abs(lim - pf)
+                rel_slack =  abs_slack / lim
+
+                if abs_slack < ptdf_options['abs_thermal_init_tol'] or rel_slack < ptdf_options['rel_thermal_init_tol']:
+                    monitor_init.add(branch_name)
+
         libbranch.declare_var_pf(model=model,
                                  index_set=branch_attrs['names'],
-                                 bounds=pf_bounds,
-                                 initialize=pf_init
+                                 initialize = pf_init,
+                                 bounds=pf_bounds
                                  )
         model.eq_pf_branch = pe.Constraint(branch_attrs['names'])
 
         ### add helpers for tracking monitored branches
         lpu.add_monitored_branch_tracker(model)
+        thermal_idx_monitored = model._thermal_idx_monitored
+
+        ## construct constraints of branches near limit
+        ba_ptdf = branch_attrs['ptdf']
+        ba_ptdf_c = branch_attrs['ptdf_c']
+        for i,bn in enumerate(branch_attrs['names']):
+            if bn in monitor_init:
+                ## add pf definition
+                expr = libbranch.get_expr_branch_pf_fdf_approx(model, bn, ba_ptdf[bn], ba_ptdf_c[bn],
+                                                               rel_tol=ptdf_options['rel_ptdf_tol'],
+                                                               abs_tol=ptdf_options['abs_ptdf_tol'],
+                                                               **pf_rhs_kwargs)
+                model.eq_pf_branch[bn] = model.pf[bn] == expr
+                ## add thermal limit
+                thermal_limit = s_max[bn]
+                branch = branches[bn]
+                libbranch.add_constr_branch_thermal_limit(model, branch, bn, thermal_limit)
+                thermal_idx_monitored.append(i)
+        logger.warning('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
+
 
     else:
 
@@ -304,9 +347,10 @@ def create_ptdf_losses_dcopf_model(model_data, include_feasibility_slack=False, 
                                                   index_set=branch_attrs['names'],
                                                   sensitivity=branch_attrs['ptdf'],
                                                   constant=branch_attrs['ptdf_c'],
+                                                  rel_tol=ptdf_options['rel_ptdf_tol'],
+                                                  abs_tol=ptdf_options['abs_ptdf_tol'],
+                                                  **pf_rhs_kwargs
                                                   )
-
-
 
     ### declare the branch power loss variables and approximation constraints
     libbranch.declare_var_ploss(model=model,
@@ -328,14 +372,6 @@ def create_ptdf_losses_dcopf_model(model_data, include_feasibility_slack=False, 
                                     **p_rhs_kwargs
                                     )
 
-    ### declare the real power flow limits
-    #libbranch.declare_ineq_p_branch_thermal_lbub(model=model,
-    #                                             index_set=branch_attrs['names'],
-    #                                             branches=branches,
-    #                                             p_thermal_limits=p_max,
-    #                                             approximation_type=ApproximationType.PTDF
-    #                                             )
-
     ### declare the generator cost objective
     libgen.declare_expression_pgqg_operating_cost(model=model,
                                                   index_set=gen_attrs['names'],
@@ -345,6 +381,8 @@ def create_ptdf_losses_dcopf_model(model_data, include_feasibility_slack=False, 
     obj_expr = sum(model.pg_operating_cost[gen_name] for gen_name in model.pg_operating_cost)
     if include_feasibility_slack:
         obj_expr += penalty_expr
+    if include_pf_feasibility_slack:
+        obj_expr += pf_penalty_expr
 
     model.obj = pe.Objective(expr=obj_expr)
 

@@ -23,6 +23,7 @@ import egret.model_library.transmission.bus as libbus
 import egret.model_library.transmission.branch as libbranch
 import egret.model_library.transmission.branch_deprecated as libbranch_deprecated
 import egret.model_library.transmission.gen as libgen
+import egret.models.fdf as fdf
 from egret.model_library.defn import ApproximationType, SensitivityCalculationMethod
 from egret.data.model_data import zip_items
 import egret.data.data_utils_deprecated as data_utils_deprecated
@@ -115,7 +116,8 @@ def create_fixed_vm_fdf_model(model_data, **kwargs):
 
 
 def create_simplified_fdf_model(model_data, include_feasibility_slack=False, include_v_feasibility_slack=False,
-                                ptdf_options=None, include_q_balance=False, calculation_method=SensitivityCalculationMethod.INVERT):
+                     include_pf_feasibility_slack=False, include_qf_feasibility_slack=False,
+                     ptdf_options=None, include_q_balance=False, calculation_method=SensitivityCalculationMethod.INVERT):
 
     if ptdf_options is None:
         ptdf_options = dict()
@@ -173,12 +175,18 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
     p_rhs_kwargs = {}
     q_rhs_kwargs = {}
     if include_feasibility_slack:
-        p_rhs_kwargs, q_rhs_kwargs, penalty_expr = _include_system_feasibility_slack(model, gen_attrs, bus_p_loads,
+        p_rhs_kwargs, q_rhs_kwargs, penalty_expr = fdf._include_system_feasibility_slack(model, gen_attrs, bus_p_loads,
                                                                                      bus_q_loads)
 
+    pf_rhs_kwargs = {}
+    qf_rhs_kwargs = {}
     v_rhs_kwargs = {}
+    if include_pf_feasibility_slack:
+        pf_rhs_kwargs, pf_penalty_expr = fdf._include_pf_feasibility_slack(model, branch_attrs)
+    if include_qf_feasibility_slack:
+        qf_rhs_kwargs, qf_penalty_expr = fdf._include_qf_feasibility_slack(model, branch_attrs)
     if include_v_feasibility_slack:
-        v_rhs_kwargs, v_penalty_expr = _include_v_feasibility_slack(model, bus_attrs)
+        v_rhs_kwargs, v_penalty_expr = fdf._include_v_feasibility_slack(model, bus_attrs, gen_attrs)
 
     ### declare the generator real and reactive power
     pg_init = {k: gens[k]['pg'] for k in gens.keys()}
@@ -291,12 +299,14 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                 ## add pf definition
                 expr = libbranch.get_expr_branch_pf_fdf_approx(model, bn, ba_ptdf[bn], ba_ptdf_c[bn],
                                                                rel_tol=ptdf_options['rel_ptdf_tol'],
-                                                               abs_tol=ptdf_options['abs_ptdf_tol'])
+                                                               abs_tol=ptdf_options['abs_ptdf_tol'],
+                                                               **pf_rhs_kwargs)
                 model.eq_pf_branch[bn] = model.pf[bn] == expr
                 ## add qf definition
                 expr = libbranch.get_expr_branch_qf_fdf_approx(model, bn, ba_qtdf[bn], ba_qtdf_c[bn],
                                                                rel_tol=ptdf_options['rel_qtdf_tol'],
-                                                               abs_tol=ptdf_options['abs_qtdf_tol'])
+                                                               abs_tol=ptdf_options['abs_qtdf_tol'],
+                                                               **qf_rhs_kwargs)
                 model.eq_qf_branch[bn] = model.qf[bn] == expr
                 ## add thermal limit
                 thermal_limit = s_max[bn]
@@ -330,6 +340,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                                                   constant=branch_attrs['ptdf_c'],
                                                   rel_tol=ptdf_options['rel_ptdf_tol'],
                                                   abs_tol=ptdf_options['abs_ptdf_tol'],
+                                                  **pf_rhs_kwargs
                                                   )
 
         libbranch.declare_eq_branch_qf_fdf_approx(model=model,
@@ -338,6 +349,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                                                   constant=branch_attrs['qtdf_c'],
                                                   rel_tol=ptdf_options['rel_qtdf_tol'],
                                                   abs_tol=ptdf_options['abs_qtdf_tol'],
+                                                  **qf_rhs_kwargs
                                                   )
 
         libbranch.declare_fdf_thermal_limit(model=model,
@@ -380,13 +392,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                 expr = libbus.get_vm_expr_vdf_approx(model, bn, vdf, vdf_c,
                                         rel_tol=ptdf_options['rel_vdf_tol'],
                                         abs_tol=ptdf_options['abs_vdf_tol'],
-                                                     )
-                if v_rhs_kwargs:
-                    for idx, val in v_rhs_kwargs.items():
-                        if idx == 'include_feasibility_slack_pos':
-                            expr -= eval("model." + val + "[bn]")
-                        if idx == 'include_feasibility_slack_neg':
-                            expr += eval("model." + val + "[bn]")
+                                        **v_rhs_kwargs)
 
                 model.eq_vm_bus[bn] = model.vm[bn] == expr
                 model._vm_idx_monitored.append(i)
@@ -402,6 +408,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                                         constant=bus_attrs['vdf_c'],
                                         rel_tol=ptdf_options['rel_vdf_tol'],
                                         abs_tol=ptdf_options['abs_vdf_tol'],
+                                        **v_rhs_kwargs
                                         )
 
 
@@ -457,6 +464,10 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
         obj_expr += penalty_expr
     if include_v_feasibility_slack:
         obj_expr += v_penalty_expr
+    if include_pf_feasibility_slack:
+        obj_expr += pf_penalty_expr
+    if include_qf_feasibility_slack:
+        obj_expr += qf_penalty_expr
     model.obj = pe.Objective(expr=obj_expr)
 
     return model, md
@@ -600,10 +611,6 @@ def solve_fdf_simplified(model_data,
     from pyomo.solvers.plugins.solvers.persistent_solver import PersistentSolver
 
     m, md = fdf_model_generator(model_data, **kwargs)
-    if hasattr(m,'_v_rhs_kwargs'):
-        v_rhs_kwargs = m._v_rhs_kwargs
-    else:
-        v_rhs_kwargs = None
 
     m.dual = pe.Suffix(direction=pe.Suffix.IMPORT)
 
@@ -636,11 +643,9 @@ def solve_fdf_simplified(model_data,
         results_init = results
 
         iter_limit = m._ptdf_options['iteration_limit']
-        if v_rhs_kwargs is None:
-            v_rhs_kwargs = {}
         term_cond, results, iterations = _lazy_model_solve_loop(m, md, solver, timelimit=timelimit, solver_tee=solver_tee,
                                            symbolic_solver_labels=symbolic_solver_labels,iteration_limit=iter_limit,
-                                           vars_to_load = vars_to_load, **v_rhs_kwargs)
+                                           vars_to_load = vars_to_load)
 
         ## in this case, either we're not using lazy or
         ## we never re-solved

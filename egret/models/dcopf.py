@@ -25,6 +25,8 @@ import egret.data.data_utils as data_utils
 from egret.model_library.defn import CoordinateType, ApproximationType, BasePointType
 from egret.data.model_data import map_items, zip_items
 from egret.models.copperplate_dispatch import _include_system_feasibility_slack, create_copperplate_dispatch_approx_model
+import egret.models.fdf as fdf
+from egret.common.log import logger
 from math import pi, radians
 
 
@@ -47,7 +49,8 @@ def _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, penalty
     return p_rhs_kwargs, penalty_expr
 
 
-def create_btheta_dcopf_model(model_data, include_angle_diff_limits=False, include_feasibility_slack=False):
+def create_btheta_dcopf_model(model_data, include_angle_diff_limits=False, include_feasibility_slack=False,
+                              include_pf_feasibility_slack=False):
     # model_data.return_in_service()
     # md = model_data
     md = model_data.clone_in_service()
@@ -88,7 +91,9 @@ def create_btheta_dcopf_model(model_data, include_angle_diff_limits=False, inclu
     p_rhs_kwargs = {}
     penalty_expr = None
     if include_feasibility_slack:
-        p_rhs_kwargs, penalty_expr = _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads)
+        p_rhs_kwargs, penalty_expr = fdf._include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads)
+    if include_pf_feasibility_slack:
+        pf_rhs_kwargs, pf_penalty_expr = fdf._include_pf_feasibility_slack(model, branch_attrs)
 
     ### fix the reference bus
     ref_bus = md.data['system']['reference_bus']
@@ -107,16 +112,7 @@ def create_btheta_dcopf_model(model_data, include_angle_diff_limits=False, inclu
     p_max = {k: branches[k]['rating_long_term'] for k in branches.keys()}
     p_lbub = {k: (-p_max[k],p_max[k]) for k in branches.keys()}
     pf_bounds = p_lbub
-    pf_init = dict()
-    for branch_name, branch in branches.items():
-        from_bus = branch['from_bus']
-        to_bus = branch['to_bus']
-        y_matrix = calculate_y_matrix_from_branch(branch)
-        ifr_init = calculate_ifr(vr_init[from_bus], vj_init[from_bus], vr_init[to_bus],
-                                         vj_init[to_bus], y_matrix)
-        ifj_init = calculate_ifj(vr_init[from_bus], vj_init[from_bus], vr_init[to_bus],
-                                         vj_init[to_bus], y_matrix)
-        pf_init[branch_name] = calculate_p(ifr_init, ifj_init, vr_init[from_bus], vj_init[from_bus])
+    pf_init = {k: 0 for k in branch_attrs['names']}
 
     libbranch.declare_var_pf(model=model,
                              index_set=branch_attrs['names'],
@@ -127,7 +123,8 @@ def create_btheta_dcopf_model(model_data, include_angle_diff_limits=False, inclu
     ### declare the branch power flow approximation constraints
     libbranch.declare_eq_branch_power_btheta_approx(model=model,
                                                     index_set=branch_attrs['names'],
-                                                    branches=branches
+                                                    branches=branches,
+                                                    **pf_rhs_kwargs
                                                     )
 
     ### declare the p balance
@@ -167,12 +164,16 @@ def create_btheta_dcopf_model(model_data, include_angle_diff_limits=False, inclu
     obj_expr = sum(model.pg_operating_cost[gen_name] for gen_name in model.pg_operating_cost)
     if include_feasibility_slack:
         obj_expr += penalty_expr
+    if include_pf_feasibility_slack:
+        obj_expr += pf_penalty_expr
 
     model.obj = pe.Objective(expr=obj_expr)
 
     return model, md
 
-def create_ptdf_dcopf_model(model_data, include_feasibility_slack=False, base_point=BasePointType.FLATSTART, ptdf_options=None):
+def create_ptdf_dcopf_model(model_data, include_feasibility_slack=False,
+                            include_pf_feasibility_slack=False,
+                            base_point=BasePointType.FLATSTART, ptdf_options=None):
     import egret.data.data_utils_deprecated as data_utils_deprecated
 
     if ptdf_options is None:
@@ -226,7 +227,10 @@ def create_ptdf_dcopf_model(model_data, include_feasibility_slack=False, base_po
     ### include the feasibility slack for the system balance
     p_rhs_kwargs = {}
     if include_feasibility_slack:
-        p_rhs_kwargs, penalty_expr = _include_system_feasibility_slack(model, gen_attrs, bus_p_loads)
+        p_rhs_kwargs, penalty_expr = fdf._include_system_feasibility_slack(model, gen_attrs, bus_p_loads)
+    pf_rhs_kwargs = {}
+    if include_pf_feasibility_slack:
+        pf_rhs_kwargs, pf_penalty_expr = fdf._include_pf_feasibility_slack(model, branch_attrs)
 
     ### declare the p balance
     libbus.declare_eq_p_balance_ed(model=model,
@@ -244,14 +248,6 @@ def create_ptdf_dcopf_model(model_data, include_feasibility_slack=False, base_po
                                               gens_by_bus=gens_by_bus,
                                               bus_gs_fixed_shunts=bus_gs_fixed_shunts,
                                               )
-
-    ### add "blank" power flow expressions
-    #libbranch.declare_expr_pf(model=model,
-    #                          index_set=branches_idx,
-    #                          )
-
-    ## Do and store PTDF calculation
-    reference_bus = md.data['system']['reference_bus']
 
     model._ptdf_options = ptdf_options
 
@@ -288,6 +284,9 @@ def create_ptdf_dcopf_model(model_data, include_feasibility_slack=False, base_po
                                                   index_set=branches_idx,
                                                   sensitivity=branch_attrs['ptdf'],
                                                   constant=branch_attrs['ptdf_c'],
+                                                  rel_tol=ptdf_options['rel_ptdf_tol'],
+                                                  abs_tol=ptdf_options['abs_ptdf_tol'],
+                                                  **pf_rhs_kwargs
                                                   )
 
     ### declare the generator cost objective
@@ -299,6 +298,8 @@ def create_ptdf_dcopf_model(model_data, include_feasibility_slack=False, base_po
     obj_expr = sum(model.pg_operating_cost[gen_name] for gen_name in model.pg_operating_cost)
     if include_feasibility_slack:
         obj_expr += penalty_expr
+    if include_pf_feasibility_slack:
+        obj_expr += pf_penalty_expr
 
     model.obj = pe.Objective(expr=obj_expr)
 

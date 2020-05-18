@@ -25,6 +25,7 @@ from egret.model_library.defn import ApproximationType, SensitivityCalculationMe
 from egret.data.model_data import zip_items
 import egret.data.data_utils_deprecated as data_utils_deprecated
 import egret.model_library.decl as decl
+import egret.models.fdf as fdf
 from math import pi, radians, inf
 
 
@@ -95,7 +96,9 @@ def create_fixed_lccm_model(model_data, **kwargs):
     return model, md
 
 
-def create_lccm_model(model_data, include_feasibility_slack=False, include_v_feasibility_slack=False, calculation_method=SensitivityCalculationMethod.INVERT):
+def create_lccm_model(model_data, include_feasibility_slack=False, include_v_feasibility_slack=False,
+                      include_pf_feasibility_slack=False, include_qf_feasibility_slack=False,
+                      calculation_method=SensitivityCalculationMethod.INVERT):
     # model_data.return_in_service()
     # md = model_data
     md = model_data.clone_in_service()
@@ -148,9 +151,15 @@ def create_lccm_model(model_data, include_feasibility_slack=False, include_v_fea
     if include_feasibility_slack:
         p_rhs_kwargs, q_rhs_kwargs, penalty_expr = _include_system_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads)
 
+    pf_rhs_kwargs = {}
+    qf_rhs_kwargs = {}
     v_rhs_kwargs = {}
+    if include_pf_feasibility_slack:
+        pf_rhs_kwargs, pf_penalty_expr = fdf._include_pf_feasibility_slack(model, branch_attrs)
+    if include_qf_feasibility_slack:
+        qf_rhs_kwargs, qf_penalty_expr = fdf._include_qf_feasibility_slack(model, branch_attrs)
     if include_v_feasibility_slack:
-        v_rhs_kwargs, v_penalty_expr = _include_v_feasibility_slack(model, bus_attrs)
+        v_rhs_kwargs, v_penalty_expr = fdf._include_v_feasibility_slack(model, bus_attrs, gen_attrs)
 
     ### declare the generator real and reactive power
     pg_init = {k: gens[k]['pg'] for k in gens.keys()}
@@ -222,16 +231,14 @@ def create_lccm_model(model_data, include_feasibility_slack=False, include_v_fea
                                                index_set=branch_attrs['names'],
                                                sensitivity=branch_attrs['Ft'],
                                                constant=branch_attrs['ft_c'],
-                                               rel_tol=0.,
-                                               abs_tol=0.
+                                               **pf_rhs_kwargs
                                                )
 
     libbranch.declare_eq_branch_qf_lccm_approx(model=model,
                                                index_set=branch_attrs['names'],
                                                sensitivity=branch_attrs['Fv'],
                                                constant=branch_attrs['fv_c'],
-                                               rel_tol=0.,
-                                               abs_tol=0.
+                                               **qf_rhs_kwargs
                                                )
 
     libbranch.declare_eq_branch_pfl_lccm_approx(model=model,
