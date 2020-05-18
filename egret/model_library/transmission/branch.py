@@ -680,13 +680,24 @@ def declare_eq_branch_pfl_lccm_approx(model, index_set, sensitivity, constant, r
         else:
             m.pfl[branch_name] = expr
 
-def get_expr_branch_qf_lccm_approx(model, branch_name, qf_sens, qf_const, rel_tol=0., abs_tol=0.):
+def get_expr_branch_qf_lccm_approx(model, branch_name, qf_sens, qf_const, rel_tol=0., abs_tol=0., **rhs_kwargs):
     """
     Create a pyomo power flow expression from CCM sensitivity
     """
-    return _get_df_expr(model.vm, qf_sens, qf_const, rel_tol, abs_tol)
+    expr = _get_df_expr(model.vm, qf_sens, qf_const, rel_tol, abs_tol)
 
-def declare_eq_branch_qf_lccm_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.):
+    # add slacks
+    if rhs_kwargs:
+        for idx, val in rhs_kwargs.items():
+            if idx == 'include_feasibility_slack_pos':
+                expr -= eval("model." + val + "[branch_name]")
+            if idx == 'include_feasibility_slack_neg':
+                expr += eval("model." + val + "[branch_name]")
+
+    return expr
+
+def declare_eq_branch_qf_lccm_approx(model, index_set, sensitivity, constant, rel_tol=0., abs_tol=0.,
+                                     **qf_rhs_kwargs):
     """
     Create the equality constraints or expressions for power (from LCCM approximation) in the branch
     """
@@ -707,7 +718,8 @@ def declare_eq_branch_qf_lccm_approx(model, index_set, sensitivity, constant, re
         qf_sens = sensitivity[branch_name]
         qf_const = constant[branch_name]
         expr = \
-            get_expr_branch_qf_lccm_approx(m, branch_name, qf_sens, qf_const, rel_tol=rel_tol, abs_tol=abs_tol)
+            get_expr_branch_qf_lccm_approx(m, branch_name, qf_sens, qf_const, rel_tol=rel_tol, abs_tol=abs_tol,
+                                           **qf_rhs_kwargs)
 
         if qf_is_var:
             m.eq_qf_branch[branch_name] = \
