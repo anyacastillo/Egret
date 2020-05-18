@@ -363,9 +363,10 @@ def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
     for b,viol in vm_LB_viol.items():
         bus = buses[b]
         bus['acpf_viol'] = -viol
-    for k,branch in branches.items():
-        branch['pf_error'] = pf_error[k]
-        branch['qf_error'] = qf_error[k]
+    for k,error in pf_error.items():
+        branches[k]['pf_error'] = error
+    for k,error in qf_error.items():
+        branches[k]['qf_error'] = error
 
     ## save scalar data in ModelData
     system_data['acpf_slack'] = acpf_p_slack
@@ -375,10 +376,18 @@ def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
     system_data['sum_vm_viol'] = sum(vm_list)
     system_data['sum_thermal_viol'] = sum(thermal_list)
 
-    system_data['pf_error_1_norm'] = np.linalg.norm(pf_error_list,ord=1)
-    system_data['qf_error_1_norm'] = np.linalg.norm(qf_error_list,ord=1)
-    system_data['pf_error_inf_norm'] = np.linalg.norm(pf_error_list,ord=np.inf)
-    system_data['qf_error_inf_norm'] = np.linalg.norm(pf_error_list,ord=np.inf)
+    if len(pf_error_list) > 0:
+        system_data['pf_error_1_norm'] = np.linalg.norm(pf_error_list,ord=1)
+        system_data['pf_error_inf_norm'] = np.linalg.norm(pf_error_list,ord=np.inf)
+    else:
+        system_data['pf_error_1_norm'] = None
+        system_data['pf_error_inf_norm'] = None
+    if len(qf_error_list) > 0:
+        system_data['qf_error_1_norm'] = np.linalg.norm(qf_error_list,ord=1)
+        system_data['qf_error_inf_norm'] = np.linalg.norm(pf_error_list,ord=np.inf)
+    else:
+        system_data['qf_error_1_norm'] = None
+        system_data['qf_error_inf_norm'] = None
 
     if len(vm_UB_list) > 0:
         system_data['avg_vm_UB_viol'] = sum(vm_UB_list) / len(vm_UB_list)
