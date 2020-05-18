@@ -179,18 +179,27 @@ def generate_test_model_dict(test_model_list):
             tmd['solve_func'] = solve_lccm
             tmd['initial_solution'] = 'basepoint'
             tmd['solver'] = 'gurobi_persistent'
+            tmd['kwargs']['include_pf_feasibility_slack'] = True
+            tmd['kwargs']['include_qf_feasibility_slack'] = True
+            tmd['kwargs']['include_v_feasibility_slack'] = True
 
         elif 'dlopf' in tm:
             tmd['solve_func'] = solve_fdf
             tmd['initial_solution'] = 'basepoint'
             tmd['solver'] = 'gurobi_persistent'
             tmd['kwargs']['ptdf_options'] = dict(_ptdf_options)
+            tmd['kwargs']['include_pf_feasibility_slack'] = True
+            tmd['kwargs']['include_qf_feasibility_slack'] = True
+            tmd['kwargs']['include_v_feasibility_slack'] = True
 
         elif 'clopf' in tm:
             tmd['solve_func'] = solve_fdf_simplified
             tmd['initial_solution'] = 'basepoint'
             tmd['solver'] = 'gurobi_persistent'
             tmd['kwargs']['ptdf_options'] = dict(_ptdf_options)
+            tmd['kwargs']['include_pf_feasibility_slack'] = True
+            tmd['kwargs']['include_qf_feasibility_slack'] = True
+            tmd['kwargs']['include_v_feasibility_slack'] = True
 
         elif 'plopf' in tm:
             tmd['solve_func'] = solve_dcopf_losses
@@ -198,6 +207,7 @@ def generate_test_model_dict(test_model_list):
             tmd['solver'] = 'gurobi_persistent'
             tmd['kwargs']['ptdf_options'] = dict(_ptdf_options)
             tmd['kwargs']['dcopf_losses_model_generator'] = create_ptdf_losses_dcopf_model
+            tmd['kwargs']['include_pf_feasibility_slack'] = True
 
         elif 'ptdf' in tm:
             tmd['solve_func'] = solve_dcopf
@@ -205,6 +215,7 @@ def generate_test_model_dict(test_model_list):
             tmd['solver'] = 'gurobi_persistent'
             tmd['kwargs']['ptdf_options'] = dict(_ptdf_options)
             tmd['kwargs']['dcopf_model_generator'] = create_ptdf_dcopf_model
+            tmd['kwargs']['include_pf_feasibility_slack'] = True
 
         elif 'btheta' in tm:
             if 'qcp' in tm:
@@ -217,6 +228,8 @@ def generate_test_model_dict(test_model_list):
                 tmd['initial_solution'] = 'flat'
                 tmd['solver'] = 'gurobi_persistent'
                 tmd['kwargs']['dcopf_model_generator'] = create_btheta_dcopf_model
+
+            tmd['kwargs']['include_pf_feasibility_slack'] = True
 
         test_model_dict[tm] = copy.deepcopy(tmd)
 
