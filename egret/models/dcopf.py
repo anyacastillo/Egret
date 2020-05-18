@@ -89,7 +89,7 @@ def create_btheta_dcopf_model(model_data, include_angle_diff_limits=False, inclu
 
     ### include the feasibility slack for the bus balances
     p_rhs_kwargs = {}
-    penalty_expr = None
+    pf_rhs_kwargs = {}
     if include_feasibility_slack:
         p_rhs_kwargs, penalty_expr = fdf._include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads)
     if include_pf_feasibility_slack:

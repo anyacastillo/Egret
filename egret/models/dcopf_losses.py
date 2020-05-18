@@ -329,9 +329,6 @@ def create_ptdf_losses_dcopf_model(model_data, include_feasibility_slack=False,
                                                                **pf_rhs_kwargs)
                 model.eq_pf_branch[bn] = model.pf[bn] == expr
                 ## add thermal limit
-                thermal_limit = s_max[bn]
-                branch = branches[bn]
-                libbranch.add_constr_branch_thermal_limit(model, branch, bn, thermal_limit)
                 thermal_idx_monitored.append(i)
         logger.warning('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
 

@@ -559,7 +559,7 @@ def declare_eq_branch_qf_fdf_approx(model, index_set, sensitivity, constant, rel
         qtdf = sensitivity[branch_name]
         qtdf_c = constant[branch_name]
         expr = \
-            get_expr_branch_qf_fdf_approx(m, branch_name, qtdf, qtdf_c, rel_tol=rel_tol, abs_tol=abs_tol
+            get_expr_branch_qf_fdf_approx(m, branch_name, qtdf, qtdf_c, rel_tol=rel_tol, abs_tol=abs_tol,
                                           **rhs_kwargs)
 
         if qf_is_var:
