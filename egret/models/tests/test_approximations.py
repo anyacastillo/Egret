@@ -355,7 +355,7 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
 
     test_model_dict = generate_test_model_dict(test_model_list)
     bus_attrs = md_flat.attributes(element_type='bus')
-    num_bus = len(bus_attrs['name'])
+    num_bus = len(bus_attrs['names'])
 
     for tm in test_model_list:
 
