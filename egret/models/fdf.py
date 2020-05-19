@@ -57,7 +57,7 @@ def _include_system_feasibility_slack(model, gen_attrs, bus_p_loads, bus_q_loads
 
     return p_rhs_kwargs, q_rhs_kwargs, penalty_expr
 
-def _include_pf_feasibility_slack(model, branch_attrs, penalty=30000):
+def _include_pf_feasibility_slack(model, branch_attrs, penalty=2000):
     import egret.model_library.decl as decl
     slack_init = {k: 0 for k in branch_attrs['names']}
     slack_bounds = {k: (0,inf) for k in branch_attrs['names']}
@@ -75,7 +75,7 @@ def _include_pf_feasibility_slack(model, branch_attrs, penalty=30000):
 
     return pf_rhs_kwargs, penalty_expr
 
-def _include_qf_feasibility_slack(model, branch_attrs, penalty=30000):
+def _include_qf_feasibility_slack(model, branch_attrs, penalty=2000):
     import egret.model_library.decl as decl
     slack_init = {k: 0 for k in branch_attrs['names']}
     slack_bounds = {k: (0,inf) for k in branch_attrs['names']}
