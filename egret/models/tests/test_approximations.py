@@ -234,9 +234,9 @@ def generate_test_model_dict(test_model_list):
         # settings to suppress non-lazy D-LOPF and C-LOPF models in large (>1,000 bus) cases
         dense_models = ['dlopf', 'clopf', 'plopf', 'ptdf']
         if any(dm in tm for dm in dense_models) and 'lazy' not in tm:
-            tm['suppress_large_cases'] = True
+            tmd['suppress_large_cases'] = True
         else:
-            tm['suppress_large_cases'] = False
+            tmd['suppress_large_cases'] = False
 
         test_model_dict[tm] = copy.deepcopy(tmd)
 
