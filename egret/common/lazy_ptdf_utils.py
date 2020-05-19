@@ -76,7 +76,7 @@ def populate_default_ptdf_options(ptdf_options):
     if 'max_violations_per_iteration' not in ptdf_options:
         ptdf_options['max_violations_per_iteration'] = 15
     if 'vm_max_violations_per_iteration' not in ptdf_options:
-        ptdf_options['vm_max_violations_per_iteration'] = 15
+        ptdf_options['vm_max_violations_per_iteration'] = 50
     if 'lazy' not in ptdf_options:
         ptdf_options['lazy'] = False
     if 'lazy_reactive' not in ptdf_options:
