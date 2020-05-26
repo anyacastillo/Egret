@@ -150,6 +150,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
 
     inlet_branches_by_bus, outlet_branches_by_bus = tx_utils.inlet_outlet_branches_by_bus(branches, buses)
     gens_by_bus = tx_utils.gens_by_bus(buses, gens)
+    buses_with_gens = tx_utils.buses_with_gens(gens)
 
     model = pe.ConcreteModel()
 
@@ -383,7 +384,10 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
 
         lpu.add_monitored_vm_tracker(model)
 
-        #monitor_init = monitor_init.union(shunt_buses)
+        # add shunt and/or generator buses
+        monitor_init = monitor_init.union(shunt_buses)
+        monitor_init = monitor_init.union(buses_with_gens)
+
         for i,bn in enumerate(bus_attrs['names']):
             if bn in monitor_init:
                 bus = buses[bn]
@@ -398,8 +402,9 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                 model._vm_idx_monitored.append(i)
         mon_message = '{} of {} voltage constraints added to initial monitored set'.format(len(monitor_init),
                                                                                     len(bus_attrs['names']))
-        #mon_message += ' ({} shunt devices).'.format(len(shunt_buses))
-        print(mon_message)
+        mon_message += ' ({} shunt devices).'.format(len(shunt_buses))
+        mon_message += ' ({} generator buses)'.format(len(buses_with_gens))
+        logger.critical(mon_message)
 
     else:
         libbus.declare_eq_vm_vdf_approx(model=model,
@@ -498,12 +503,12 @@ def _load_solution_to_model_data(m, md, results):
     md.data['system']['qloss'] = value(m.qloss)
 
     ## back-solve for theta/vmag then solve for p/q power flows
-    THETA = linsolve_theta_fdf(m, md)
+    THETA = linsolve_theta_fdf(m, md, solve_sparse_system=True)
     Ft = md.data['system']['Ft']
     ft_c = md.data['system']['ft_c']
     PFV = Ft.dot(THETA) + ft_c
 
-    VMAG = linsolve_vmag_fdf(m, md, index_set_bus=buses_idx)
+    VMAG = linsolve_vmag_fdf(m, md, solve_sparse_system=True)
     Fv = md.data['system']['Fv']
     fv_c = md.data['system']['fv_c']
     QFV = Fv.dot(VMAG) + fv_c
@@ -708,149 +713,153 @@ def compare_results(results, c1, c2, tol=1e-6):
 def printresults(results):
     solver = results.attributes(element_type='Solver')
 
-def compare_to_acopf():
-    import os
-    from egret.parsers.matpower_parser import create_ModelData
-    from pyomo.environ import value
+def compare_fdf_options(md):
+    from egret.data.test_utils import solve_infeas_model
+    from egret.models.tests.test_approximations import create_new_model_data
 
-    # set case and filepath
-    path = os.path.dirname(__file__)
-    #filename = 'pglib_opf_case3_lmbd.m'
-    filename = 'pglib_opf_case5_pjm.m'
-    #filename = 'pglib_opf_case14_ieee.m'
-    #filename = 'pglib_opf_case30_ieee.m'
-    #filename = 'pglib_opf_case57_ieee.m'
-    #filename = 'pglib_opf_case118_ieee.m'
-    #filename = 'pglib_opf_case162_ieee_dtc.m'
-    #filename = 'pglib_opf_case179_goc.m'
-    #filename = 'pglib_opf_case300_ieee.m'
-    #filename = 'pglib_opf_case500_tamu.m'
-    matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
-    md = create_ModelData(matpower_file)
+    logger = logging.getLogger('egret')
+    logger.setLevel(logging.ERROR)
 
-    # keyword arguments
-    #kwargs = {'include_v_feasibility_slack': True}
+    # initialize solution dicts
+    pg_dict = dict()
+    qg_dict = dict()
+    pf_dict = dict()
+    pfl_dict = dict()
+    qf_dict = dict()
+    qfl_dict = dict()
+    va_dict = dict()
+    vm_dict = dict()
+    acpf_slack = dict()
+    vm_viol_dict = dict()
+    thermal_viol_dict = dict()
+
+    def update_solution_dicts(md, name="model_name"):
+
+        try:
+            print('...Solving ACPF for model {}.'.format(name))
+            acpf_to_md(md)
+        except Exception as e:
+            raise e
+
+        gen = md.attributes(element_type='generator')
+        bus = md.attributes(element_type='bus')
+        branch = md.attributes(element_type='branch')
+        system_data = md.data['system']
+
+        pg_dict.update({name: gen['pg']})
+        qg_dict.update({name: gen['qg']})
+        pf_dict.update({name: branch['pf']})
+        pfl_dict.update({name: branch['pfl']})
+        qf_dict.update({name: branch['qf']})
+        qfl_dict.update({name: branch['qfl']})
+        va_dict.update({name: bus['va']})
+        vm_dict.update({name: bus['vm']})
+        acpf_slack.update({name: {'slack' : system_data['acpf_slack']}})
+        vm_viol_dict.update({name: system_data['vm_viol']})
+        thermal_viol_dict.update({name: system_data['thermal_viol']})
+
+    def acpf_to_md(md):
+        try:
+            acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, _, _, termination = solve_infeas_model(md)
+            print('...It\'s a success! ({})'.format(termination))
+        except Exception as e:
+            print(chr(e))
+        vm_viol = vm_UB_viol.update(vm_LB_viol)
+        system_data = md.data['system']
+        system_data['acpf_slack'] = acpf_p_slack
+        system_data['vm_viol'] = vm_viol
+        system_data['thermal_viol'] = thermal_viol
+
 
     # solve ACOPF
-    print('begin ACOPF...')
+    print('Solve ACOPF....')
     from egret.models.acopf import solve_acopf
     md_ac, m_ac, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
     print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
     print(results.Solver)
-    gen = md_ac.attributes(element_type='generator')
-    bus = md_ac.attributes(element_type='bus')
-    branch = md_ac.attributes(element_type='branch')
-    system = md_ac.data['system']
-    pg_dict = {'acopf': gen['pg']}
-    qg_dict = {'acopf': gen['qg']}
-    tmp_pf = branch['pf']
-    tmp_pt = branch['pt']
-    tmp = {key: (tmp_pf[key] - tmp_pt.get(key, 0)) / 2 for key in tmp_pf.keys()}
-    pf_dict = {'acopf': tmp}
-    tmp_qf = branch['qf']
-    tmp_qt = branch['qt']
-    tmp = {key: (tmp_qf[key] - tmp_qt.get(key, 0)) / 2 for key in tmp_qf.keys()}
-    qf_dict = {'acopf': tmp}
-    ploss_dict = {'acopf': system['ploss']}
-    qloss_dict = {'acopf': system['qloss']}
-    va_dict = {'acopf': bus['va']}
-    vm_dict = {'acopf': bus['vm']}
-    lmp_dict = {'acopf' : bus['lmp']}
-    qlmp_dict = {'acopf' : bus['qlmp']}
-    pf_dual = {'acopf' : branch['pf_dual']}
-    qf_dual = {'acopf' : branch['qf_dual']}
 
-    # keyword arguments
+    md_ac = create_new_model_data(md_ac,1.00)
+    termination={}
+
+    #solve C-LOPF
+    print('Solve D-LOPF explicit....')
     kwargs = {}
-    # kwargs = {'include_v_feasibility_slack':True,'include_feasibility_slack':True}
+    ptdf_options = {}
+    ptdf_options['lazy'] = False
+    ptdf_options['lazy_voltage'] = False
+    ptdf_options['rel_ptdf_tol'] = 1e-2
+    ptdf_options['rel_qtdf_tol'] = 1e-2
+    ptdf_options['rel_pldf_tol'] = 1e-2
+    ptdf_options['rel_qldf_tol'] = 1e-2
+    ptdf_options['rel_vdf_tol'] = 1e-2
+    kwargs['ptdf_options'] = ptdf_options
+    try:
+        md, m1, results = solve_fdf_simplified(md_ac, "gurobi_persistent", return_model=True,return_results=True, solver_tee=False,
+                                   **kwargs)
+        print('Explicit cost: $%3.2f' % md.data['system']['total_cost'])
+        print(results.Solver)
+        print(md.data['results'])
+        update_solution_dicts(md,'explicit')
+        termination['explicit'] = md.data['results']['termination']
+    except Exception as e:
+        raise e
+        message = str(e)
+        print(message)
+        m_list = message.split()
+        termination['explicit'] = m_list[-1]
 
-    # solve (fixed) FDF
-    print('begin FDF...')
-    md, m, results = solve_fdf_simplified(md_ac, "gurobi_persistent", fdf_model_generator=create_simplified_fdf_model,
-                                          return_model=True, return_results=True, solver_tee=False, **kwargs)
-    print('FDF cost: $%3.2f' % md.data['system']['total_cost'])
-    print(results.Solver)
-    if 'm.p_slack_pos' in locals():
-        if value(m.p_slack_pos + m.p_slack_neg) > 1e-6:
-            print('REAL POWER IMBALANCE: {}'.format(value(m.p_slack_pos + m.p_slack_neg)))
-        if value(m.q_slack_pos + m.q_slack_neg) > 1e-6:
-            print('REACTIVE POWER IMBALANCE: {}'.format(value(m.q_slack_pos + m.q_slack_neg)))
-    gen = md.attributes(element_type='generator')
-    bus = md.attributes(element_type='bus')
-    branch = md.attributes(element_type='branch')
-    system = md.data['system']
-    pg_dict.update({'fdf': gen['pg']})
-    qg_dict.update({'fdf': gen['qg']})
-    pf_dict.update({'fdf': branch['pf']})
-    qf_dict.update({'fdf': branch['qf']})
-    ploss_dict.update({'fdf': system['ploss']})
-    qloss_dict.update({'fdf': system['qloss']})
-    va_dict.update({'fdf': bus['va']})
-    vm_dict.update({'fdf': bus['vm']})
-    lmp_dict.update({'fdf' : bus['lmp']})
-    qlmp_dict.update({'fdf' : bus['qlmp']})
-    pf_dual.update({'fdf' : branch['pf_dual']})
-    qf_dual.update({'fdf' : branch['qf_dual']})
+    #solve C-LOPF lazy
+    print('Solve D-LOPF lazy....')
+    kwargs = {}
+    ptdf_options = {}
+    ptdf_options['lazy'] = True
+    ptdf_options['lazy_voltage'] = True
+    ptdf_options['rel_ptdf_tol'] = 1e-2
+    ptdf_options['rel_qtdf_tol'] = 1e-2
+    ptdf_options['rel_pldf_tol'] = 1e-2
+    ptdf_options['rel_qldf_tol'] = 1e-2
+    ptdf_options['rel_vdf_tol'] = 1e-2
+    kwargs['ptdf_options'] = ptdf_options
+    try:
+        md, m2, results = solve_fdf_simplified(md_ac, "gurobi_persistent", return_model=True,return_results=True, solver_tee=False,
+                                   **kwargs)
+        print('Lazy cost: $%3.2f' % md.data['system']['total_cost'])
+        print(results.Solver)
+        print(md.data['results'])
+        update_solution_dicts(md,'lazy')
+        termination['lazy'] = md.data['results']['termination']
+    except Exception as e:
+        message = str(e)
+        print(message)
+        m_list = message.split()
+        termination['lazy'] = m_list[-1]
 
-    # solve LCCM
-    print('begin LCCM...')
-    from egret.models.lccm import solve_lccm
-    md, m, results = solve_lccm(md_ac, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False, **kwargs)
-    print('LCCM cost: $%3.2f' % md.data['system']['total_cost'])
-    print(results.Solver)
-    if 'm.p_slack_pos' in locals():
-        if value(m.p_slack_pos + m.p_slack_neg) > 1e-6:
-            print('REAL POWER IMBALANCE: {}'.format(value(m.p_slack_pos + m.p_slack_neg)))
-        if value(m.q_slack_pos + m.q_slack_neg) > 1e-6:
-            print('REACTIVE POWER IMBALANCE: {}'.format(value(m.q_slack_pos + m.q_slack_neg)))
-    gen = md.attributes(element_type='generator')
-    bus = md.attributes(element_type='bus')
-    branch = md.attributes(element_type='branch')
-    system = md.data['system']
-    pg_dict.update({'lccm': gen['pg']})
-    qg_dict.update({'lccm': gen['qg']})
-    pf_dict.update({'lccm': branch['pf']})
-    qf_dict.update({'lccm': branch['qf']})
-    ploss_dict.update({'lccm': system['ploss']})
-    qloss_dict.update({'lccm': system['qloss']})
-    va_dict.update({'lccm': bus['va']})
-    vm_dict.update({'lccm': bus['vm']})
-    lmp_dict.update({'lccm' : bus['lmp']})
-    qlmp_dict.update({'lccm' : bus['qlmp']})
-    pf_dual.update({'lccm' : branch['pf_dual']})
-    qf_dual.update({'lccm' : branch['qf_dual']})
+    print(termination)
 
     # display results in dataframes
-    print('-pg:')
-    #print(pd.DataFrame(pg_dict))
-    compare_results(pg_dict, 'fdf', 'lccm')
-    print('-qg:')
-    #print(pd.DataFrame(qg_dict))
-    compare_results(qg_dict, 'fdf', 'lccm')
-    print('-pf:')
-    #print(pd.DataFrame(pf_dict))
-    compare_results(pf_dict, 'fdf', 'lccm')
-    print('-qf:')
-    #print(pd.DataFrame(qf_dict))
-    compare_results(qf_dict, 'fdf', 'lccm')
-    print('-ploss:')
-    print(ploss_dict)
-    #print(pd.DataFrame(ploss_dict[0]))
-    print('-qloss:')
-    print(qloss_dict)
-    #print(pd.DataFrame(qloss_dict[0]))
-    print('-va:')
-    #print(pd.DataFrame(va_dict))
-    compare_results(va_dict, 'fdf', 'lccm')
-    print('-vm:')
-    #print(pd.DataFrame(vm_dict))
-    compare_results(vm_dict, 'fdf', 'lccm')
-    print('-lmp:')
-    #print(pd.DataFrame(lmp_dict))
-    compare_results(lmp_dict, 'fdf', 'lccm')
-    print('-qlmp:')
-    #print(pd.DataFrame(qlmp_dict))
-    compare_results(qlmp_dict, 'fdf', 'lccm')
+    compare_dict = {'pg' : pg_dict,
+                    'qg' : qg_dict,
+                    'pf' : pf_dict,
+                    'qf' : qf_dict,
+                    'pfl' : pfl_dict,
+                    'qfl' : qfl_dict,
+                    'va' : va_dict,
+                    'vm' : vm_dict,
+                    'slack' : acpf_slack,
+                    'vm_viol' : vm_viol_dict,
+                    'thermal_viol' : thermal_viol_dict
+                    }
+
+    for mv,results in compare_dict.items():
+        print('-{}:'.format(mv))
+        print('--- explicit v lazy')
+        fdf.compare_results(results,'explicit', 'lazy', display_results=False)
+
+    print('Explicit model:')
+    m1.pprint()
+
+    print('Lazy model:')
+    m2.pprint()
 
 if __name__ == '__main__':
 
@@ -879,50 +888,5 @@ if __name__ == '__main__':
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
     md = create_ModelData(matpower_file)
 
-    print('begin ACOPF...')
-    from egret.models.acopf import solve_acopf
-    md_ac, m_ac, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
-
-    print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
-    print('ACOPF time: %3.5f' % md_ac.data['results']['time'])
-    print(results.Solver)
-
-    # keyword arguments
-    kwargs = {}
-    # kwargs = {'include_v_feasibility_slack':True,'include_feasibility_slack':True}
-
-    print('begin FDF...')
-    options={}
-    options['method'] = 1
-    ptdf_options = {}
-    ptdf_options['lazy'] = True
-    ptdf_options['lazy_voltage'] = True
-    ptdf_options['abs_ptdf_tol'] = 1e-2
-    ptdf_options['abs_qtdf_tol'] = 5e-2
-    ptdf_options['rel_vdf_tol'] = 10e-2
-    kwargs['ptdf_options'] = ptdf_options
-    md, m, results = solve_fdf_simplified(md_ac, "gurobi_persistent", fdf_model_generator=create_simplified_fdf_model,
-                                          return_model=True, return_results=True, solver_tee=False,
-                                          options=options, **kwargs)
-
-    print('C-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
-    print('C-LOPF time: %3.5f' % md.data['results']['time'])
-
-
-    # solve S-LOPF
-    kwargs = {}
-    options={}
-    print('begin S-LOPF...')
-    from egret.models.lccm import solve_lccm
-    md_sl, m_sl, results_sl = solve_lccm(md_ac, "gurobi_persistent", return_model=True,
-                               return_results=True, solver_tee=False, options=options, **kwargs)
-
-    print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
-    print('ACOPF time: %3.5f' % md_ac.data['results']['time'])
-
-    print('C-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
-    print('C-LOPF time: %3.5f' % md.data['results']['time'])
-
-    print('S-LOPF cost: $%3.2f' % md_sl.data['system']['total_cost'])
-    print('S-LOPF time: %3.5f' % md_sl.data['results']['time'])
+    compare_fdf_options(md)
 

@@ -517,7 +517,7 @@ def submain(idx=None, show_plot=False, log_level=logging.WARNING):
     solve_approximation_models(test_case, test_model_list, init_min=0.9, init_max=1.1, steps=20)
 
     ## Generate summary data
-    # spu.create_full_summary(test_case, test_model_list, show_plot=show_plot)
+    spu.create_full_summary(test_case, test_model_list, show_plot=show_plot)
 
 
 if __name__ == '__main__':

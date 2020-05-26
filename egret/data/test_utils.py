@@ -243,7 +243,10 @@ def solve_infeas_model(model_data):
     ref_bus = model_data.data['system']['reference_bus']
     slack_p_init = sum(lin_gens[gen_name]['pg'] for gen_name in gens_by_bus[ref_bus])
 
-    is_acopf = 'acopf' in model_data.data['system']['filename']
+    if 'filename' in list(model_data.data['system'].keys()):
+        is_acopf = 'acopf' in model_data.data['system']['filename']
+    else:
+        is_acopf = False
 
     # solve ACPF or return empty results and print exception message
     try:

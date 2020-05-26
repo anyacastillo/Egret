@@ -76,7 +76,7 @@ def populate_default_ptdf_options(ptdf_options):
     if 'max_violations_per_iteration' not in ptdf_options:
         ptdf_options['max_violations_per_iteration'] = 15
     if 'vm_max_violations_per_iteration' not in ptdf_options:
-        ptdf_options['vm_max_violations_per_iteration'] = 50
+        ptdf_options['vm_max_violations_per_iteration'] = 15
     if 'lazy' not in ptdf_options:
         ptdf_options['lazy'] = False
     if 'lazy_reactive' not in ptdf_options:
@@ -141,7 +141,7 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
     _len_branch = len(index_set_branch)
 
     ## Back-solve for theta then calculate real power flows with sparse sensitivity matrix
-    THETA = tx_calc.linsolve_theta_fdf(mb, md, index_set_bus=index_set_bus)
+    THETA = tx_calc.linsolve_theta_fdf(mb, md, solve_sparse_system=True)
     Ft = md.data['system']['Ft']
     ft_c = md.data['system']['ft_c']
     PFV = Ft.dot(THETA) + ft_c
@@ -151,7 +151,7 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
     if hasattr(mb, "qg"):
         if max_viol_add_vm is None:
             max_viol_add_vm = max_viol_add
-        VMAG = tx_calc.linsolve_vmag_fdf(mb, md, index_set_bus = index_set_bus)
+        VMAG = tx_calc.linsolve_vmag_fdf(mb, md, solve_sparse_system=False)
         Fv = md.data['system']['Fv']
         fv_c = md.data['system']['fv_c']
         QFV = Fv.dot(VMAG) + fv_c
@@ -174,7 +174,7 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
             _find_violation_set(mb, md, index_set_branch, SV, -branch_limits, branch_limits, thermal_idx_monitored,
                                 max_viol_add, warning_generator=_generate_flow_viol_warning)
 
-        log_message = 'Monitoring {} thermal constraints'.format(len(thermal_idx_monitored))
+        log_message = 'Adding {} thermal constraints'.format(len(t_viol_lazy))
 
     ## find vmag violations
     if m._ptdf_options['lazy_voltage']:
@@ -193,7 +193,7 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
             _find_violation_set(mb, md, index_set_bus, VMAG, vmag_lb_limits, vmag_ub_limits, vm_idx_monitored,
                                 max_viol_add_vm, warning_generator=_generate_vmag_viol_warning)
 
-        log_message += 'and {} voltage constraints'.format(len(vm_idx_monitored))
+        log_message += ' and {} voltage constraints'.format(len(v_viol_lazy))
 
     else:
         v_viol_num, v_monitored_viol_num, v_viol_lazy = (0,0,set())
@@ -201,7 +201,7 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
     viol_num = t_viol_num + v_viol_num
     monitored_viol_num = t_monitored_viol_num + v_monitored_viol_num
 
-    logger.warning(log_message)
+    logger.critical(log_message)
 
     return SV, t_viol_lazy, VMAG, v_viol_lazy, viol_num, monitored_viol_num
 
@@ -264,10 +264,10 @@ def _generate_flow_viol_warning(mb, bn, LB, actual, UB, baseMVA, time=None):
     ret_str = "WARNING: line {0} is in the  monitored set".format(bn)
     if time is not None:
         ret_str += " at time {}".format(time)
-    ret_str += ", but flow exceeds limit!!\n\t apparent={0}, LB={1}, UB={2}".format(actual*baseMVA, LB*baseMVA, UB*baseMVA)
-    ret_str += ", model_pf={}".format(pe.value(mb.pf[bn])*baseMVA)
+    ret_str += ", but flow exceeds limit!!\n\t apparent={0}, LB={1}, UB={2}".format(actual, LB, UB)
+    ret_str += ", model_pf={}".format(pe.value(mb.pf[bn]))
     if hasattr(mb, "qf"):
-        ret_str += ", model_qf={}".format(pe.value(mb.qf[bn]) * baseMVA)
+        ret_str += ", model_qf={}".format(pe.value(mb.qf[bn]))
     return ret_str
 
 
@@ -447,8 +447,6 @@ def _lazy_model_solve_loop(m, md, solver, timelimit, solver_tee=True, symbolic_s
     for i in range(iteration_limit):
 
         ## Check line flow violations
-        #SV, viol_num, mon_viol_num, thermal_viol_lazy = check_violations(m, md, branch_attrs, bus_attrs,
-        #                                                                 ptdf_options['max_violations_per_iteration'])
         SV, thermal_viol_lazy, VMAG, vmag_viol_lazy, viol_num, mon_viol_num = \
             check_violations(m, md, branch_attrs, bus_attrs,
                     ptdf_options['max_violations_per_iteration'], ptdf_options['vm_max_violations_per_iteration'])

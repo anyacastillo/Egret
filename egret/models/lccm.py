@@ -434,6 +434,85 @@ def solve_lccm(model_data,
 def printresults(results):
     solver = results.attributes(element_type='Solver')
 
+def compare_to_acopf(md):
+    # keyword arguments
+    kwargs = {'include_v_feasibility_slack': True}
+
+    # solve ACOPF
+    from egret.models.acopf import solve_acopf
+    md_ac, m_ac, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
+    print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
+    print(results.Solver)
+    gen = md_ac.attributes(element_type='generator')
+    bus = md_ac.attributes(element_type='bus')
+    branch = md_ac.attributes(element_type='branch')
+    pg_dict = {'acopf': gen['pg']}
+    qg_dict = {'acopf': gen['qg']}
+    tmp_pf = branch['pf']
+    tmp_pt = branch['pt']
+    tmp = {key: (tmp_pf[key] - tmp_pt.get(key, 0)) / 2 for key in tmp_pf.keys()}
+    pf_dict = {'acopf': tmp}
+    pfl_dict = {'acopf': branch['pfl']}
+    tmp_qf = branch['qf']
+    tmp_qt = branch['qt']
+    tmp = {key: (tmp_qf[key] - tmp_qt.get(key, 0)) / 2 for key in tmp_qf.keys()}
+    qf_dict = {'acopf': tmp}
+    qfl_dict = {'acopf': branch['qfl']}
+    va_dict = {'acopf': bus['va']}
+    vm_dict = {'acopf': bus['vm']}
+
+    # solve S-LOPF
+    md, m, results = solve_lccm(md_ac, "gurobi_persistent", lccm_model_generator=create_lccm_model, return_model=True,
+                                return_results=True, solver_tee=False, **kwargs)
+
+    print('S-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
+    print(results.Solver)
+
+    gen = md.attributes(element_type='generator')
+    bus = md.attributes(element_type='bus')
+    branch = md.attributes(element_type='branch')
+    pg_dict.update({'slopf': gen['pg']})
+    qg_dict.update({'slopf': gen['qg']})
+    pf_dict.update({'slopf': branch['pf']})
+    pfl_dict.update({'slopf': branch['pfl']})
+    qf_dict.update({'slopf': branch['qf']})
+    qfl_dict.update({'slopf': branch['qfl']})
+    va_dict.update({'slopf': bus['va']})
+    vm_dict.update({'slopf': bus['vm']})
+
+    # display results in dataframes
+    from egret.models.fdf import compare_results
+    print('-pg:')
+    compare_results(pg_dict, 'slopf', 'acopf')
+    #    print(pd.DataFrame(pg_dict))
+    print('-qg:')
+    compare_results(qg_dict, 'slopf', 'acopf')
+    #    print(pd.DataFrame(qg_dict))
+    #    print('-pt:')
+    #    print(pd.DataFrame(pt_dict))
+    print('-pf:')
+    compare_results(pf_dict, 'slopf', 'acopf', display_results=True)
+    #    print(pd.DataFrame(pf_dict))
+    print('-pfl:')
+    compare_results(pfl_dict, 'slopf', 'acopf')
+    #    print(pd.DataFrame(pfl_dict))
+    #    print('-qt:')
+    #    print(pd.DataFrame(qt_dict))
+    print('-qf:')
+    compare_results(qf_dict, 'slopf', 'acopf', display_results=True)
+    #    print(pd.DataFrame(qf_dict))
+    print('-qfl:')
+    compare_results(qfl_dict, 'slopf', 'acopf')
+    #    print(pd.DataFrame(qfl_dict))
+    #    print('-va:')
+    #    print(pd.DataFrame(va_dict))
+    print('-vm:')
+    compare_results(vm_dict, 'slopf', 'acopf')
+
+
+    print(pd.DataFrame(vm_dict))
+
+
 if __name__ == '__main__':
     import os
     from egret.parsers.matpower_parser import create_ModelData
@@ -454,81 +533,7 @@ if __name__ == '__main__':
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
     md = create_ModelData(matpower_file)
 
-    # keyword arguments
-    kwargs = {'include_v_feasibility_slack':True}
-
-    # solve ACOPF
-    from egret.models.acopf import solve_acopf
-    md_ac, m_ac, results = solve_acopf(md, "ipopt", return_model=True,return_results=True,solver_tee=False)
-    print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
-    print(results.Solver)
-    gen = md_ac.attributes(element_type='generator')
-    bus = md_ac.attributes(element_type='bus')
-    branch = md_ac.attributes(element_type='branch')
-    pg_dict = {'acopf' : gen['pg']}
-    qg_dict = {'acopf' : gen['qg']}
-    tmp_pf = branch['pf']
-    tmp_pt = branch['pt']
-    tmp = {key: (tmp_pf[key] - tmp_pt.get(key, 0)) / 2 for key in tmp_pf.keys()}
-    pf_dict = {'acopf': tmp}
-    pfl_dict = {'acopf' : branch['pfl']}
-    tmp_qf = branch['qf']
-    tmp_qt = branch['qt']
-    tmp = {key: (tmp_qf[key] - tmp_qt.get(key, 0)) / 2 for key in tmp_qf.keys()}
-    qf_dict = {'acopf': tmp}
-    qfl_dict = {'acopf' : branch['qfl']}
-    va_dict = {'acopf' : bus['va']}
-    vm_dict = {'acopf' : bus['vm']}
-
-    # solve S-LOPF
-    md, m, results = solve_lccm(md_ac, "gurobi_persistent", lccm_model_generator=create_lccm_model, return_model=True,return_results=True,solver_tee=False, **kwargs)
-
-    print('S-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
-    print(results.Solver)
-
-    gen = md.attributes(element_type='generator')
-    bus = md.attributes(element_type='bus')
-    branch = md.attributes(element_type='branch')
-    pg_dict.update({'slopf' : gen['pg']})
-    qg_dict.update({'slopf' : gen['qg']})
-    pf_dict.update({'slopf' : branch['pf']})
-    pfl_dict.update({'slopf' : branch['pfl']})
-    qf_dict.update({'slopf' : branch['qf']})
-    qfl_dict.update({'slopf' : branch['qfl']})
-    va_dict.update({'slopf' : bus['va']})
-    vm_dict.update({'slopf' : bus['vm']})
-
-    # display results in dataframes
-    from egret.models.fdf import compare_results
-    print('-pg:')
-    compare_results(pg_dict,'slopf','acopf')
-#    print(pd.DataFrame(pg_dict))
-    print('-qg:')
-    compare_results(qg_dict,'slopf','acopf')
-#    print(pd.DataFrame(qg_dict))
-#    print('-pt:')
-#    print(pd.DataFrame(pt_dict))
-    print('-pf:')
-    compare_results(pf_dict,'slopf','acopf')
-#    print(pd.DataFrame(pf_dict))
-    print('-pfl:')
-    compare_results(pfl_dict,'slopf','acopf')
-#    print(pd.DataFrame(pfl_dict))
-#    print('-qt:')
-#    print(pd.DataFrame(qt_dict))
-    print('-qf:')
-    compare_results(qf_dict,'slopf','acopf')
-#    print(pd.DataFrame(qf_dict))
-    print('-qfl:')
-    compare_results(qfl_dict,'slopf','acopf')
-#    print(pd.DataFrame(qfl_dict))
-#    print('-va:')
-#    print(pd.DataFrame(va_dict))
-    print('-vm:')
-    compare_results(vm_dict,'slopf','acopf')
-#    print(pd.DataFrame(vm_dict))
-
-
+    compare_to_acopf(md)
 
 # not solving pglib_opf_case57_ieee
 # pglib_opf_case500_tamu

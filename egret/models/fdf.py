@@ -171,6 +171,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
 
     inlet_branches_by_bus, outlet_branches_by_bus = tx_utils.inlet_outlet_branches_by_bus(branches, buses)
     gens_by_bus = tx_utils.gens_by_bus(buses, gens)
+    buses_with_gens = tx_utils.buses_with_gens(gens)
 
     model = pe.ConcreteModel()
 
@@ -330,7 +331,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                 branch = branches[bn]
                 libbranch.add_constr_branch_thermal_limit(model, branch, bn, thermal_limit)
                 thermal_idx_monitored.append(i)
-        logger.warning('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
+        logger.critical('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
 
     else:
 
@@ -393,7 +394,10 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
 
         lpu.add_monitored_vm_tracker(model)
 
-        #monitor_init = monitor_init.union(shunt_buses)
+        # add shunt and/or generator buses
+        monitor_init = monitor_init.union(shunt_buses)
+        monitor_init = monitor_init.union(buses_with_gens)
+
         for i,bn in enumerate(bus_attrs['names']):
             if bn in monitor_init:
                 bus = buses[bn]
@@ -408,8 +412,9 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                 model._vm_idx_monitored.append(i)
         mon_message = '{} of {} voltage constraints added to initial monitored set'.format(len(monitor_init),
                                                                                     len(bus_attrs['names']))
-        #mon_message += ' ({} shunt devices).'.format(len(shunt_buses))
-        logger.warning(mon_message)
+        mon_message += ' ({} shunt devices)'.format(len(shunt_buses))
+        mon_message += ' ({} generator buses)'.format(len(buses_with_gens))
+        logger.critical(mon_message)
 
     else:
         libbus.declare_eq_vm_vdf_approx(model=model,
@@ -529,12 +534,12 @@ def _load_solution_to_model_data(m, md, results):
     md.data['system']['qloss'] = sum(value(m.qfl[b]) for b,b_dict in branches.items())
 
     ## back-solve for theta/vmag then solve for p/q power flows
-    THETA = linsolve_theta_fdf(m, md)
+    THETA = linsolve_theta_fdf(m, md, solve_sparse_system=True)
     Ft = md.data['system']['Ft']
     ft_c = md.data['system']['ft_c']
     PFV = Ft.dot(THETA) + ft_c
 
-    VMAG = linsolve_vmag_fdf(m, md)
+    VMAG = linsolve_vmag_fdf(m, md, solve_sparse_system=True)
     Fv = md.data['system']['Fv']
     fv_c = md.data['system']['fv_c']
     QFV = Fv.dot(VMAG) + fv_c
@@ -813,16 +818,12 @@ def compare_to_acopf(md):
     kwargs['ptdf_options'] = ptdf_options
     kwargs['include_v_feasibility_slack'] = True
     kwargs['include_feasibility_slack'] = False
-    # solve (fixed) FDF
-    md, m, results = solve_fdf(md_ac, "gurobi_persistent", fdf_model_generator=create_fdf_model, return_model=True,
+    # solve FDF...
+    md, m, results = solve_fdf(md_ac, "gurobi_persistent", fdf_model_generator=create_fixed_fdf_model, return_model=True,
                                return_results=True, solver_tee=False, **kwargs)
     print('FDF cost: $%3.2f' % md.data['system']['total_cost'])
     print(results.Solver)
-    if 'm.p_slack_pos' in locals():
-        if value(m.p_slack_pos + m.p_slack_neg) > 1e-6:
-            print('REAL POWER IMBALANCE: {}'.format(value(m.p_slack_pos + m.p_slack_neg)))
-        if value(m.q_slack_pos + m.q_slack_neg) > 1e-6:
-            print('REACTIVE POWER IMBALANCE: {}'.format(value(m.q_slack_pos + m.q_slack_neg)))
+
     gen = md.attributes(element_type='generator')
     bus = md.attributes(element_type='bus')
     branch = md.attributes(element_type='branch')
@@ -869,6 +870,8 @@ def compare_fdf_options(md):
     va_dict = dict()
     vm_dict = dict()
     acpf_slack = dict()
+    pf_error = dict()
+    qf_error = dict()
     vm_viol_dict = dict()
     thermal_viol_dict = dict()
 
@@ -894,19 +897,24 @@ def compare_fdf_options(md):
         va_dict.update({name: bus['va']})
         vm_dict.update({name: bus['vm']})
         acpf_slack.update({name: {'slack' : system_data['acpf_slack']}})
+        pf_error.update({name: system_data['pf_error']})
+        qf_error.update({name: system_data['qf_error']})
         vm_viol_dict.update({name: system_data['vm_viol']})
         thermal_viol_dict.update({name: system_data['thermal_viol']})
 
     def acpf_to_md(md):
         try:
-            acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, _, _, termination = solve_infeas_model(md)
+            acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, pf_error, qf_error, termination = solve_infeas_model(md)
         except Exception as e:
             return e
+        logger.debug('ACPF was successful')
         vm_viol = vm_UB_viol.update(vm_LB_viol)
         system_data = md.data['system']
         system_data['acpf_slack'] = acpf_p_slack
         system_data['vm_viol'] = vm_viol
         system_data['thermal_viol'] = thermal_viol
+        system_data['pf_error'] = pf_error
+        system_data['qf_error'] = qf_error
 
 
     # solve ACOPF
@@ -916,16 +924,23 @@ def compare_fdf_options(md):
     print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
     print(results.Solver)
 
-    md_ac = create_new_model_data(md_ac,0.900)
+    md_ac = create_new_model_data(md_ac, 1.0)
     termination={}
 
     #solve D-LOPF default
     print('Solve D-LOPF (default options)....')
     kwargs = {}
     ptdf_options = {}
-    ptdf_options['lazy'] = False
-    ptdf_options['lazy_voltage'] = False
+    ptdf_options['lazy'] = True
+    ptdf_options['lazy_voltage'] = True
+    ptdf_options['rel_ptdf_tol'] = 1e-2
+    ptdf_options['rel_qtdf_tol'] = 1e-2
+    ptdf_options['rel_pldf_tol'] = 1e-2
+    ptdf_options['rel_qldf_tol'] = 1e-2
+    ptdf_options['rel_vdf_tol'] = 1e-2
     kwargs['ptdf_options'] = ptdf_options
+    kwargs['include_v_feasibility_slack'] = True
+    kwargs['include_feasibility_slack'] = False
     try:
         md, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True,return_results=True, solver_tee=False, **kwargs)
         print('Default cost: $%3.2f' % md.data['system']['total_cost'])
@@ -966,20 +981,6 @@ def compare_fdf_options(md):
         m_list = message.split()
         termination['tolerance'] = m_list[-1]
 
-    from egret.models.lccm import solve_lccm
-    try:
-        md_lccm, m, results = solve_lccm(md_ac, "gurobi_persistent", return_model=True, return_results=True, solver_tee=False)
-        print('S-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
-        print(results.Solver)
-        print(md_lccm.data['results'])
-        update_solution_dicts(md,'slopf')
-        termination['slopf'] = md.data['results']['termination']
-    except Exception as e:
-        message = str(e)
-        print(message)
-        m_list = message.split()
-        termination['slopf'] = m_list[-1]
-
     print(termination)
     return
 
@@ -993,16 +994,13 @@ def compare_fdf_options(md):
                     'va' : va_dict,
                     'vm' : vm_dict,
                     'slack' : acpf_slack,
-                    'vm_viol' : vm_viol_dict,
-                    'thermal_viol' : thermal_viol_dict
+                    'pf_error' : pf_error,
+                    'qf_error' : qf_error,
                     }
 
     for mv,results in compare_dict.items():
         print('-{}:'.format(mv))
-        print('--- default v lazy')
-        compare_results(results,'default', 'lazy', display_results=False)
-        print('--- default v slopf')
-        compare_results(results,'default', 'slopf', display_results=False)
+        compare_results(results,'default', 'tolerance', display_results=False)
 
 def test_dlopf(md):
 

@@ -1014,7 +1014,7 @@ def calculate_lccm_loss_sensitivies(branches, buses, index_set_branch, index_set
 
 
 def linsolve_theta_fdf(model, model_data, base_point=BasePointType.SOLUTION,
-        mapping_bus_to_idx=None, index_set_bus=None, index_set_branch=None):
+        mapping_bus_to_idx=None, index_set_bus=None, index_set_branch=None, solve_sparse_system=False):
     '''
     Finds the implied voltage angles from an FDF model solution
 
@@ -1037,7 +1037,7 @@ def linsolve_theta_fdf(model, model_data, base_point=BasePointType.SOLUTION,
     # Nodal net withdrawal to a Numpy array
     m_p_nw = np.fromiter((value(model.p_nw[b]) for b in index_set_bus), float, count=len(index_set_bus))
 
-    if 'va_SENSI' in md.data['system']:
+    if 'va_SENSI' in md.data['system'] and not solve_sparse_system:
 
         Z = md.data['system']['va_SENSI']
         c = md.data['system']['va_CONST']
@@ -1108,7 +1108,7 @@ def linsolve_theta_fdf(model, model_data, base_point=BasePointType.SOLUTION,
     return theta
 
 def linsolve_vmag_fdf(model, model_data, base_point=BasePointType.SOLUTION,
-        mapping_bus_to_idx=None, index_set_bus=None, index_set_branch=None):
+        mapping_bus_to_idx=None, index_set_bus=None, index_set_branch=None, solve_sparse_system=False):
     '''
     Finds the implied voltage angles from an FDF model solution
 
@@ -1126,7 +1126,7 @@ def linsolve_vmag_fdf(model, model_data, base_point=BasePointType.SOLUTION,
     # Nodal net withdrawal to a Numpy array
     m_q_nw = np.fromiter((value(model.q_nw[b]) for b in index_set_bus), float, count=len(index_set_bus))
 
-    if 'vm_SENSI' in md.data['system']:
+    if 'vm_SENSI' in md.data['system'] and not solve_sparse_system:
 
         Z = md.data['system']['vm_SENSI']
         c = md.data['system']['vm_CONST']
@@ -1141,9 +1141,9 @@ def linsolve_vmag_fdf(model, model_data, base_point=BasePointType.SOLUTION,
         mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(index_set_bus)}
     md_sys = md.data['system']
 
-    if 'nodal_jacobian_p' in list(md_sys.keys()):
-        M = md_sys['nodal_jacobian_p']
-        m = md_sys['offset_jacobian_p']
+    if 'nodal_jacobian_q' in list(md_sys.keys()):
+        M = md_sys['nodal_jacobian_q']
+        m = md_sys['offset_jacobian_q']
 
     else:
         # Rectangular sensitivity matrices
@@ -1268,6 +1268,12 @@ def implicit_calc_p_sens(branches,buses,index_set_branch,index_set_bus,reference
     PLDF = implicit_factor_solve(M_ref, -L, index_set_branch, active_index_set=active_index_set_branch)
     PL_constant = PLDF @ M0 + L0
 
+    # set constants of inactive branches to zero
+    _inactive_mapping_branch = {name: idx for idx, name in enumerate(index_set_branch) if name not in active_index_set_branch}
+    for name, idx in _inactive_mapping_branch.items():
+        PT_constant[idx] = 0 # (branches[name]['pf'] - branches[name]['pt']) / 2     # assumed to be zero to help identify unmodeled flows
+        PL_constant[idx] = 0 # branches[name]['pf'] + branches[name]['pt']           # added to residual loss function
+
     #----- calculate LFs by solving M^T * LF = e  -----#
     M_ref = remove_reference_bus_row(M.transpose(), mapping_bus_to_idx, reference_bus, _len_bus)
     U = sp.sparse.linalg.spsolve(M_ref.tocsr(), e)
@@ -1323,10 +1329,7 @@ def implicit_calc_q_sens(branches,buses,index_set_branch,index_set_bus,reference
     A = calculate_adjacency_matrix_transpose(branches,index_set_branch,index_set_bus, mapping_bus_to_idx)
     AA = calculate_absolute_adjacency_matrix(A)
     I = sp.sparse.coo_matrix(np.identity(_len_bus))
-
-    _ref_bus_idx = mapping_bus_to_idx[reference_bus]
     e = np.zeros((_len_bus,1))
-    e[_ref_bus_idx] = 1
 
     M = A @ G + 0.5 * AA @ K
     M0 = A @ G0 + 0.5 * AA @ K0
@@ -1342,11 +1345,14 @@ def implicit_calc_q_sens(branches,buses,index_set_branch,index_set_bus,reference
     VDF = implicit_factor_solve(M, -I, index_set_bus, active_index_set=active_index_set_bus)
     V_constant = VDF @ M0
 
-    # set vm of inactive bus to vm = V_constant
-    _inactive_bus = list(set(index_set_bus) - set(active_index_set_bus))
-    _inactive_dict = {bus:idx for bus,idx in mapping_bus_to_idx.items() if bus in _inactive_bus}
-    for bus_name,idx in _inactive_dict.items():
-        V_constant[idx] = buses[bus_name]['vm']
+    # set constants of inactive branches and buses to basepoint values
+    _inactive_mapping_branch = {name: idx for idx, name in enumerate(index_set_branch) if name not in active_index_set_branch}
+    _inactive_mapping_bus = {name: idx for idx, name in enumerate(index_set_bus) if name not in active_index_set_bus}
+    for name, idx in _inactive_mapping_branch.items():
+        QT_constant[idx] = 0 # (branches[name]['qf'] - branches[name]['qt']) / 2     # assumed to be zero to help identify unmodeled flows
+        QL_constant[idx] = 0 # branches[name]['qf'] + branches[name]['qt']           # added to residual loss function
+    for name, idx in _inactive_mapping_bus.items():
+        V_constant[idx] = buses[name]['vm']
 
     #----- calculate LFs by solving M^T * LF = e  -----#
     U = sp.sparse.linalg.spsolve(M.tocsr(), e)
@@ -1709,28 +1715,35 @@ def calculate_qtdf_qldf(branches,buses,index_set_branch,index_set_bus,reference_
     return QTDF, QTDF_constant, QLDF, QLDF_constant, VM_SENSI, VM_CONST
 
 
-def reduce_branches(branches, N):
+def reduce_branches(branches, N, min_N=3):
     from heapq import nlargest,nsmallest
+
+    N = int(max(N, min_N))
 
     s_max = {k: branches[k]['rating_long_term'] for k in branches.keys()}
     sf = {k: math.sqrt(branches[k]['pf']**2 + branches[k]['qf']**2) for k in branches.keys()}
     st = {k: math.sqrt(branches[k]['pt']**2 + branches[k]['qt']**2) for k in branches.keys()}
     rel_room = {k: 1 - max(sf[k], st[k]) / lim for k,lim in s_max.items()}
     abs_room = {k: lim - max(sf[k], st[k]) for k,lim in s_max.items()}
-    rel_reduce = nsmallest(int(N), rel_room)
-    abs_reduce = nsmallest(int(N), abs_room)
-    reduced_list = list(set(rel_reduce + abs_reduce))
+    rel_val = max(nsmallest(N, rel_room.values()))
+    abs_val = max(nsmallest(N, abs_room.values()))
+    rel_list = [k for k,v in rel_room.items() if v <= rel_val]
+    abs_list = [k for k,v in abs_room.items() if v <= abs_val]
+    reduced_list = list(set(rel_list + abs_list))
 
     return reduced_list
 
 
-def reduce_buses(buses, N):
+def reduce_buses(buses, N, min_N=3):
     from heapq import nsmallest
+
+    N = int(max(N, min_N))
 
     LB = {k: abs(bus['vm'] - bus['v_min']) for k,bus in buses.items()}
     UB = {k: abs(bus['v_max'] - bus['vm']) for k,bus in buses.items()}
     room = {k: min(LB[k],UB[k]) for k in buses.keys()}
-    reduced_list = nsmallest(int(N), room)
+    threshold = max(nsmallest(N, room.values()))
+    reduced_list = [k for k,v in room.items() if v <= threshold]
 
     return reduced_list
 
