@@ -381,7 +381,7 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
         try:
             md_out,m,results = solve_func(md_input, solver=solver, **kwargs)
         except Exception as e:
-            md_out = md_input.clone()
+            md_out = md_input
             md_out.data['results'] = {}
             message = str(e)
             print('...EXCEPTION OCCURRED: {}'.format(message))
@@ -406,6 +406,11 @@ def record_results(idx, md):
 
     md.write_to_json(filename)
     print('...out: {}'.format(filename))
+
+    if md.data['results']['termination'] != 'optimal':
+        del md.data['results']
+        del md.data['system']['mult']
+        del md.data['system']['filename']
 
 
 def create_testcase_directory(test_case):

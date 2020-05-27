@@ -725,9 +725,6 @@ def solve_fdf(model_data,
 
     if results.Solver.status.key == 'ok':
         _load_solution_to_model_data(m, md, results)
-        #m.vm.pprint()
-        #m.v_slack_pos.pprint()
-        #m.v_slack_neg.pprint()
 
     if return_model and return_results:
         return md, m, results
@@ -904,17 +901,16 @@ def compare_fdf_options(md):
 
     def acpf_to_md(md):
         try:
-            acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, pf_error, qf_error, termination = solve_infeas_model(md)
+            acpf_p_slack, vm_viol, thermal_viol, pf_error, qf_error, termination = solve_infeas_model(md)
         except Exception as e:
             return e
-        logger.debug('ACPF was successful')
-        vm_viol = vm_UB_viol.update(vm_LB_viol)
-        system_data = md.data['system']
-        system_data['acpf_slack'] = acpf_p_slack
-        system_data['vm_viol'] = vm_viol
-        system_data['thermal_viol'] = thermal_viol
-        system_data['pf_error'] = pf_error
-        system_data['qf_error'] = qf_error
+        logger.critical('ACPF was successful')
+        acpf_data = md.data['acpf_data']
+        acpf_data['acpf_slack'] = acpf_p_slack
+        acpf_data['vm_viol'] = vm_viol
+        acpf_data['thermal_viol'] = thermal_viol
+        acpf_data['pf_error'] = pf_error
+        acpf_data['qf_error'] = qf_error
 
 
     # solve ACOPF
@@ -928,7 +924,7 @@ def compare_fdf_options(md):
     termination={}
 
     #solve D-LOPF default
-    print('Solve D-LOPF (default options)....')
+    print('Solve D-LOPF (lazy)....')
     kwargs = {}
     ptdf_options = {}
     ptdf_options['lazy'] = True
@@ -946,17 +942,18 @@ def compare_fdf_options(md):
         print('Default cost: $%3.2f' % md.data['system']['total_cost'])
         print(results.Solver)
         print(md.data['results'])
-        update_solution_dicts(md,'default')
-        termination['default'] = md.data['results']['termination']
+        update_solution_dicts(md,'lazy')
+        termination['lazy'] = md.data['results']['termination']
     except Exception as e:
+        raise e
         message = str(e)
         print(message)
         m_list = message.split()
-        termination['default'] = m_list[-1]
+        termination['lazy'] = m_list[-1]
 
 
     #solve D-LOPF tolerances
-    print('Solve D-LOPF (tolerance options)....')
+    print('Solve D-LOPF (default)....')
     kwargs = {}
     ptdf_options = {}
     ptdf_options['lazy'] = False
@@ -973,13 +970,14 @@ def compare_fdf_options(md):
         print('Tolerance cost: $%3.2f' % md.data['system']['total_cost'])
         print(results.Solver)
         print(md.data['results'])
-        update_solution_dicts(md,'tolerance')
-        termination['tolerance'] = md.data['results']['termination']
+        update_solution_dicts(md,'default')
+        termination['default'] = md.data['results']['termination']
     except Exception as e:
+        raise e
         message = str(e)
         print(message)
         m_list = message.split()
-        termination['tolerance'] = m_list[-1]
+        termination['default'] = m_list[-1]
 
     print(termination)
     return
@@ -1000,7 +998,7 @@ def compare_fdf_options(md):
 
     for mv,results in compare_dict.items():
         print('-{}:'.format(mv))
-        compare_results(results,'default', 'tolerance', display_results=False)
+        compare_results(results,'lazy', 'default', display_results=False)
 
 def test_dlopf(md):
 
@@ -1012,10 +1010,9 @@ def test_dlopf(md):
 
     def acpf_to_md(md):
         try:
-            acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, _, _, termination = solve_infeas_model(md)
+            acpf_p_slack, vm_viol, thermal_viol, _, _, termination = solve_infeas_model(md)
         except Exception as e:
             return e
-        vm_viol = vm_UB_viol.update(vm_LB_viol)
         system_data = md.data['system']
         system_data['acpf_slack'] = acpf_p_slack
         system_data['vm_viol'] = vm_viol
@@ -1134,6 +1131,6 @@ if __name__ == '__main__':
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
     md = create_ModelData(matpower_file)
 
-    compare_to_acopf(md)
-    #compare_fdf_options(md)
+    #compare_to_acopf(md)
+    compare_fdf_options(md)
     #test_dlopf(md)

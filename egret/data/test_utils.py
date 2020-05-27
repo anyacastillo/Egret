@@ -22,6 +22,7 @@ from egret.models.acopf import create_psv_acopf_model
 from egret.models.acpf import create_psv_acpf_model, solve_acpf
 from egret.common.solver_interface import _solve_model
 from pyomo.environ import value
+from egret.common.log import logger
 import egret.data.data_utils_deprecated as data_utils_deprecated
 from math import sqrt
 
@@ -79,7 +80,7 @@ def duals(md):
         val = md.data['results']['duals']
         return val
     except KeyError as e:
-        print('...ModelData is missing: {}'.format(str(e)))
+        logger.info('...ModelData is missing: {}'.format(str(e)))
         return 0
 
 def solve_time(md):
@@ -267,15 +268,13 @@ def solve_infeas_model(model_data):
         else:
             raise e
 
-    vm_UB_viol_dict = dict()
-    vm_LB_viol_dict = dict()
+    vm_viol_dict = dict()
     thermal_viol_dict = dict()
 
     AC_gens = dict(md.elements(element_type='generator'))
     AC_buses = dict(md.elements(element_type='bus'))
     AC_branches = dict(md.elements(element_type='branch'))
     gens_by_bus = tx_utils.gens_by_bus(AC_buses, AC_gens)
-    buses_with_gens = tx_utils.buses_with_gens(AC_gens)
 
     # calculate change in slackbus P dispatch
     ref_bus = md.data['system']['reference_bus']
@@ -284,12 +283,13 @@ def solve_infeas_model(model_data):
 
     # calculate voltage infeasibilities
     for bus_name, bus_dict in AC_buses.items():
-        if bus_name != ref_bus and bus_name not in buses_with_gens:
-            vm = bus_dict['vm']
-            if vm > bus_dict['v_max']:
-                vm_UB_viol_dict[bus_name] = vm - bus_dict['v_max']
-            elif vm < bus_dict['v_min']:
-                vm_LB_viol_dict[bus_name] = bus_dict['v_min'] - vm
+        vm = bus_dict['vm']
+        if vm > bus_dict['v_max']:
+            vm_viol_dict[bus_name] = vm - bus_dict['v_max']
+        elif vm < bus_dict['v_min']:
+            vm_viol_dict[bus_name] = vm - bus_dict['v_min']
+        else:
+            vm_viol_dict[bus_name] = 0
 
     # calculate thermal infeasibilities
     for branch_name, branch_dict in AC_branches.items():
@@ -298,12 +298,17 @@ def solve_infeas_model(model_data):
         if sf > st: # to avoid double counting
             if sf > branch_dict['rating_long_term']:
                 thermal_viol_dict[branch_name] = sf - branch_dict['rating_long_term']
+            else:
+                thermal_viol_dict[branch_name] = 0
         elif st > branch_dict['rating_long_term']:
             thermal_viol_dict[branch_name] = st - branch_dict['rating_long_term']
+        else:
+            thermal_viol_dict[branch_name] = 0
 
     # calculate flow errors
     pf_error = {}
     qf_error = {}
+    has_qf = not any([branch['qf'] is None for bn,branch in lin_branches.items() if 'qf' in branch.keys()])
     for k, branch in lin_branches.items():
         if is_acopf:
             pf_ac = AC_branches[k]['pf']
@@ -312,120 +317,90 @@ def solve_infeas_model(model_data):
             pf_ac = (AC_branches[k]['pf'] - AC_branches[k]['pt']) / 2
             qf_ac = (AC_branches[k]['qf'] - AC_branches[k]['qt']) / 2
         pf_error[k] = branch['pf'] - pf_ac
-        if branch['qf'] is not None:
+        if has_qf:
             qf_error[k] = branch['qf'] - qf_ac
-        else:
-            qf_error[k] = None
 
-    return slack_p, vm_UB_viol_dict, vm_LB_viol_dict, thermal_viol_dict, pf_error, qf_error, termination
+    if not has_qf:
+        qf_error = None
 
-def get_infeas_from_model_data(md, infeas_name='acpf_slack', overwrite_existing=False):
+    return slack_p, vm_viol_dict, thermal_viol_dict, pf_error, qf_error, termination
 
-    system_data = md.data['system']
+def get_acpf_data(md, key='acpf_slack', overwrite_existing=False):
 
     # repopulate data if not in the ModelData or an ovewrite is desired
-    if infeas_name not in system_data.keys() or overwrite_existing:
+    if 'acpf_data' not in md.data.keys() or overwrite_existing:
         repopulate_acpf_to_modeldata(md)
 
-    return system_data[infeas_name]
+    acpf_data = md.data['acpf_data']
+    if not acpf_data['acpf_termination'] == 'optimal':
+        return None
+    elif key in acpf_data.keys():
+        return acpf_data[key]
+    else:
+        return None
 
 def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
 
-    acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, pf_error, qf_error, termination = solve_infeas_model(md)
+    acpf_p_slack, vm_viol, thermal_viol, pf_error, qf_error, termination = solve_infeas_model(md)
 
-    system_data = md.data['system']
-    buses = dict(md.elements(element_type='bus'))
-    branches = dict(md.elements(element_type='branch'))
     bus_attrs = md.attributes(element_type='bus')
     branch_attrs = md.attributes(element_type='branch')
     num_bus = len(bus_attrs['names'])
     num_branch = len(branch_attrs['names'])
 
-    s_max = branch_attrs['rating_long_term']
-    thermal_list = []
-    thermal_max = []
-    for k in thermal_viol.keys():
-        thermal_list.append(thermal_viol[k])
-        thermal_max.append(s_max[k])
+    thermal_max = branch_attrs['rating_long_term']
 
-    vm_UB_list = list(vm_UB_viol.values())
-    vm_LB_list = list(vm_LB_viol.values())
-    vm_list = vm_UB_list + vm_LB_list
+    # save violations in ModelData
+    md.data['acpf_data'] = {}
+    acpf_data = md.data['acpf_data']
+    acpf_data['acpf_termination'] = termination
+    acpf_data['acpf_slack'] = acpf_p_slack
 
-    pf_error_list = [p if p is not None else 0 for p in pf_error.values()]
-    qf_error_list = [q if q is not None else 0 for q in qf_error.values()]
+    acpf_data['vm_viol'] = vm_viol
+    if bool(vm_viol):
+        vm_viol_pos = [v for v in vm_viol.values()]
+        if bool(vm_viol_pos):
+            acpf_data['sum_vm_UB_viol'] = sum(vm_viol_pos)
+            acpf_data['max_vm_UB_viol'] = max(vm_viol_pos)
+            acpf_data['avg_vm_UB_viol'] = acpf_data['sum_vm_UB_viol'] / len(vm_viol_pos)
+            acpf_data['pct_vm_UB_viol'] = len([v for v in vm_viol.values() if v > abs_tol_vm]) / num_bus
 
-    ## save violations in ModelData
-    system_data['acpf_termination'] = termination
-    for k,viol in thermal_viol.items():
-        branch = branches[k]
-        branch['acpf_viol'] = viol
-    for b,viol in vm_UB_viol.items():
-        bus = buses[b]
-        bus['acpf_viol'] = viol
-    for b,viol in vm_LB_viol.items():
-        bus = buses[b]
-        bus['acpf_viol'] = -viol
-    for k,error in pf_error.items():
-        branches[k]['pf_error'] = error
-    for k,error in qf_error.items():
-        branches[k]['qf_error'] = error
+        vm_viol_neg = [v for k,v in vm_viol.items()]
+        if bool(vm_viol_neg):
+            acpf_data['sum_vm_LB_viol'] = sum(vm_viol_neg)
+            acpf_data['max_vm_LB_viol'] = max(vm_viol_neg)
+            acpf_data['avg_vm_LB_viol'] = acpf_data['sum_vm_LB_viol'] / len(vm_viol_neg)
+            acpf_data['pct_vm_LB_viol'] = len([v for k,v in vm_viol.items() if v < -abs_tol_vm]) / num_bus
 
-    ## save scalar data in ModelData
-    system_data['acpf_slack'] = acpf_p_slack
+        vm_viol_list = vm_viol_pos + vm_viol_neg
+        if bool(vm_viol_list):
+            acpf_data['sum_vm_viol'] = sum(vm_viol_list)
+            acpf_data['max_vm_viol'] = max(vm_viol_list)
+            acpf_data['avg_vm_viol'] = acpf_data['sum_vm_viol'] / len(vm_viol_list)
+            acpf_data['pct_vm_viol'] = len([v for v in vm_viol_list if abs(v) > abs_tol_vm]) / num_bus
 
-    system_data['sum_vm_UB_viol'] = sum(vm_UB_list)
-    system_data['sum_vm_LB_viol'] = sum(vm_LB_list)
-    system_data['sum_vm_viol'] = sum(vm_list)
-    system_data['sum_thermal_viol'] = sum(thermal_list)
+    acpf_data['thermal_viol'] = thermal_viol
+    if bool(thermal_viol):
+        thermal_viol_list = [v for k,v in thermal_viol.items()]
+        acpf_data['sum_thermal_viol'] = sum(thermal_viol_list)
+        acpf_data['max_thermal_viol'] = max(thermal_viol_list)
+        acpf_data['avg_thermal_viol'] = acpf_data['sum_thermal_viol'] / len(thermal_viol_list)
+        acpf_data['pct_thermal_viol'] = len([v for k,v in thermal_viol.items() if v > rel_tol_therm * thermal_max[k]]) / num_branch
 
-    if len(pf_error_list) > 0:
-        system_data['pf_error_1_norm'] = np.linalg.norm(pf_error_list,ord=1)
-        system_data['pf_error_inf_norm'] = np.linalg.norm(pf_error_list,ord=np.inf)
-    else:
-        system_data['pf_error_1_norm'] = None
-        system_data['pf_error_inf_norm'] = None
-    if len(qf_error_list) > 0:
-        system_data['qf_error_1_norm'] = np.linalg.norm(qf_error_list,ord=1)
-        system_data['qf_error_inf_norm'] = np.linalg.norm(pf_error_list,ord=np.inf)
-    else:
-        system_data['qf_error_1_norm'] = None
-        system_data['qf_error_inf_norm'] = None
+    acpf_data['pf_error'] = pf_error
+    if bool(pf_error):
+        pf_error_list = [v for v in pf_error.values()]
+        acpf_data['pf_error_1_norm'] = np.linalg.norm(pf_error_list, ord=1)
+        acpf_data['pf_error_inf_norm'] = np.linalg.norm(pf_error_list, ord=np.inf)
 
-    if len(vm_UB_list) > 0:
-        system_data['avg_vm_UB_viol'] = sum(vm_UB_list) / len(vm_UB_list)
-        system_data['max_vm_UB_viol'] = max(vm_UB_list)
-    else:
-        system_data['avg_vm_UB_viol'] = 0
-        system_data['max_vm_UB_viol'] = 0
+    acpf_data['qf_error'] = qf_error
+    if bool(qf_error):
+        qf_error_list = [v for v in qf_error.values()]
+        acpf_data['qf_error_1_norm'] = np.linalg.norm(qf_error_list, ord=1)
+        acpf_data['qf_error_inf_norm'] = np.linalg.norm(qf_error_list, ord=np.inf)
 
-    if len(vm_LB_list) > 0:
-        system_data['avg_vm_LB_viol'] = sum(vm_LB_list) / len(vm_LB_list)
-        system_data['max_vm_LB_viol'] = max(vm_LB_list)
-    else:
-        system_data['avg_vm_LB_viol'] = 0
-        system_data['max_vm_LB_viol'] = 0
-
-    if len(vm_list) > 0:
-        system_data['avg_vm_viol'] = sum(vm_list) / len(vm_list)
-        system_data['max_vm_viol'] = max(vm_list)
-    else:
-        system_data['avg_vm_viol'] = 0
-        system_data['max_vm_viol'] = 0
-
-    if len(thermal_list) > 0:
-        system_data['avg_thermal_viol'] = sum(thermal_list) / len(thermal_list)
-        system_data['max_thermal_viol'] = max(thermal_list)
-    else:
-        system_data['avg_thermal_viol'] = 0
-        system_data['max_thermal_viol'] = 0
-
-    system_data['pct_vm_UB_viol'] = len([i for i in vm_UB_list if i > abs_tol_vm]) / num_bus
-    system_data['pct_vm_LB_viol'] = len([i for i in vm_LB_list if i > abs_tol_vm]) / num_bus
-    system_data['pct_vm_viol'] = len([i for i in vm_list if i > abs_tol_vm]) / num_bus
-    system_data['pct_thermal_viol'] = len([t for i,t in enumerate(thermal_list)
-                                           if t > rel_tol_therm * thermal_max[i]]) / num_branch
-
+    # save acpf_data to JSON
+    system_data = md.data['system']
     if 'filename' in system_data.keys():
         data_utils_deprecated.destroy_dicts_of_fdf(md)
         filename = system_data['filename']
@@ -469,7 +444,7 @@ def vm_UB_viol_sum(md):
 
     if not optimal(md):
         return None
-    sum_vm_UB_viol = get_infeas_from_model_data(md, infeas_name='sum_vm_UB_viol')
+    sum_vm_UB_viol = get_acpf_data(md, key='sum_vm_UB_viol')
 
     return sum_vm_UB_viol
 
@@ -482,7 +457,7 @@ def vm_LB_viol_sum(md):
 
     if not optimal(md):
         return None
-    sum_vm_LB_viol = get_infeas_from_model_data(md, infeas_name='sum_vm_LB_viol')
+    sum_vm_LB_viol = get_acpf_data(md, key='sum_vm_LB_viol')
 
     return sum_vm_LB_viol
 
@@ -495,7 +470,7 @@ def vm_viol_sum(md):
 
     if not optimal(md):
         return None
-    sum_vm_viol = get_infeas_from_model_data(md, infeas_name='sum_vm_viol')
+    sum_vm_viol = get_acpf_data(md, key='sum_vm_viol')
 
     return sum_vm_viol
 
@@ -508,7 +483,7 @@ def thermal_viol_sum(md):
 
     if not optimal(md):
         return None
-    sum_thermal_viol = get_infeas_from_model_data(md, infeas_name='sum_thermal_viol')
+    sum_thermal_viol = get_acpf_data(md, key='sum_thermal_viol')
 
     return sum_thermal_viol
 
@@ -521,7 +496,7 @@ def vm_UB_viol_avg(md):
 
     if not optimal(md):
         return None
-    avg_vm_UB_viol = get_infeas_from_model_data(md, infeas_name='avg_vm_UB_viol')
+    avg_vm_UB_viol = get_acpf_data(md, key='avg_vm_UB_viol')
 
     return avg_vm_UB_viol
 
@@ -533,7 +508,7 @@ def vm_LB_viol_avg(md):
 
     if not optimal(md):
         return None
-    avg_vm_LB_viol = get_infeas_from_model_data(md, infeas_name='avg_vm_LB_viol')
+    avg_vm_LB_viol = get_acpf_data(md, key='avg_vm_LB_viol')
 
     return avg_vm_LB_viol
 
@@ -546,7 +521,7 @@ def vm_viol_avg(md):
 
     if not optimal(md):
         return None
-    avg_vm_viol = get_infeas_from_model_data(md, infeas_name='avg_vm_viol')
+    avg_vm_viol = get_acpf_data(md, key='avg_vm_viol')
 
     return avg_vm_viol
 
@@ -559,7 +534,7 @@ def thermal_viol_avg(md):
 
     if not optimal(md):
         return None
-    avg_thermal_viol = get_infeas_from_model_data(md, infeas_name='avg_thermal_viol')
+    avg_thermal_viol = get_acpf_data(md, key='avg_thermal_viol')
 
     return avg_thermal_viol
 
@@ -572,7 +547,7 @@ def vm_UB_viol_max(md):
 
     if not optimal(md):
         return None
-    max_vm_UB_viol = get_infeas_from_model_data(md, infeas_name='max_vm_UB_viol')
+    max_vm_UB_viol = get_acpf_data(md, key='max_vm_UB_viol')
 
     return max_vm_UB_viol
 
@@ -585,7 +560,7 @@ def vm_LB_viol_max(md):
 
     if not optimal(md):
         return None
-    max_vm_LB_viol = get_infeas_from_model_data(md, infeas_name='max_vm_LB_viol')
+    max_vm_LB_viol = get_acpf_data(md, key='max_vm_LB_viol')
 
     return max_vm_LB_viol
 
@@ -598,7 +573,7 @@ def vm_viol_max(md):
 
     if not optimal(md):
         return None
-    max_vm_viol = get_infeas_from_model_data(md, infeas_name='max_vm_viol')
+    max_vm_viol = get_acpf_data(md, key='max_vm_viol')
 
     return max_vm_viol
 
@@ -611,7 +586,7 @@ def thermal_viol_max(md):
 
     if not optimal(md):
         return None
-    max_thermal_viol = get_infeas_from_model_data(md, infeas_name='max_thermal_viol')
+    max_thermal_viol = get_acpf_data(md, key='max_thermal_viol')
 
     return max_thermal_viol
 
@@ -623,7 +598,7 @@ def vm_UB_viol_pct(md):
 
     if not optimal(md):
         return None
-    pct_vm_UB_viol = get_infeas_from_model_data(md, infeas_name='pct_vm_UB_viol')
+    pct_vm_UB_viol = get_acpf_data(md, key='pct_vm_UB_viol')
 
     return pct_vm_UB_viol
 
@@ -635,7 +610,7 @@ def vm_LB_viol_pct(md):
 
     if not optimal(md):
         return None
-    pct_vm_LB_viol = get_infeas_from_model_data(md, infeas_name='pct_vm_LB_viol')
+    pct_vm_LB_viol = get_acpf_data(md, key='pct_vm_LB_viol')
 
     return pct_vm_LB_viol
 
@@ -647,7 +622,7 @@ def vm_viol_pct(md):
 
     if not optimal(md):
         return None
-    pct_vm_viol = get_infeas_from_model_data(md, infeas_name='pct_vm_viol')
+    pct_vm_viol = get_acpf_data(md, key='pct_vm_viol')
 
     return pct_vm_viol
 
@@ -659,7 +634,7 @@ def thermal_viol_pct(md):
 
     if not optimal(md):
         return None
-    pct_thermal_viol = get_infeas_from_model_data(md, infeas_name='pct_thermal_viol')
+    pct_thermal_viol = get_acpf_data(md, key='pct_thermal_viol')
 
     return pct_thermal_viol
 
@@ -671,7 +646,7 @@ def pf_error_1_norm(md):
 
     if not optimal(md):
         return None
-    pf_error_1_norm = get_infeas_from_model_data(md, infeas_name='pf_error_1_norm')
+    pf_error_1_norm = get_acpf_data(md, key='pf_error_1_norm')
 
     return pf_error_1_norm
 
@@ -683,7 +658,7 @@ def qf_error_1_norm(md):
 
     if not optimal(md):
         return None
-    qf_error_1_norm = get_infeas_from_model_data(md, infeas_name='qf_error_1_norm')
+    qf_error_1_norm = get_acpf_data(md, key='qf_error_1_norm')
 
     return qf_error_1_norm
 
@@ -695,7 +670,7 @@ def pf_error_inf_norm(md):
 
     if not optimal(md):
         return None
-    pf_error_inf_norm = get_infeas_from_model_data(md, infeas_name='pf_error_inf_norm')
+    pf_error_inf_norm = get_acpf_data(md, key='pf_error_inf_norm')
 
     return pf_error_inf_norm
 
@@ -707,7 +682,7 @@ def qf_error_inf_norm(md):
 
     if not optimal(md):
         return None
-    qf_error_inf_norm = get_infeas_from_model_data(md, infeas_name='qf_error_inf_norm')
+    qf_error_inf_norm = get_acpf_data(md, key='qf_error_inf_norm')
 
     return qf_error_inf_norm
 
@@ -730,100 +705,38 @@ def acpf_slack(md):
 
     if not optimal(md):
         return None
-    acpf_slack = get_infeas_from_model_data(md, infeas_name='acpf_slack')
+    acpf_slack = get_acpf_data(md, key='acpf_slack')
 
     return acpf_slack
 
 def thermal_viol(md):
 
-    system_data = md.data['system']
-    branches = dict(md.elements(element_type='branch'))
-
     if not optimal(md):
         return None
+    th_viol = get_acpf_data(md, key='thermal_viol')
 
-    if 'acpf_termination' in system_data.keys():
-        if not system_data['acpf_termination'] == 'optimal':
-            nan_dict = {b: np.nan for b in branches.keys()}
-            return nan_dict
-        else:
-            pass
-    else:
-        print('Repopulating ACPF violations for {}.'.format(system_data['filename']))
-        repopulate_acpf_to_modeldata(md)
-
-    viol = {}
-
-    for b,branch in branches.items():
-        if 'acpf_viol' in branch.keys():
-            viol[b] = branch['acpf_viol']
-        else:
-            viol[b] = 0
-
-    return viol
+    return th_viol
 
 def vm_viol(md):
 
-    system_data = md.data['system']
-    buses = dict(md.elements(element_type='bus'))
-
     if not optimal(md):
         return None
+    vm_viol = get_acpf_data(md, key='vm_viol')
 
-    if 'acpf_termination' in system_data.keys():
-        if not system_data['acpf_termination'] == 'optimal':
-            nan_dict = {b: np.nan for b in buses.keys()}
-            return nan_dict
-        else:
-            pass
-    else:
-        print('Repopulating ACPF violations for {}.'.format(system_data['filename']))
-        repopulate_acpf_to_modeldata(md)
-
-    viol = {}
-
-    for b,bus in buses.items():
-        if 'acpf_viol' in bus.keys():
-            viol[b] = bus['acpf_viol']
-        else:
-            viol[b] = 0
-
-    return viol
-
-def acpf_error(md,key='pf_error'):
-
-    system_data = md.data['system']
-    branches = dict(md.elements(element_type='branch'))
-    bn = [k for k in branches.keys()]
-    branch_keys = [k for k in branches[bn[1]].keys()]
-
-    if not optimal(md):
-        return None
-
-    if 'acpf_termination' in system_data.keys() and key in branch_keys:
-        if not system_data['acpf_termination'] == 'optimal':
-            nan_dict = {b: np.nan for b in branches.keys()}
-            return nan_dict
-        else:
-            pass
-    else:
-        print('Repopulating ACPF violations for {}.'.format(system_data['filename']))
-        repopulate_acpf_to_modeldata(md)
-
-    error = {}
-
-    for k,branch in branches.items():
-        if key in branch.keys():
-            error[k] = branch[key]
-        else:
-            error[k] = 0
-
-    return error
+    return vm_viol
 
 def pf_error(md):
-    error = acpf_error(md, key='pf_error')
-    return error
+
+    if not optimal(md):
+        return None
+    pf_error = get_acpf_data(md, key='pf_error')
+
+    return pf_error
 
 def qf_error(md):
-    error = acpf_error(md, key='qf_error')
-    return error
+
+    if not optimal(md):
+        return None
+    qf_error = get_acpf_data(md, key='qf_error')
+
+    return qf_error

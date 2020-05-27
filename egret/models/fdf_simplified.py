@@ -760,11 +760,10 @@ def compare_fdf_options(md):
 
     def acpf_to_md(md):
         try:
-            acpf_p_slack, vm_UB_viol, vm_LB_viol, thermal_viol, _, _, termination = solve_infeas_model(md)
+            acpf_p_slack, vm_viol, thermal_viol, _, _, termination = solve_infeas_model(md)
             print('...It\'s a success! ({})'.format(termination))
         except Exception as e:
             print(chr(e))
-        vm_viol = vm_UB_viol.update(vm_LB_viol)
         system_data = md.data['system']
         system_data['acpf_slack'] = acpf_p_slack
         system_data['vm_viol'] = vm_viol
