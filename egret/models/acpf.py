@@ -206,6 +206,33 @@ def create_polar_acpf_relaxation(model_data, include_soc=True, use_linear_relaxa
     _relaxation_helper(model=model, md=md, include_soc=include_soc, use_linear_relaxation=use_linear_relaxation)
     return model, md
 
+def create_acpf_security_boundary(model_data, include_soc=True, use_linear_relaxation=True):
+    model, md = create_psv_acpf_model(model_data)
+
+    gens = dict(md.elements(element_type='generator'))
+    buses = dict(md.elements(element_type='bus'))
+    bus_attrs = md.attributes(element_type='bus')
+    gens_by_bus = tx_utils.gens_by_bus(buses, gens)
+    buses_with_gens = tx_utils.buses_with_gens(gens)
+
+    ref_bus = md.data['system']['reference_bus']
+    model.vm[ref_bus].fixed = False
+    expr = (model.vm[ref_bus] - pe.value(model.vm[ref_bus])) ** 2
+
+    for bus_name in bus_attrs['names']:
+        if bus_name != ref_bus and bus_name in buses_with_gens:
+            model.vm[bus_name].fixed = False
+            expr += (model.vm[bus_name] - pe.value(model.vm[bus_name]))**2
+            for gen_name in gens_by_bus[bus_name]:
+                model.pg[gen_name].fixed = False
+                expr += (model.pg[gen_name] - pe.value(model.pg[gen_name])) ** 2
+
+    model.del_component('obj')
+    model.R = pe.Var(bounds=(0,None),initialize=0.)
+    model.hypersphere = pe.Constraint(expr = expr <= model.R**2)
+    model.obj = pe.Objective(expr = model.R)
+
+    return model, md
 
 def solve_acpf(model_data,
                 solver,

@@ -162,8 +162,8 @@ def _solve_model(model,
         else:
             model.solutions.load_from(results)
 
-    if results.solver.termination_condition not in safe_termination_conditions:
-        results = None
+    # if results.solver.termination_condition not in safe_termination_conditions:
+    #     results = None
 
     if return_solver:
         return model, results, solver
