@@ -54,7 +54,7 @@ def _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_l
     return p_rhs_kwargs, q_rhs_kwargs, penalty_expr
 
 
-def create_psv_acpf_model(model_data):
+def create_psv_acpf_model(model_data, include_feasibility_slack=False):
     # model_data.return_in_service()
     # md = model_data
     md = model_data.clone_in_service()
@@ -101,6 +101,12 @@ def create_psv_acpf_model(model_data):
 
     libgen.declare_var_qg(model, gen_attrs['names'], initialize=gen_attrs['qg'])
 
+    ### include the feasibility slack for the bus balances
+    p_rhs_kwargs = {}
+    q_rhs_kwargs = {}
+    if include_feasibility_slack:
+        print('...relaxing power balance...')
+        p_rhs_kwargs, q_rhs_kwargs, penalty_expr = _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads)
 
     ### In a system with N buses and G generators, there are then 2(N-1)-(G-1) unknowns.
     ### fix the reference bus
@@ -180,7 +186,8 @@ def create_psv_acpf_model(model_data):
                                 bus_gs_fixed_shunts=bus_gs_fixed_shunts,
                                 inlet_branches_by_bus=inlet_branches_by_bus,
                                 outlet_branches_by_bus=outlet_branches_by_bus,
-                                coordinate_type=CoordinateType.POLAR
+                                coordinate_type=CoordinateType.POLAR,
+                                **p_rhs_kwargs
                                 )
 
     libbus.declare_eq_q_balance(model=model,
@@ -190,10 +197,15 @@ def create_psv_acpf_model(model_data):
                                 bus_bs_fixed_shunts=bus_bs_fixed_shunts,
                                 inlet_branches_by_bus=inlet_branches_by_bus,
                                 outlet_branches_by_bus=outlet_branches_by_bus,
-                                coordinate_type=CoordinateType.POLAR
+                                coordinate_type=CoordinateType.POLAR,
+                                **q_rhs_kwargs
                                 )
 
-    model.obj = pe.Objective(expr=0.0)
+    obj_expr = 0.0
+    if include_feasibility_slack:
+        obj_expr += penalty_expr
+
+    model.obj = pe.Objective(expr=obj_expr)
 
     return model, md
 
@@ -256,7 +268,7 @@ def solve_acpf(model_data,
     buses = dict(md.elements(element_type='bus'))
     branches = dict(md.elements(element_type='branch'))
 
-    md.data['system']['total_cost'] = value(m.obj)
+    md.data['system']['balance_slack'] = value(m.obj)
 
     for g,g_dict in gens.items():
         g_dict['pg'] = value(m.pg[g])

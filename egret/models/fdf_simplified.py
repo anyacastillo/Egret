@@ -377,7 +377,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
             abs_slack = min( abs(vm - v_min) , abs(v_max - vm) )
             rel_slack =  abs_slack / (v_max - v_min)
             if abs_slack < ptdf_options['abs_vm_init_tol'] or rel_slack < ptdf_options['rel_vm_init_tol']:
-                logger.warning('adding vm {}: {} <= {} <= {}'.format(bus_name, v_min, vm, v_max))
+                logger.info('adding vm {}: {} <= {} <= {}'.format(bus_name, v_min, vm, v_max))
                 monitor_init.add(bus_name)
 
         model.eq_vm_bus = pe.Constraint(bus_attrs['names'])
@@ -760,14 +760,10 @@ def compare_fdf_options(md):
 
     def acpf_to_md(md):
         try:
-            acpf_p_slack, vm_viol, thermal_viol, _, _, termination = solve_infeas_model(md)
+            acpf_data = solve_infeas_model(md)
             print('...It\'s a success! ({})'.format(termination))
         except Exception as e:
             print(chr(e))
-        system_data = md.data['system']
-        system_data['acpf_slack'] = acpf_p_slack
-        system_data['vm_viol'] = vm_viol
-        system_data['thermal_viol'] = thermal_viol
 
 
     # solve ACOPF

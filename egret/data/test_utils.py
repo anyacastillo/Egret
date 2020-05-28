@@ -11,7 +11,7 @@
 This module contains several helper functions and classes that are useful when
 modifying the data dictionary
 """
-import os, shutil, glob, json
+import os, shutil, glob, json, gc
 import egret.model_library.transmission.tx_utils as tx_utils
 import egret.models.tests.ta_utils as tau
 import egret.model_library.decl as decl
@@ -234,7 +234,6 @@ def vmag(md):
 
 
 def solve_infeas_model(model_data):
-    # TODO: Change outputs from (summarized) slack & violation to (detailed) slack, violation, and error in ModelData
 
     # initial reference bus dispatch
     lin_gens = dict(model_data.elements(element_type='generator'))
@@ -251,11 +250,17 @@ def solve_infeas_model(model_data):
 
     # solve ACPF or return empty results and print exception message
     try:
-        md, m, results = solve_acpf(model_data, "ipopt", return_results=True, return_model=True, solver_tee=False)
+        if 'filename' in model_data.data['system'].keys():
+            logger.critical('>>>> Solving ACPF for {}'.format(model_data.data['system']['filename']))
+        kwargs = {}
+        kwargs['include_feasibility_slack'] = True
+        md, results = solve_acpf(model_data, "ipopt", return_results=True, return_model=False, solver_tee=False, **kwargs)
         termination = results.solver.termination_condition.__str__()
+        balance_slack = md.data['system']['balance_slack']
+        logger.critical('<<<< ACPF terminated {} with {} power balance slack.'.format(termination, balance_slack))
     except Exception as e:
         message = str(e)
-        print('...EXCEPTION OCCURRED: {}'.format(message))
+        logger.critical('...EXCEPTION OCCURRED: {}'.format(message))
         if 'infeasible' in message:
             termination = 'infeasible'
             slack_p = None
@@ -323,7 +328,19 @@ def solve_infeas_model(model_data):
     if not has_qf:
         qf_error = None
 
-    return slack_p, vm_viol_dict, thermal_viol_dict, pf_error, qf_error, termination
+    del md
+    gc.collect()
+
+    acpf_dict = {}
+    acpf_dict['acpf_termination'] = termination
+    acpf_dict['balance_slack'] = balance_slack
+    acpf_dict['acpf_slack'] = slack_p
+    acpf_dict['vm_viol'] = vm_viol_dict
+    acpf_dict['thermal_viol'] = thermal_viol_dict
+    acpf_dict['pf_error'] = pf_error
+    acpf_dict['qf_error'] = qf_error
+
+    return acpf_dict
 
 def get_acpf_data(md, key='acpf_slack', overwrite_existing=False):
 
@@ -341,22 +358,15 @@ def get_acpf_data(md, key='acpf_slack', overwrite_existing=False):
 
 def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
 
-    acpf_p_slack, vm_viol, thermal_viol, pf_error, qf_error, termination = solve_infeas_model(md)
+    acpf_data = solve_infeas_model(md)
 
     bus_attrs = md.attributes(element_type='bus')
     branch_attrs = md.attributes(element_type='branch')
     num_bus = len(bus_attrs['names'])
     num_branch = len(branch_attrs['names'])
-
     thermal_max = branch_attrs['rating_long_term']
 
-    # save violations in ModelData
-    md.data['acpf_data'] = {}
-    acpf_data = md.data['acpf_data']
-    acpf_data['acpf_termination'] = termination
-    acpf_data['acpf_slack'] = acpf_p_slack
-
-    acpf_data['vm_viol'] = vm_viol
+    vm_viol = acpf_data['vm_viol']
     if bool(vm_viol):
         vm_viol_pos = [v for v in vm_viol.values()]
         if bool(vm_viol_pos):
@@ -379,7 +389,7 @@ def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
             acpf_data['avg_vm_viol'] = acpf_data['sum_vm_viol'] / len(vm_viol_list)
             acpf_data['pct_vm_viol'] = len([v for v in vm_viol_list if abs(v) > abs_tol_vm]) / num_bus
 
-    acpf_data['thermal_viol'] = thermal_viol
+    thermal_viol = acpf_data['thermal_viol']
     if bool(thermal_viol):
         thermal_viol_list = [v for k,v in thermal_viol.items()]
         acpf_data['sum_thermal_viol'] = sum(thermal_viol_list)
@@ -387,19 +397,20 @@ def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
         acpf_data['avg_thermal_viol'] = acpf_data['sum_thermal_viol'] / len(thermal_viol_list)
         acpf_data['pct_thermal_viol'] = len([v for k,v in thermal_viol.items() if v > rel_tol_therm * thermal_max[k]]) / num_branch
 
-    acpf_data['pf_error'] = pf_error
+    pf_error = acpf_data['pf_error']
     if bool(pf_error):
         pf_error_list = [v for v in pf_error.values()]
         acpf_data['pf_error_1_norm'] = np.linalg.norm(pf_error_list, ord=1)
         acpf_data['pf_error_inf_norm'] = np.linalg.norm(pf_error_list, ord=np.inf)
 
-    acpf_data['qf_error'] = qf_error
+    qf_error = acpf_data['qf_error']
     if bool(qf_error):
         qf_error_list = [v for v in qf_error.values()]
         acpf_data['qf_error_1_norm'] = np.linalg.norm(qf_error_list, ord=1)
         acpf_data['qf_error_inf_norm'] = np.linalg.norm(qf_error_list, ord=np.inf)
 
     # save acpf_data to JSON
+    md.data['acpf_data'] = acpf_data
     system_data = md.data['system']
     if 'filename' in system_data.keys():
         data_utils_deprecated.destroy_dicts_of_fdf(md)

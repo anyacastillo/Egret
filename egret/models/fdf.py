@@ -901,16 +901,10 @@ def compare_fdf_options(md):
 
     def acpf_to_md(md):
         try:
-            acpf_p_slack, vm_viol, thermal_viol, pf_error, qf_error, termination = solve_infeas_model(md)
+            acpf_data = solve_infeas_model(md)
         except Exception as e:
             return e
         logger.critical('ACPF was successful')
-        acpf_data = md.data['acpf_data']
-        acpf_data['acpf_slack'] = acpf_p_slack
-        acpf_data['vm_viol'] = vm_viol
-        acpf_data['thermal_viol'] = thermal_viol
-        acpf_data['pf_error'] = pf_error
-        acpf_data['qf_error'] = qf_error
 
 
     # solve ACOPF
@@ -1010,13 +1004,9 @@ def test_dlopf(md):
 
     def acpf_to_md(md):
         try:
-            acpf_p_slack, vm_viol, thermal_viol, _, _, termination = solve_infeas_model(md)
+            acpf_data = solve_infeas_model(md)
         except Exception as e:
             return e
-        system_data = md.data['system']
-        system_data['acpf_slack'] = acpf_p_slack
-        system_data['vm_viol'] = vm_viol
-        system_data['thermal_viol'] = thermal_viol
 
 
     # solve ACOPF

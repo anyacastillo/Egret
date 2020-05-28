@@ -70,15 +70,9 @@
 
 '''
 
-import os, shutil, glob, json
+import os, shutil, glob, json, gc
+import sys, getopt
 import pandas as pd
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
-import matplotlib.colors as clrs
-import matplotlib.cm as cmap
-import seaborn as sns
-from cycler import cycler
 import math
 import unittest
 import logging
@@ -86,22 +80,23 @@ import copy
 import egret.data.test_utils as tu
 import egret.data.summary_plot_utils as spu
 from pyomo.opt import SolverFactory, TerminationCondition
-from egret.models.acopf import *
-from egret.models.ccm import *
-from egret.models.fdf import *
-from egret.models.fdf_simplified import *
-from egret.models.lccm import *
-from egret.models.dcopf_losses import *
-from egret.models.dcopf import *
-from egret.models.copperplate_dispatch import *
+from egret.common.log import logger
+from egret.models.acopf import solve_acopf, create_psv_acopf_model
+from egret.models.ccm import solve_ccm, create_ccm_model
+from egret.models.fdf import solve_fdf, create_fdf_model
+from egret.models.fdf_simplified import solve_fdf_simplified, create_simplified_fdf_model
+from egret.models.lccm import solve_lccm, create_lccm_model
+from egret.models.dcopf_losses import solve_dcopf_losses, create_btheta_losses_dcopf_model, create_ptdf_losses_dcopf_model
+from egret.models.dcopf import solve_dcopf, create_btheta_dcopf_model, create_ptdf_dcopf_model
+from egret.models.copperplate_dispatch import solve_copperplate_dispatch, create_copperplate_dispatch_approx_model
 from egret.models.tests.ta_utils import *
+from egret.data.data_utils_deprecated import destroy_dicts_of_fdf, create_dicts_of_ptdf, create_dicts_of_fdf
 from egret.data.model_data import ModelData
 from parameterized import parameterized
 from egret.parsers.matpower_parser import create_ModelData
 from os import listdir
 from os.path import isfile, join
 
-plt.switch_backend('agg')
 current_dir = os.path.dirname(os.path.abspath(__file__))
 # test_cases = [join('../../../download/pglib-opf-master/', f) for f in listdir('../../../download/pglib-opf-master/') if isfile(join('../../../download/pglib-opf-master/', f)) and f.endswith('.m')]
 #test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
@@ -142,7 +137,7 @@ test_model_list = [
 def generate_test_model_dict(test_model_list):
 
     test_model_dict = {}
-    _kwargs = {'return_model' :True, 'return_results' : True, 'solver_tee' : False}
+    _kwargs = {'return_model' :False, 'return_results' : False, 'solver_tee' : False}
     tol_keys = ['rel_ptdf_tol', 'rel_qtdf_tol', 'rel_pldf_tol', 'rel_qldf_tol', 'rel_vdf_tol']
 
 
@@ -234,7 +229,8 @@ def generate_test_model_dict(test_model_list):
         # settings to suppress non-lazy D-LOPF and C-LOPF models in large (>1,000 bus) cases
         dense_models = ['dlopf', 'clopf', 'plopf', 'ptdf']
         if any(dm in tm for dm in dense_models) and 'lazy' not in tm:
-            tmd['suppress_large_cases'] = True
+            #tmd['suppress_large_cases'] = True
+            tmd['suppress_large_cases'] = False     # switch comment with previous line to suppress DF model solves of large cases
         else:
             tmd['suppress_large_cases'] = False
 
@@ -379,7 +375,9 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
             raise Exception('test_model_dict must provide valid inital_solution')
 
         try:
-            md_out,m,results = solve_func(md_input, solver=solver, **kwargs)
+            md_out = solve_func(md_input, solver=solver, **kwargs)
+            logger.critical('\t COST = ${:,.2f}'.format(md_out.data['system']['total_cost']))
+            logger.critical('\t TIME = {:.5f} seconds'.format(md_out.data['results']['time']))
         except Exception as e:
             md_out = md_input
             md_out.data['results'] = {}
@@ -398,19 +396,22 @@ def record_results(idx, md):
     writes model data (md) object to .json file
     '''
 
-    data_utils_deprecated.destroy_dicts_of_fdf(md)
+    destroy_dicts_of_fdf(md)
 
     mult = md.data['system']['mult']
     filename = md.data['system']['model_name'] + '_' + idx + '_{0:04.0f}'.format(mult * 1000)
     md.data['system']['filename'] = filename
 
     md.write_to_json(filename)
-    print('...out: {}'.format(filename))
+    print('...out: {}.json'.format(filename))
 
-    if md.data['results']['termination'] != 'optimal':
+    if md.data['results']['termination'] == 'optimal':
+        del md
+        gc.collect()
+    else:
         del md.data['results']
-        del md.data['system']['mult']
         del md.data['system']['filename']
+        gc.collect()
 
 
 def create_testcase_directory(test_case):
@@ -455,8 +456,8 @@ def solve_approximation_models(test_case, test_model_list, init_min=0.9, init_ma
         test_model_list.append('acopf')
 
     ## put the sensitivities into modeData so they don't need to be recalculated for each model
-    data_utils_deprecated.create_dicts_of_fdf_simplified(_md_basept)
-    data_utils_deprecated.create_dicts_of_ptdf(_md_flat)
+    create_dicts_of_fdf(_md_basept)
+    create_dicts_of_ptdf(_md_flat)
 
     # Calculate sensitivity multiplers, and make sure the base case mult=1 is included
     inc = (max_mult - min_mult) / steps
@@ -474,7 +475,7 @@ def solve_approximation_models(test_case, test_model_list, init_min=0.9, init_ma
 
 
 
-def main(arg):
+def batch(arg):
 
     idxA0 = 0
     #idxA0 = case_names.index('pglib_opf_case179_goc')  ## redefine first case of A
@@ -496,10 +497,10 @@ def main(arg):
         idx_list = list(range(idxD,idxE))
 
     for idx in idx_list:
-        submain(idx, show_plot=False, log_level=logging.WARNING)
+        run_test_loop(idx, show_plot=False, log_level=logging.CRITICAL)
 
 
-def submain(idx=None, show_plot=False, log_level=logging.WARNING):
+def run_test_loop(idx=None, show_plot=False, log_level=logging.CRITICAL):
     """
     solves models and generates plots for test case at test_cases[idx] or a default case
     """
@@ -525,19 +526,83 @@ def submain(idx=None, show_plot=False, log_level=logging.WARNING):
     spu.create_full_summary(test_case, test_model_list, show_plot=show_plot)
 
 
-if __name__ == '__main__':
-    import sys
+def run_nominal_test(idx=None, log_level=logging.CRITICAL):
+    """
+    solves models and generates plots for test case at test_cases[idx] or a default case
+    """
 
-    if len(sys.argv[1:]) == 1:
-        if sys.argv[1] == "A" or \
-                sys.argv[1] == "B" or \
-                sys.argv[1] == "C" or \
-                sys.argv[1] == "D" or \
-                sys.argv[1] == "E":
-            main(sys.argv[1])
-        else:
-            submain(sys.argv[1])
+    logger = logging.getLogger('egret')
+    logger.setLevel(log_level)
+
+    # Select default case
+    if idx is None:
+#        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case3_lmbd.m')
+        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case5_pjm.m')
+#        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case30_ieee.m')
+#        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case24_ieee_rts.m')
+#        test_case = join('../../../download/pglib-opf-master/', 'pglib_opf_case118_ieee.m')
+#        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
     else:
-        submain()
+        test_case=idx_to_test_case(idx)
 
-#    raise SyntaxError("Expecting a single string argument: test_cases0, test_cases1, test_cases2, test_cases3, or test_cases4")
+    ## Model solves
+    md_flat = create_ModelData(test_case)
+    print('>>>>> BEGIN SOLVE: acopf <<<<<')
+    md_basept = solve_acopf(md_flat,solver='ipopt',solver_tee=False)
+    logger.critical('\t COST = ${:,.2f}'.format(md_basept.data['system']['total_cost']))
+    logger.critical('\t TIME = {:.5f} seconds'.format(md_basept.data['results']['time']))
+
+    if 'acopf' in test_model_list:
+        test_model_list.remove('acopf')
+
+    ## put the sensitivities into modeData so they don't need to be recalculated for each model
+    create_dicts_of_fdf(md_basept)
+    create_dicts_of_ptdf(md_flat)
+    md_basept = create_new_model_data(md_basept, 1.0)
+    md_flat = create_new_model_data(md_flat, 1.0)
+
+    inner_loop_solves(md_basept, md_flat, test_model_list)
+
+    create_testcase_directory(test_case)
+
+    spu.acpf_violations_plot(test_case, test_model_list, show_plot=True)
+
+
+def main(argv):
+
+    message = 'test_approximations.py usage: \n'
+    message += '  -b --batch=<A,B,C,D,E>      ::  to run a preset batch of cases \n'
+    message += '  -c --case=<case_name/idx>   ::  to run a specific case or case index \n'
+    message += '  -n --nominal                ::  to run a specific case with nominal demand only\n'
+    message += '  -q --quick                  ::  same as nominal option\n'
+
+    try:
+        opts, args = getopt.getopt(argv, "b:c:qn", ["batch=", "case=", "quick", "nominal"])
+    except getopt.GetoptError:
+        print(message)
+        sys.exit(2)
+
+    batch_run = False
+    quick_run = False
+    case_arg = None
+    for opt, arg in opts:
+        if opt in ('-b', '--batch'):
+            batch_run = True
+            batch_arg = arg
+        elif opt in ('-c', '--case'):
+            case_arg = arg
+        elif opt in ('-q', '--quick'):
+            quick_run = True
+
+    if batch_run:
+        batch(batch_arg)
+    elif quick_run:
+        run_nominal_test(case_arg)
+    elif case_arg is not None:
+        run_test_loop(case_arg)
+    else:
+        print(message)
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
