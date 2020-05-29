@@ -140,7 +140,6 @@ def _create_base_acpf_model(model_data):
                                 )
 
     model.obj = pe.Objective(expr=0.0)
-
     return model, md
 
 def create_psv_acpf_model(model_data):
@@ -158,19 +157,18 @@ def create_psv_acpf_model(model_data):
     # declare the polar voltages
     libbranch.declare_var_dva(model=model,
                               index_set=unique_bus_pairs,
-                              initialize=0,
-                              bounds=(-pi/2, pi/2))
+                              initialize=0
+                              )
+
     libbus.declare_var_vm(model,
                           bus_attrs['names'],
-                          initialize=bus_attrs['vm'],
-                          bounds=zip_items(bus_attrs['v_min'], bus_attrs['v_max']))
+                          initialize=bus_attrs['vm']
+                          )
 
-    va_bounds = {k: (-pi, pi) for k in bus_attrs['va']}
     libbus.declare_var_va(model,
                           bus_attrs['names'],
-                          initialize=bus_attrs['va'],
-                          bounds=va_bounds)
-
+                          initialize=bus_attrs['va']
+                          )
 
     ### In a system with N buses and G generators, there are then 2(N-1)-(G-1) unknowns.
     ### fix the reference bus
@@ -197,7 +195,6 @@ def create_psv_acpf_model(model_data):
     libbranch.declare_eq_s(model=model,
                            index_set=unique_bus_pairs,
                            coordinate_type=CoordinateType.POLAR)
-
     return model, md
 
 
