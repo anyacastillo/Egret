@@ -226,7 +226,15 @@ def get_violation_dict(test_model_list):
     clist = [tm for tm in test_model_list if 'clopf' in tm]
     plist = [tm for tm in test_model_list if 'plopf' in tm]
     qlist = [tm for tm in test_model_list if 'ptdf' in tm]
-    dense_keepers = [dlist[0], clist[0], plist[0],qlist[0]]
+    dense_keepers = []
+    if bool(dlist):
+        dense_keepers.append(dlist[0])
+    if bool(clist):
+        dense_keepers.append(clist[0])
+    if bool(plist):
+        dense_keepers.append(plist[0])
+    if bool(qlist):
+        dense_keepers.append(qlist[0])
 
     tm_dict = {}
     for key in test_model_list:

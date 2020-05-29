@@ -724,7 +724,9 @@ def thermal_viol(md):
 
     if not optimal(md):
         return None
-    th_viol = get_acpf_data(md, key='thermal_viol')
+    # including overwrite_existing since this is the first ACPF data to be collected, so
+    # this call will automatically update the acpf data.
+    th_viol = get_acpf_data(md, key='thermal_viol', overwrite_existing=True)
 
     return th_viol
 
