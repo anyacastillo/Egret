@@ -239,14 +239,7 @@ def get_violation_dict(test_model_list):
     tm_dict = {}
     for key in test_model_list:
         if 'lopf' in key :
-            if key in dense_keepers:
-                tm_dict[key] = True
-            elif 'slopf' in key:
-                tm_dict[key] = True
-            else:
-                tm_dict[key] = False
-        elif 'qcp' in key:
-            tm_dict[key] = False
+            tm_dict[key] = True
         else:
             tm_dict[key] = False
 

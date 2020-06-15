@@ -210,6 +210,9 @@ def create_psv_acpf_model(model_data, include_feasibility_slack=False):
 
     model.obj = pe.Objective(expr=obj_expr)
 
+    from pyomo.contrib.preprocessing.plugins.init_vars import InitMidpoint
+    InitMidpoint().apply_to(model)
+
     return model, md
 
 

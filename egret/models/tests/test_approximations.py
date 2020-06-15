@@ -475,31 +475,6 @@ def solve_approximation_models(test_case, test_model_list, init_min=0.9, init_ma
 
 
 
-def batch(arg):
-
-    idxA0 = 0
-    #idxA0 = case_names.index('pglib_opf_case179_goc')  ## redefine first case of A
-    idxA = case_names.index('pglib_opf_case1354_pegase')  ## < 1000 buses
-    idxB = case_names.index('pglib_opf_case2736sp_k')  ## 1354 - 2383 buses
-    idxC = case_names.index('pglib_opf_case6468_rte')  ## 2383 - 4661 buses
-    idxD = case_names.index('pglib_opf_case13659_pegase')  ## 6468 - 10000 buses
-    idxE = case_names.index('pglib_opf_case13659_pegase') + 1  ## 13659 buses
-
-    if arg == 'A':
-        idx_list = list(range(idxA0,idxA))
-    elif arg == 'B':
-        idx_list = list(range(idxA,idxB))
-    elif arg == 'C':
-        idx_list = list(range(idxB,idxC))
-    elif arg == 'D':
-        idx_list = list(range(idxC,idxD))
-    elif arg == 'E':
-        idx_list = list(range(idxD,idxE))
-
-    for idx in idx_list:
-        run_test_loop(idx, show_plot=False, log_level=logging.CRITICAL)
-
-
 def run_test_loop(idx=None, show_plot=False, log_level=logging.CRITICAL):
     """
     solves models and generates plots for test case at test_cases[idx] or a default case
@@ -526,7 +501,7 @@ def run_test_loop(idx=None, show_plot=False, log_level=logging.CRITICAL):
     spu.create_full_summary(test_case, test_model_list, show_plot=show_plot)
 
 
-def run_nominal_test(idx=None, log_level=logging.CRITICAL):
+def run_nominal_test(idx=None, show_plot=False, log_level=logging.CRITICAL):
     """
     solves models and generates plots for test case at test_cases[idx] or a default case
     """
@@ -551,6 +526,8 @@ def run_nominal_test(idx=None, log_level=logging.CRITICAL):
     md_basept = solve_acopf(md_flat,solver='ipopt',solver_tee=False)
     logger.critical('\t COST = ${:,.2f}'.format(md_basept.data['system']['total_cost']))
     logger.critical('\t TIME = {:.5f} seconds'.format(md_basept.data['results']['time']))
+    md_basept.data['system']['mult'] = 1
+    record_results('acopf', md_basept)
 
     if 'acopf' in test_model_list:
         test_model_list.remove('acopf')
@@ -565,41 +542,90 @@ def run_nominal_test(idx=None, log_level=logging.CRITICAL):
 
     create_testcase_directory(test_case)
 
-    spu.acpf_violations_plot(test_case, test_model_list, show_plot=True)
+    summarize_nominal_data(test_case=test_case, show_plot=show_plot)
+
+def summarize_nominal_data(idx=0, test_case=None,show_plot=True, log_level=None):
+
+    if test_case is None:
+        test_case = idx_to_test_case(idx)
+
+    spu.update_data_file(test_case)
+    spu.update_data_tables()
+    spu.acpf_violations_plot(test_case, test_model_list, show_plot=show_plot)
+
+
+def batch(arg, subbatch=run_test_loop):
+
+    idxA0 = 0
+    #idxA0 = case_names.index('pglib_opf_case179_goc')  ## redefine first case of A
+    idxA = case_names.index('pglib_opf_case1354_pegase')  ## < 1000 buses
+    idxB = case_names.index('pglib_opf_case2736sp_k')  ## 1354 - 2383 buses
+    idxC = case_names.index('pglib_opf_case6468_rte')  ## 2383 - 4661 buses
+    idxD = case_names.index('pglib_opf_case13659_pegase')  ## 6468 - 10000 buses
+    idxE = case_names.index('pglib_opf_case13659_pegase') + 1  ## 13659 buses
+
+    if arg == 'A':
+        idx_list = list(range(idxA0,idxA))
+    elif arg == 'B':
+        idx_list = list(range(idxA,idxB))
+    elif arg == 'C':
+        idx_list = list(range(idxB,idxC))
+    elif arg == 'D':
+        idx_list = list(range(idxC,idxD))
+    elif arg == 'E':
+        idx_list = list(range(idxD,idxE))
+
+    for idx in idx_list:
+        subbatch(idx, show_plot=False, log_level=logging.CRITICAL)
 
 
 def main(argv):
 
-    message = 'test_approximations.py usage: \n'
-    message += '  -b --batch=<A,B,C,D,E>      ::  to run a preset batch of cases \n'
-    message += '  -c --case=<case_name/idx>   ::  to run a specific case or case index \n'
-    message += '  -n --nominal                ::  to run a specific case with nominal demand only\n'
-    message += '  -q --quick                  ::  same as nominal option\n'
+    message = 'test_approximations.py usage must include a batch or a case: \n'
+    message += '  -b --batch=<A,B,C,D,E>      ::  run a preset batch of cases \n'
+    message += '  -c --case=<case_name/idx>   ::  run a specific case or case index \n'
+    message += '  -d --data-only              ::  run summary data only \n'
+    message += '  -n --nominal                ::  run a specific case with nominal demand only \n'
+    message += '  -q --quick                  ::  same as nominal option \n'
 
     try:
-        opts, args = getopt.getopt(argv, "b:c:qn", ["batch=", "case=", "quick", "nominal"])
+        opts, args = getopt.getopt(argv, "b:c:dnq", ["batch=", "case=", "data", "nominal", "quick"])
     except getopt.GetoptError:
         print(message)
         sys.exit(2)
 
     batch_run = False
     quick_run = False
-    case_arg = None
+    data_run = False
+    case_run = False
     for opt, arg in opts:
         if opt in ('-b', '--batch'):
             batch_run = True
             batch_arg = arg
         elif opt in ('-c', '--case'):
+            case_run = True
             case_arg = arg
+        elif opt in ('-d', '--data-only'):
+            data_run = True
+        elif opt in ('-n', '--nominal'):
+            quick_run = True
         elif opt in ('-q', '--quick'):
             quick_run = True
 
     if batch_run:
-        batch(batch_arg)
-    elif quick_run:
-        run_nominal_test(case_arg)
-    elif case_arg is not None:
-        run_test_loop(case_arg)
+        if quick_run:
+            batch(batch_arg, subbatch=run_nominal_test)
+        elif data_run:
+            batch(batch_arg, subbatch=summarize_nominal_data)
+        else:
+            batch(batch_arg, subbatch=run_test_loop)
+    elif case_run:
+        if quick_run:
+            run_nominal_test(case_arg)
+        elif data_run:
+            summarize_nominal_data(idx=case_arg)
+        else:
+            run_test_loop(case_arg)
     else:
         print(message)
 

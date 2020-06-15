@@ -763,9 +763,15 @@ def generate_violation_heatmap(test_case, test_model_dict=None, viol_name=None, 
     if df_data.empty:
         return
 
-    data = df_data.fillna(0).values
-    vmin = min(data.min(), -0.001)
-    vmax = max(data.max(), 0.001)
+    # sort by average absolute erros and display at most 500 rows
+    data = df_data.fillna(0)
+    df_data['abs_avg'] = data.abs().mean(axis=1)
+    df_data = df_data.sort_values('abs_avg', ascending=False)
+    df_data = df_data.drop('abs_avg', axis=1)
+    df_data = df_data.head(50)
+
+    vmin = min(data.values.min(), -0.001)
+    vmax = max(data.values.max(), 0.001)
 
     kwargs={}
     cbar_dict = {}
@@ -779,7 +785,7 @@ def generate_violation_heatmap(test_case, test_model_dict=None, viol_name=None, 
 
     # Create heatmap in Seaborn
     ## Create plot
-    plt.figure(figsize=(4, 8.5))
+    #plt.figure(figsize=(5.5, 8.5))
     ax = sns.heatmap(df_data, **kwargs)
 
     plt.xticks(rotation=90)
@@ -788,6 +794,7 @@ def generate_violation_heatmap(test_case, test_model_dict=None, viol_name=None, 
     #ax.set_title(case_name + " " + viol_name)
     ax.set_xlabel("Model")
     ax.set_ylabel(index_name)
+    #ax.set_yticks([])
 
     plt.tight_layout()
 
@@ -1682,16 +1689,23 @@ def acpf_violations_plot(test_case, test_model_list, colors=None, show_plot=True
         colors=get_colors('coolwarm')
 
     violation_dict = tau.get_violation_dict(test_model_list)
-    generate_violation_data(test_case, test_model_list,data_generator=tu.thermal_viol)
-    generate_violation_data(test_case, test_model_list,data_generator=tu.vm_viol)
+    generate_violation_data(test_case, test_model_list, data_generator=tu.pf_error)
+    generate_violation_data(test_case, test_model_list, data_generator=tu.qf_error)
+    generate_violation_data(test_case, test_model_list, data_generator=tu.thermal_viol)
+    generate_violation_data(test_case, test_model_list, data_generator=tu.vm_viol)
+
+    generate_violation_heatmap(test_case, test_model_dict=violation_dict, viol_name='pf_error',
+                               index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
+
+    # skipping the other maps since the above basically shows all of the important model results
+    return
+
     generate_violation_heatmap(test_case, test_model_dict=violation_dict,viol_name='thermal_viol',
                                index_name='Branch', units='MW', colormap=colors,show_plot=show_plot)
     generate_violation_heatmap(test_case, test_model_dict=violation_dict,viol_name='vm_viol',
                                index_name='Bus', units='p.u', colormap=colors,show_plot=show_plot)
 
     # using these methods to plot errors (rather than violations)
-    generate_violation_data(test_case, test_model_list, data_generator=tu.pf_error)
-    generate_violation_data(test_case, test_model_list, data_generator=tu.qf_error)
     generate_violation_heatmap(test_case, test_model_dict=violation_dict, viol_name='pf_error',
                                index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
     generate_violation_heatmap(test_case, test_model_dict=violation_dict, viol_name='qf_error',
