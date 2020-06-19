@@ -316,7 +316,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                 qld = branch_attrs['qloss_distribution'][bn]
                 libbranch.add_constr_branch_thermal_limit(model, branch, bn, thermal_limit, pfl_of_ploss=pld, qfl_of_qloss=qld)
                 thermal_idx_monitored.append(i)
-        logger.warning('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
+        logger.critical('{} of {} thermal constraints added to initial monitored set.'.format(len(monitor_init), len(branch_attrs['names'])))
 
 
     else:

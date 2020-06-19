@@ -720,6 +720,17 @@ def acpf_slack(md):
 
     return acpf_slack
 
+def balance_slack(md):
+    '''
+    Returns the change in the slack bus real power dispatch in the ACPF solution in MW
+    '''
+
+    if not optimal(md):
+        return None
+    balance_slack = get_acpf_data(md, key='balance_slack')
+
+    return balance_slack
+
 def thermal_viol(md):
 
     if not optimal(md):

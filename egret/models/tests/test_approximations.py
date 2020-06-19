@@ -228,9 +228,9 @@ def generate_test_model_dict(test_model_list):
 
         # settings to suppress non-lazy D-LOPF and C-LOPF models in large (>1,000 bus) cases
         dense_models = ['dlopf', 'clopf', 'plopf', 'ptdf']
-        if any(dm in tm for dm in dense_models) and 'lazy' not in tm:
-            #tmd['suppress_large_cases'] = True
-            tmd['suppress_large_cases'] = False     # switch comment with previous line to suppress DF model solves of large cases
+        if any(dm in tm for dm in ['dlopf', 'clopf']) and 'lazy' not in tm:
+            tmd['suppress_large_cases'] = True
+            #tmd['suppress_large_cases'] = False     # switch comment with previous line to suppress DF model solves of large cases
         else:
             tmd['suppress_large_cases'] = False
 
@@ -549,9 +549,10 @@ def summarize_nominal_data(idx=0, test_case=None,show_plot=True, log_level=None)
     if test_case is None:
         test_case = idx_to_test_case(idx)
 
-    spu.update_data_file(test_case)
-    spu.update_data_tables()
-    spu.acpf_violations_plot(test_case, test_model_list, show_plot=show_plot)
+    #spu.update_data_file(test_case)
+    #spu.update_data_tables()
+    #spu.acpf_violations_plot(test_case, test_model_list, show_plot=show_plot)
+    spu.create_full_summary(test_case,test_model_list,show_plot=show_plot)
 
 
 def batch(arg, subbatch=run_test_loop):

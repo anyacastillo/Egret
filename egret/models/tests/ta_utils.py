@@ -249,6 +249,48 @@ def get_violin_dict(test_model_list):
     tm_dict = get_case_size_dict(test_model_list)
     return tm_dict
 
+def get_vanilla_dict(test_model_list):
+
+    tm_dict = {}
+    for key in test_model_list:
+        if 'acopf' in key:
+            tm_dict[key] = False
+        elif 'lazy' in key:
+            tm_dict[key] = False
+        elif 'e2' in key or 'e4' in key:
+            tm_dict[key] = False
+        else:
+            tm_dict[key] = True
+
+    return tm_dict
+
+def get_lazy_dict(test_model_list):
+
+    tm_dict = {}
+    for key in test_model_list:
+        if any([m in key for m in ['acopf','ptdf','btheta']]):
+            tm_dict[key] = False
+        elif 'e2' in key or 'e4' in key:
+            tm_dict[key] = False
+        elif 'lazy' in key:
+            tm_dict[key] = True
+        else:
+            tm_dict[key] = True
+
+    return tm_dict
+
+def get_trunc_dict(test_model_list):
+
+    tm_dict = {}
+    for key in test_model_list:
+        if any([m in key for m in ['acopf','ptdf','btheta','slopf','plopf']]):
+            tm_dict[key] = False
+        elif 'lazy' in key:
+            tm_dict[key] = False
+        else:
+            tm_dict[key] = True
+
+    return tm_dict
 
 def get_error_settings_dict(test_model_list, model='dlopf'):
 
