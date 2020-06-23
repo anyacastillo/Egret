@@ -353,7 +353,7 @@ def destroy_dicts_of_fdf(md):
     # delete sensitivity matrices from 'system'. May need to add these back to modelData when opening the .json file.
     sensi = ['Ft', 'ft_c', 'Fv', 'fv_c', 'Lt', 'lt_c', 'Lv', 'lv_c',
              'va_SENSI', 'va_CONST', 'vm_SENSI', 'vm_CONST',
-             'ptdf', 'ptdf_c', 'pldf', 'pldf_c', 'qtdf', 'qtdf_c', 'qldf', 'qldf_c', 'vdf', 'vdf_c'
+             'ptdf', 'ptdf_c', 'pldf', 'pldf_c', 'qtdf', 'qtdf_c', 'qldf', 'qldf_c', 'vdf', 'vdf_c',
              'ploss_const', 'qloss_const', 'ploss', 'qloss',
              'nodal_jacobian_p', 'offset_jacobian_p', 'nodal_jacobian_q', 'offset_jacobian_q',
              'AdjacencyMat', 'AbsAdj']
