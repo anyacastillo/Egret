@@ -62,7 +62,7 @@ def populate_default_ptdf_options(ptdf_options):
     if 'pu_vm_tol' not in ptdf_options:
         ptdf_options['pu_vm_tol'] = 1.e-5
     if 'abs_thermal_init_tol' not in ptdf_options:
-        ptdf_options['abs_thermal_init_tol'] = 1
+        ptdf_options['abs_thermal_init_tol'] = 0.01
     if 'rel_thermal_init_tol' not in ptdf_options:
         ptdf_options['rel_thermal_init_tol'] = 0.25
     if 'abs_vm_init_tol' not in ptdf_options:
@@ -128,6 +128,65 @@ def add_monitored_branch_tracker(mb):
 def add_monitored_vm_tracker(mb):
     mb._vm_idx_monitored = list()
 
+def solve_m_pf(model, model_data):
+
+    md = model_data
+
+    if 'ptdf' in list(md.data['system'].keys()):
+        # Nodal net withdrawal to a Numpy array
+        index_set_bus = md.attributes(element_type='bus')['names']
+        m_p_nw = np.fromiter((model.p_nw[b].value for b in index_set_bus), float, count=len(index_set_bus))
+        PTDF = md.data['system']['ptdf']
+        PTDF_CONST = md.data['system']['ptdf_c']
+        m_pf = PTDF.dot(m_p_nw) + PTDF_CONST
+
+        return m_pf
+
+    elif 'Ft' in list(md.data['system'].keys()):
+        ## Back-solve for theta then calculate real power flows with sparse sensitivity matrix
+        THETA = tx_calc.linsolve_theta_fdf(model, md, solve_sparse_system=True)
+        Ft = md.data['system']['Ft']
+        ft_c = md.data['system']['ft_c']
+        m_pf = Ft.dot(THETA) + ft_c
+
+        return m_pf
+
+    else:
+        md_keys = list(md.data['system'].keys)
+        message = 'Model data does not contain ptdf or Ft matrices.\n\t Keys: {}.'.format(md_keys)
+        raise Exception(message)
+
+
+def solve_m_qf(model, model_data):
+    md = model_data
+    md_keys = list(md.data['system'].keys)
+
+    if 'qtdf' in md_keys and 'vdf' in md_keys:
+        # Nodal net withdrawal to a Numpy array
+        index_set_bus = md.attributes(element_type='bus')['names']
+        m_q_nw = np.fromiter((model.q_nw[b].value for b in index_set_bus), float, count=len(index_set_bus))
+        QTDF = md.data['system']['qtdf']
+        QTDF_CONST = md.data['system']['qtdf_c']
+        VDF = md.data['system']['vdf']
+        VDF_CONST = md.data['system']['vdf_c']
+        m_qf = QTDF.dot(m_q_nw) + QTDF_CONST
+        m_vm = VDF.dot(m_q_nw) + VDF_CONST
+
+        return m_qf, m_vm
+
+    elif 'Fv' in md_keys:
+        ## Back-solve for theta then calculate real power flows with sparse sensitivity matrix
+        m_vm = tx_calc.linsolve_vmag_fdf(model, md, solve_sparse_system=False)
+        Fv = md.data['system']['Fv']
+        fv_c = md.data['system']['fv_c']
+        m_qf = Fv.dot(m_vm) + fv_c
+
+        return m_qf, m_vm
+
+    else:
+        message = 'Model data does not contain ptdf or Ft matrices.\n\t Keys: {}.'.format(md_keys)
+        raise Exception(message)
+
 ## transmission violation checker
 def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add_vm=None, time=None):
 
@@ -140,21 +199,12 @@ def check_violations(mb, md, branch_attrs, bus_attrs, max_viol_add, max_viol_add
     _len_bus = len(index_set_bus)
     _len_branch = len(index_set_branch)
 
-    ## Back-solve for theta then calculate real power flows with sparse sensitivity matrix
-    THETA = tx_calc.linsolve_theta_fdf(mb, md, solve_sparse_system=True)
-    Ft = md.data['system']['Ft']
-    ft_c = md.data['system']['ft_c']
-    PFV = Ft.dot(THETA) + ft_c
+    PFV = solve_m_pf(mb, md)
 
-
-    ## Back-solve for vmag then calculate reactive power flows with sparse sensitivity matrix
     if hasattr(mb, "qg"):
         if max_viol_add_vm is None:
             max_viol_add_vm = max_viol_add
-        VMAG = tx_calc.linsolve_vmag_fdf(mb, md, solve_sparse_system=False)
-        Fv = md.data['system']['Fv']
-        fv_c = md.data['system']['fv_c']
-        QFV = Fv.dot(VMAG) + fv_c
+        QFV, VMAG = solve_m_qf(mb, md)
         SV = np.sqrt(np.square(PFV) + np.square(QFV))
     else:
         VMAG = np.ones(_len_bus)

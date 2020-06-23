@@ -996,7 +996,7 @@ def compare_fdf_options(md):
 
 def test_dlopf(md):
 
-    from egret.data.test_utils import solve_infeas_model
+    from egret.data.test_utils import repopulate_acpf_to_modeldata
     from egret.models.tests.test_approximations import create_new_model_data
 
     logger = logging.getLogger('egret')
@@ -1004,7 +1004,7 @@ def test_dlopf(md):
 
     def acpf_to_md(md):
         try:
-            acpf_data = solve_infeas_model(md)
+            repopulate_acpf_to_modeldata(md, write_to_json=False)
         except Exception as e:
             return e
 

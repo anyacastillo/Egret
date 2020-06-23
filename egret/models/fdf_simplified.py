@@ -714,7 +714,7 @@ def printresults(results):
     solver = results.attributes(element_type='Solver')
 
 def compare_fdf_options(md):
-    from egret.data.test_utils import solve_infeas_model
+    from egret.data.test_utils import repopulate_acpf_to_modeldata
     from egret.models.tests.test_approximations import create_new_model_data
 
     logger = logging.getLogger('egret')
@@ -737,7 +737,7 @@ def compare_fdf_options(md):
 
         try:
             print('...Solving ACPF for model {}.'.format(name))
-            acpf_to_md(md)
+            repopulate_acpf_to_modeldata(md, write_to_json=False)
         except Exception as e:
             raise e
 
@@ -754,16 +754,9 @@ def compare_fdf_options(md):
         qfl_dict.update({name: branch['qfl']})
         va_dict.update({name: bus['va']})
         vm_dict.update({name: bus['vm']})
-        acpf_slack.update({name: {'slack' : system_data['acpf_slack']}})
-        vm_viol_dict.update({name: system_data['vm_viol']})
-        thermal_viol_dict.update({name: system_data['thermal_viol']})
-
-    def acpf_to_md(md):
-        try:
-            acpf_data = solve_infeas_model(md)
-            print('...It\'s a success! ({})'.format(termination))
-        except Exception as e:
-            print(chr(e))
+        acpf_slack.update({name: {'slack' : md.data['acpf_data']['acpf_slack']}})
+        vm_viol_dict.update({name: md.data['acpf_data']['vm_viol']})
+        thermal_viol_dict.update({name: md.data['acpf_data']['thermal_viol']})
 
 
     # solve ACOPF
@@ -777,7 +770,7 @@ def compare_fdf_options(md):
     termination={}
 
     #solve C-LOPF
-    print('Solve D-LOPF explicit....')
+    print('Solve C-LOPF explicit....')
     kwargs = {}
     ptdf_options = {}
     ptdf_options['lazy'] = False
@@ -804,7 +797,7 @@ def compare_fdf_options(md):
         termination['explicit'] = m_list[-1]
 
     #solve C-LOPF lazy
-    print('Solve D-LOPF lazy....')
+    print('Solve C-LOPF lazy....')
     kwargs = {}
     ptdf_options = {}
     ptdf_options['lazy'] = True
@@ -850,11 +843,11 @@ def compare_fdf_options(md):
         print('--- explicit v lazy')
         fdf.compare_results(results,'explicit', 'lazy', display_results=False)
 
-    print('Explicit model:')
-    m1.pprint()
+    #print('Explicit model:')
+    #m1.pprint()
 
-    print('Lazy model:')
-    m2.pprint()
+    #print('Lazy model:')
+    #m2.pprint()
 
 if __name__ == '__main__':
 
@@ -867,7 +860,7 @@ if __name__ == '__main__':
     # set case and filepath
     path = os.path.dirname(__file__)
     #filename = 'pglib_opf_case3_lmbd.m'
-    filename = 'pglib_opf_case5_pjm.m'
+    #filename = 'pglib_opf_case5_pjm.m'
     #filename = 'pglib_opf_case14_ieee.m'
     #filename = 'pglib_opf_case30_ieee.m'
     #filename = 'pglib_opf_case57_ieee.m'
@@ -876,9 +869,12 @@ if __name__ == '__main__':
     #filename = 'pglib_opf_case179_goc.m'
     #filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
+    #filename = 'pglib_opf_case588_sdet.m'
     #filename = 'pglib_opf_case2000_tamu.m'
     #filename = 'pglib_opf_case1951_rte.m'
     #filename = 'pglib_opf_case1354_pegase.m'
+    filename = 'pglib_opf_case2316_sdet.m'
+    #filename = 'pglib_opf_case2383wp_k.m'
     #filename = 'pglib_opf_case2869_pegase.m'
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
     md = create_ModelData(matpower_file)

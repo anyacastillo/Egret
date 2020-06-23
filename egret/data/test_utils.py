@@ -356,7 +356,7 @@ def get_acpf_data(md, key='acpf_slack', overwrite_existing=False):
     else:
         return None
 
-def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
+def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01, write_to_json=True):
 
     acpf_data = solve_infeas_model(md)
 
@@ -412,14 +412,16 @@ def repopulate_acpf_to_modeldata(md, abs_tol_vm=1e-6, rel_tol_therm=0.01):
     # save acpf_data to JSON
     md.data['acpf_data'] = acpf_data
     system_data = md.data['system']
-    if 'filename' in system_data.keys():
+    if write_to_json and 'filename' in system_data.keys():
         data_utils_deprecated.destroy_dicts_of_fdf(md)
         filename = system_data['filename']
         model_name = system_data['model_name']
         md.write_to_json(filename)
         save_to_solution_directory(filename, model_name)
+    elif not write_to_json:
+        print('Did not write to JSON.')
     else:
-        print(system_data.keys())
+        print([system_data.keys()])
         print('Failed to write modelData to json.')
 
 

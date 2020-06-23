@@ -40,7 +40,7 @@ def missing_dense_p_sensitivities(md, branches, buses=None):
 
 def missing_dense_q_sensitivities(md, branches, buses):
 
-    need_sys_data = not hasattr(md.data['system'], 'vm_SENSI') or not hasattr(md.data['system'], 'vm_CONST')
+    need_sys_data = not hasattr(md.data['system'], 'vdf') or not hasattr(md.data['system'], 'vdf_c')
 
     need_branch_sensi = False
     for branch in branches:
@@ -144,15 +144,21 @@ def create_dicts_of_fdf(md, base_point=BasePointType.SOLUTION):
 
     if update_dense_p:
         p_sens = tx_calc.implicit_calc_p_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point)
-        md.data['system']['va_SENSI'] = None
-        md.data['system']['va_CONST'] = None
+        md.data['system']['ptdf'] = p_sens['ptdf']
+        md.data['system']['ptdf_c'] = p_sens['ptdf_c']
+        #md.data['system']['pldf'] = p_sens['pldf']
+        #md.data['system']['pldf_c'] = p_sens['pldf_c']
         md.data['system']['nodal_jacobian_p'] = p_sens['nodal_jacobian_p']
         md.data['system']['offset_jacobian_p'] = p_sens['offset_jacobian_p']
 
     if update_dense_q:
         q_sens = tx_calc.implicit_calc_q_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point)
-        md.data['system']['vm_SENSI'] = q_sens['vdf']
-        md.data['system']['vm_CONST'] = q_sens['vdf_c']
+        md.data['system']['qtdf'] = q_sens['qtdf']
+        md.data['system']['qtdf_c'] = q_sens['qtdf_c']
+        #md.data['system']['qldf'] = q_sens['qldf']
+        #md.data['system']['qldf_c'] = q_sens['qldf_c']
+        md.data['system']['vdf'] = q_sens['vdf']
+        md.data['system']['vdf_c'] = q_sens['vdf_c']
         md.data['system']['nodal_jacobian_q'] = q_sens['nodal_jacobian_q']
         md.data['system']['offset_jacobian_q'] = q_sens['offset_jacobian_q']
 
@@ -275,8 +281,10 @@ def create_dicts_of_ptdf_losses(md, base_point=BasePointType.SOLUTION):
 
     if update_dense_p:
         p_sens = tx_calc.implicit_calc_p_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point)
-        md.data['system']['va_SENSI'] = None
-        md.data['system']['va_CONST'] = None
+        md.data['system']['ptdf'] = p_sens['ptdf']
+        md.data['system']['ptdf_c'] = p_sens['ptdf_c']
+        #md.data['system']['pldf'] = p_sens['pldf']
+        #md.data['system']['pldf_c'] = p_sens['pldf_c']
         md.data['system']['nodal_jacobian_p'] = p_sens['nodal_jacobian_p']
         md.data['system']['offset_jacobian_p'] = p_sens['offset_jacobian_p']
 
@@ -320,8 +328,8 @@ def create_dicts_of_ptdf(md, base_point=BasePointType.FLATSTART):
 
     if update_dense_p:
         p_sens = tx_calc.implicit_calc_p_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point)
-        md.data['system']['va_SENSI'] = None
-        md.data['system']['va_CONST'] = None
+        md.data['system']['ptdf'] = p_sens['ptdf']
+        md.data['system']['ptdf_c'] = p_sens['ptdf_c']
         md.data['system']['nodal_jacobian_p'] = p_sens['nodal_jacobian_p']
         md.data['system']['offset_jacobian_p'] = p_sens['offset_jacobian_p']
 
@@ -345,6 +353,7 @@ def destroy_dicts_of_fdf(md):
     # delete sensitivity matrices from 'system'. May need to add these back to modelData when opening the .json file.
     sensi = ['Ft', 'ft_c', 'Fv', 'fv_c', 'Lt', 'lt_c', 'Lv', 'lv_c',
              'va_SENSI', 'va_CONST', 'vm_SENSI', 'vm_CONST',
+             'ptdf', 'ptdf_c', 'pldf', 'pldf_c', 'qtdf', 'qtdf_c', 'qldf', 'qldf_c', 'vdf', 'vdf_c'
              'ploss_const', 'qloss_const', 'ploss', 'qloss',
              'nodal_jacobian_p', 'offset_jacobian_p', 'nodal_jacobian_q', 'offset_jacobian_q',
              'AdjacencyMat', 'AbsAdj']
