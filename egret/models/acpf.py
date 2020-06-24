@@ -29,7 +29,8 @@ def _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_l
     import egret.model_library.decl as decl
     slack_init = {k: 0 for k in bus_attrs['names']}
     #slack_bounds = {k: (0, sum(bus_p_loads.values())) for k in bus_attrs['names']}
-    slack_bounds = {k: (0, None) for k in bus_attrs['names']}
+    #slack_bounds = {k: (0, None) for k in bus_attrs['names']}
+    slack_bounds = {k: (0, 0.01) for k in bus_attrs['names']}
     decl.declare_var('p_slack_pos', model=model, index_set=bus_attrs['names'],
                      initialize=slack_init, bounds=slack_bounds
                      )
