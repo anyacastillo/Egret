@@ -301,6 +301,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                             branches=branches,
                                             index_set=branch_attrs['names'],
                                             thermal_limits=s_max,
+                                            cuts=1
                                             )
 
         ### add helpers for tracking monitored branches
@@ -369,6 +370,7 @@ def create_fdf_model(model_data, include_feasibility_slack=False, include_v_feas
                                             branches=branches,
                                             index_set=branch_attrs['names'],
                                             thermal_limits=s_max,
+                                            cuts=1
                                             )
 
     if ptdf_options['lazy_voltage']:

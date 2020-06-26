@@ -25,48 +25,40 @@ from math import pi
 from collections import OrderedDict
 
 
-def _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads, penalty=1, quadratic_penalty=False):
+def _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads, penalty=1000, quadratic_penalty=False):
     import egret.model_library.decl as decl
     slack_init = {k: 0 for k in bus_attrs['names']}
 
-    if quadratic_penalty:
-        slack_bounds = {k: (None, None) for k in bus_attrs['names']}
-        decl.declare_var('p_slack', model=model, index_set=bus_attrs['names'],
-                         initialize=slack_init, bounds=slack_bounds
-                         )
-        decl.declare_var('q_slack', model=model, index_set=bus_attrs['names'],
-                         initialize=slack_init, bounds=slack_bounds
-                         )
-        p_rhs_kwargs = {'include_feasibility_slack':'p_slack'}
-        q_rhs_kwargs = {'include_feasibility_slack':'q_slack'}
-        penalty_expr = penalty * sum( model.p_slack[bus_name]**2 + model.q_slack[bus_name]**2 for bus_name in bus_attrs['names'])
+    #slack_bounds = {k: (0, sum(bus_p_loads.values())) for k in bus_attrs['names']}
+    #slack_bounds = {k: (0, None) for k in bus_attrs['names']}
+    slack_bounds = {k: (0, 0.10) for k in bus_attrs['names']}
+    decl.declare_var('p_slack_pos', model=model, index_set=bus_attrs['names'],
+                     initialize=slack_init, bounds=slack_bounds
+                     )
+    decl.declare_var('p_slack_neg', model=model, index_set=bus_attrs['names'],
+                     initialize=slack_init, bounds=slack_bounds
+                     )
+    slack_bounds = {k: (0, sum(bus_q_loads.values())) for k in bus_attrs['names']}
+    decl.declare_var('q_slack_pos', model=model, index_set=bus_attrs['names'],
+                     initialize=slack_init, bounds=slack_bounds
+                     )
+    decl.declare_var('q_slack_neg', model=model, index_set=bus_attrs['names'],
+                     initialize=slack_init, bounds=slack_bounds
+                     )
+    p_rhs_kwargs = {'include_feasibility_slack_pos':'p_slack_pos','include_feasibility_slack_neg':'p_slack_neg'}
+    q_rhs_kwargs = {'include_feasibility_slack_pos':'q_slack_pos','include_feasibility_slack_neg':'q_slack_neg'}
+    #p_penalty = penalty * (max([gen_attrs['p_cost'][k]['values'][1] for k in gen_attrs['names']]) + 1)
+    #q_penalty = penalty * (max(gen_attrs.get('q_cost', gen_attrs['p_cost'])[k]['values'][1] for k in gen_attrs['names']) + 1)
+    p_penalty = penalty
+    q_penalty = penalty
+    penalty_expr = sum(p_penalty * (model.p_slack_pos[bus_name] + model.p_slack_neg[bus_name])
+                    + q_penalty * (model.q_slack_pos[bus_name] + model.q_slack_neg[bus_name])
+                    for bus_name in bus_attrs['names'])
 
-    else:
-        #slack_bounds = {k: (0, sum(bus_p_loads.values())) for k in bus_attrs['names']}
-        #slack_bounds = {k: (0, None) for k in bus_attrs['names']}
-        slack_bounds = {k: (0, 0.10) for k in bus_attrs['names']}
-        decl.declare_var('p_slack_pos', model=model, index_set=bus_attrs['names'],
-                         initialize=slack_init, bounds=slack_bounds
-                         )
-        decl.declare_var('p_slack_neg', model=model, index_set=bus_attrs['names'],
-                         initialize=slack_init, bounds=slack_bounds
-                         )
-        slack_bounds = {k: (0, sum(bus_q_loads.values())) for k in bus_attrs['names']}
-        decl.declare_var('q_slack_pos', model=model, index_set=bus_attrs['names'],
-                         initialize=slack_init, bounds=slack_bounds
-                         )
-        decl.declare_var('q_slack_neg', model=model, index_set=bus_attrs['names'],
-                         initialize=slack_init, bounds=slack_bounds
-                         )
-        p_rhs_kwargs = {'include_feasibility_slack_pos':'p_slack_pos','include_feasibility_slack_neg':'p_slack_neg'}
-        q_rhs_kwargs = {'include_feasibility_slack_pos':'q_slack_pos','include_feasibility_slack_neg':'q_slack_neg'}
-        #p_penalty = penalty * (max([gen_attrs['p_cost'][k]['values'][1] for k in gen_attrs['names']]) + 1)
-        #q_penalty = penalty * (max(gen_attrs.get('q_cost', gen_attrs['p_cost'])[k]['values'][1] for k in gen_attrs['names']) + 1)
-        p_penalty = penalty
-        q_penalty = penalty
-        penalty_expr = sum(p_penalty * (model.p_slack_pos[bus_name] + model.p_slack_neg[bus_name])
-                        + q_penalty * (model.q_slack_pos[bus_name] + model.q_slack_neg[bus_name])
-                        for bus_name in bus_attrs['names'])
+    if quadratic_penalty:
+        penalty_expr += penalty * sum( model.p_slack_pos[bus_name]**2 + model.p_slack_neg[bus_name]**2
+                    + model.q_slack_pos[bus_name]**2 + model.q_slack_neg[bus_name]**2
+                    for bus_name in bus_attrs['names'])
 
     return p_rhs_kwargs, q_rhs_kwargs, penalty_expr
 
@@ -287,8 +279,22 @@ def solve_acpf(model_data,
     gens = dict(md.elements(element_type='generator'))
     buses = dict(md.elements(element_type='bus'))
     branches = dict(md.elements(element_type='branch'))
+    bus_attrs = md.attributes(element_type='bus')
 
-    md.data['system']['balance_slack'] = value(m.obj)
+    balance_slack = 0
+    if hasattr(m, 'p_slack_pos'):
+        balance_slack += sum( value(m.p_slack_pos[bus_name]) for bus_name in bus_attrs['names'])
+    if hasattr(m, 'p_slack_neg'):
+        balance_slack += sum( value(m.p_slack_neg[bus_name]) for bus_name in bus_attrs['names'])
+    if hasattr(m, 'p_slack'):
+        balance_slack += sum( abs(value(m.p_slack[bus_name])) for bus_name in bus_attrs['names'])
+    if hasattr(m, 'q_slack_pos'):
+        balance_slack += sum( value(m.q_slack_pos[bus_name]) for bus_name in bus_attrs['names'])
+    if hasattr(m, 'q_slack_neg'):
+        balance_slack += sum( value(m.q_slack_neg[bus_name]) for bus_name in bus_attrs['names'])
+    if hasattr(m, 'q_slack'):
+        balance_slack += sum( abs(value(m.q_slack[bus_name])) for bus_name in bus_attrs['names'])
+    md.data['system']['balance_slack'] = balance_slack
 
     for g,g_dict in gens.items():
         g_dict['pg'] = value(m.pg[g])

@@ -285,6 +285,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                                             thermal_limits=s_max,
                                             ploss_distribution=branch_attrs['ploss_distribution'],
                                             qloss_distribution=branch_attrs['qloss_distribution'],
+                                            cuts=1
                                             )
         ### add helpers for tracking monitored branches
         lpu.add_monitored_branch_tracker(model)
@@ -359,6 +360,7 @@ def create_simplified_fdf_model(model_data, include_feasibility_slack=False, inc
                                             thermal_limits=s_max,
                                             ploss_distribution=branch_attrs['ploss_distribution'],
                                             qloss_distribution=branch_attrs['qloss_distribution'],
+                                            cuts=1
                                             )
 
     if ptdf_options['lazy_voltage']:
@@ -863,12 +865,13 @@ if __name__ == '__main__':
     #filename = 'pglib_opf_case14_ieee.m'
     #filename = 'pglib_opf_case30_ieee.m'
     #filename = 'pglib_opf_case57_ieee.m'
-    #filename = 'pglib_opf_case118_ieee.m'
+    filename = 'pglib_opf_case118_ieee.m'
     #filename = 'pglib_opf_case162_ieee_dtc.m'
     #filename = 'pglib_opf_case179_goc.m'
     #filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
-    filename = 'pglib_opf_case588_sdet.m'
+    #filename = 'pglib_opf_case588_sdet.m'
+    #filename = 'pglib_opf_case1888_rte.m'
     #filename = 'pglib_opf_case2000_tamu.m'
     #filename = 'pglib_opf_case1951_rte.m'
     #filename = 'pglib_opf_case1354_pegase.m'

@@ -988,15 +988,16 @@ def declare_fdf_thermal_limit(model, branches, index_set, thermal_limits, ploss_
     """
     import cmath
     unit_radius = 1
-    model._fdf_unitcircle = pe.Set(initialize=[(c.real, c.imag) for c in (cmath.rect(unit_radius, math.radians(a)) \
-                                                       for a in range(0, 360, 360 // int(cuts)))], ordered=True)
+    # using full unit circle if 8 or more cuts are desired
+    if cuts > 1:
+        circle_points = [(c.real, c.imag) for c in (cmath.rect(unit_radius, math.radians(a)) for a in range(0, 360, 360 // int(cuts)))]
+        model._fdf_unitcircle = pe.Set(initialize=circle_points, ordered=True)
+        index_set_generator = ( (bn,x,y) for bn in index_set for x,y in model._fdf_unitcircle)
+        con_set = decl.declare_set('_con_ineq_branch_thermal_limit', model=model, index_set=index_set_generator)
+    else:
+        con_set = decl.declare_set('_con_ineq_branch_thermal_limit', model=model, index_set=index_set)
 
     m = model
-
-    index_set_generator = ( (bn,x,y) for bn in index_set for x,y in model._fdf_unitcircle)
-
-    con_set = decl.declare_set('_con_ineq_branch_thermal_limit', model=model, index_set=index_set_generator)
-
     m.ineq_branch_thermal_limit = pe.Constraint(con_set)
 
     if hasattr(model,"_ptdf_options") and model._ptdf_options['lazy']:
@@ -1024,59 +1025,75 @@ def add_constr_branch_thermal_limit(model, branch, branch_name, thermal_limit, p
 
     m = model
     bn = branch_name
-    m_pf = m.pf[bn]
-    m_qf = m.qf[bn]
 
     s_to = branch['pt']**2 + branch['qt']**2
-    s_fr = branch['pf']**2 + branch['qt']**2
+    s_fr = branch['pf']**2 + branch['qf']**2
 
     if s_fr > s_to:
         direction = 1
     else:
         direction = -1
 
-    has_pfl = hasattr(m,'pfl')
-    has_qfl = hasattr(m,'qfl')
-    has_ploss = hasattr(m,'ploss')
-    has_qloss = hasattr(m,'qloss')
+    form_dict = {}
+    form_dict['has_pfl'] = hasattr(m,'pfl')
+    form_dict['has_qfl'] = hasattr(m,'qfl')
+    form_dict['has_ploss'] = hasattr(m,'ploss')
+    form_dict['has_qloss'] = hasattr(m,'qloss')
 
-    for x,y in m._fdf_unitcircle:
-        if thermal_limit is None:
-            continue
+    if hasattr(m, "_fdf_unitcircle"):
+        for x,y in m._fdf_unitcircle:
+            if thermal_limit is None:
+                continue
 
-        #x, y = p
-        _pf = x * thermal_limit
-        _qf = y * thermal_limit
+            #x, y = p
+            _pf = x * thermal_limit
+            _qf = y * thermal_limit
 
-        ## Taylor series form
-        #model.ineq_branch_thermal_limit[branch_name,x,y] = 2 * _pf * m.pf[branch_name] + 2 * _qf * m.qf[branch_name] \
-        #                                             <= thermal_limit**2 + _pf**2 + _qf**2
+            expr = generate_thermal_limit_Taylors_series(m, bn, direction, _pf, _qf, pfl_of_ploss, qfl_of_qloss, form_dict)
 
-        coef_list = [2*_pf, 2*_qf]
-        vars_list = [ m_pf,  m_qf]
+            ## Taylor series form using LinearExpression
+            model.ineq_branch_thermal_limit[branch_name,x,y] = (None, expr, thermal_limit**2 + _pf**2 + _qf**2)
 
-        ## add 1/2 of branch loss, in the same (+/-) direction as power flows
-        if has_pfl:
-            coef_list.append(_pf * direction)
-            vars_list.append(m.pfl[bn])
-        if has_qfl:
-            coef_list.append(_qf * direction)
-            vars_list.append(m.qfl[bn])
-        if has_ploss:
-            coef_list.append(_pf * direction * pfl_of_ploss)
-            vars_list.append(m.ploss)
-        if has_qloss:
-            coef_list.append(_qf * direction * qfl_of_qloss)
-            vars_list.append(m.qloss)
+    elif direction == 1:
+        _pf = branch['pf']
+        _qf = branch['qf']
+        expr = generate_thermal_limit_Taylors_series(m, bn, direction, _pf, _qf, pfl_of_ploss, qfl_of_qloss, form_dict)
+        model.ineq_branch_thermal_limit[branch_name] = (None, expr, thermal_limit**2 + _pf**2 + _qf**2)
+    else:
+        _pf = branch['pt']
+        _qf = branch['qt']
+        expr = generate_thermal_limit_Taylors_series(m, bn, direction, _pf, _qf, pfl_of_ploss, qfl_of_qloss, form_dict)
+        model.ineq_branch_thermal_limit[branch_name] = (None, expr, thermal_limit**2 + _pf**2 + _qf**2)
 
-        ## Taylor series form using LinearExpression
-        model.ineq_branch_thermal_limit[branch_name,x,y] = (None,
-                                                            LinearExpression(constant=0,
-                                                                             linear_coefs = coef_list,
-                                                                             linear_vars  = vars_list
-                                                                            ),
-                                                            thermal_limit**2 + _pf**2 + _qf**2)
 
+
+def generate_thermal_limit_Taylors_series(model, branch_name, direction, _pf, _qf, pfl_of_ploss, qfl_of_qloss, form_dict):
+
+    m = model
+    bn = branch_name
+
+    m_pf = m.pf[bn]
+    m_qf = m.qf[bn]
+    coef_list = [2*_pf, 2*_qf]
+    vars_list = [ m_pf,  m_qf]
+
+    ## add 1/2 of branch loss, in the same (+/-) direction as power flows
+    if form_dict['has_pfl']:
+        coef_list.append(_pf * direction)
+        vars_list.append(m.pfl[bn])
+    if form_dict['has_qfl']:
+        coef_list.append(_qf * direction)
+        vars_list.append(m.qfl[bn])
+    if form_dict['has_ploss']:
+        coef_list.append(_pf * direction * pfl_of_ploss)
+        vars_list.append(m.ploss)
+    if form_dict['has_qloss']:
+        coef_list.append(_qf * direction * qfl_of_qloss)
+        vars_list.append(m.qloss)
+
+    expr = LinearExpression(constant=0, linear_coefs=coef_list, linear_vars=vars_list)
+
+    return expr
 
 
 def declare_eq_branch_midpoint_power(model, index_set, branches, coordinate_type=CoordinateType.POLAR):

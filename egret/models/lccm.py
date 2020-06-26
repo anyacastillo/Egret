@@ -285,7 +285,8 @@ def create_lccm_model(model_data, include_feasibility_slack=False, include_v_fea
     libbranch.declare_fdf_thermal_limit(model=model,
                                         branches=branches,
                                         index_set=branch_attrs['names'],
-                                        thermal_limits=s_max
+                                        thermal_limits=s_max,
+                                        cuts=1
                                         )
 
 

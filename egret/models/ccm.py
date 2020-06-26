@@ -273,6 +273,7 @@ def create_ccm_model(model_data, include_feasibility_slack=False, include_v_feas
                                         branches=branches,
                                         index_set=branch_attrs['names'],
                                         thermal_limits=s_max,
+                                        cuts=1
                                         )
 
     libgen.declare_eq_q_fdf_deviation(model=model,
