@@ -243,6 +243,21 @@ def solve_infeas_model(model_data):
     ref_bus = model_data.data['system']['reference_bus']
     slack_p_init = sum(lin_gens[gen_name]['pg'] for gen_name in gens_by_bus[ref_bus])
 
+    def empty_acpf_dict(termination=None):
+        acpf_dict = {}
+        acpf_dict['acpf_termination'] = termination
+        acpf_dict['time'] = None
+        acpf_dict['balance_slack'] = None
+        acpf_dict['acpf_slack'] = None
+        acpf_dict['vm_viol'] = None
+        acpf_dict['thermal_viol'] = None
+        acpf_dict['pf_error'] = None
+        acpf_dict['qf_error'] = None
+        return acpf_dict
+
+    if model_data.data['results']['termination'] != 'optimal':
+        return empty_acpf_dict(termination='skipped')
+
     if 'filename' in list(model_data.data['system'].keys()):
         is_acopf = 'acopf' in model_data.data['system']['filename']
     else:
@@ -254,6 +269,7 @@ def solve_infeas_model(model_data):
             logger.critical('>>>> Solving ACPF for {}'.format(model_data.data['system']['filename']))
         kwargs = {}
         kwargs['include_feasibility_slack'] = True
+        kwargs['timelimit'] = 1000
         md, results = solve_acpf(model_data, "ipopt", return_results=True, return_model=False, solver_tee=False, **kwargs)
         termination = results.solver.termination_condition.__str__()
         balance_slack = md.data['system']['balance_slack']
@@ -262,14 +278,7 @@ def solve_infeas_model(model_data):
         message = str(e)
         logger.critical('...EXCEPTION OCCURRED: {}'.format(message))
         if 'infeasible' in message:
-            termination = 'infeasible'
-            slack_p = None
-            vm_UB_viol_dict = {}
-            vm_LB_viol_dict = {}
-            thermal_viol_dict = {}
-            pf_error = {}
-            qf_error = {}
-            return slack_p, vm_UB_viol_dict, vm_LB_viol_dict, thermal_viol_dict, pf_error, qf_error, termination
+            return empty_acpf_dict(termination='infeasible')
         else:
             raise e
 
@@ -333,6 +342,7 @@ def solve_infeas_model(model_data):
 
     acpf_dict = {}
     acpf_dict['acpf_termination'] = termination
+    acpf_dict['time'] = results.Solver.Time
     acpf_dict['balance_slack'] = balance_slack
     acpf_dict['acpf_slack'] = slack_p
     acpf_dict['vm_viol'] = vm_viol_dict
@@ -755,7 +765,7 @@ def pf_error(md):
         return None
     # including overwrite_existing since this is the first ACPF data to be collected, so
     # this call will automatically update the acpf data.
-    pf_error = get_acpf_data(md, key='pf_error', overwrite_existing=True)
+    pf_error = get_acpf_data(md, key='pf_error')
 
     return pf_error
 

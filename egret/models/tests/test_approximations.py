@@ -352,6 +352,7 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
     test_model_dict = generate_test_model_dict(test_model_list)
     bus_attrs = md_flat.attributes(element_type='bus')
     num_bus = len(bus_attrs['names'])
+    mult = md_flat.data['system']['mult']
 
     for tm in test_model_list:
 
@@ -360,7 +361,7 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
         if tm_dict['suppress_large_cases'] and num_bus > 1000:
             continue
 
-        print('>>>>> BEGIN SOLVE: {} <<<<<'.format(tm))
+        print('>>>>> BEGIN SOLVE: {} / {} <<<<<'.format(tm,mult))
 
         solve_func = tm_dict['solve_func']
         initial_solution = tm_dict['initial_solution']
@@ -386,6 +387,7 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
             if 'infeasible' in message:
                 md_out.data['results']['termination'] = 'infeasible'
             else:
+                raise e
                 md_out.data['results']['termination'] = 'other'
 
         record_results(tm, md_out)
@@ -401,6 +403,8 @@ def record_results(idx, md):
     mult = md.data['system']['mult']
     filename = md.data['system']['model_name'] + '_' + idx + '_{0:04.0f}'.format(mult * 1000)
     md.data['system']['filename'] = filename
+
+    tu.repopulate_acpf_to_modeldata(md)
 
     md.write_to_json(filename)
     print('...out: {}.json'.format(filename))
@@ -450,6 +454,8 @@ def solve_approximation_models(test_case, test_model_list, init_min=0.9, init_ma
     '''
 
     _md_flat = create_ModelData(test_case)
+
+    logger.critical("Beginning solution loop for: {}".format(_md_flat.data['system']['model_name']))
 
     _md_basept, min_mult, max_mult = set_acopf_basepoint_min_max(_md_flat, init_min, init_max)
     if 'acopf' not in test_model_list:
@@ -558,12 +564,13 @@ def summarize_nominal_data(idx=0, test_case=None,show_plot=True, log_level=None)
 def batch(arg, subbatch=run_test_loop):
 
     idxA0 = 0
-    #idxA0 = case_names.index('pglib_opf_case179_goc')  ## redefine first case of A
+    #idxA0 = case_names.index('pglib_opf_case89_pegase')  ## redefine first case of A
     idxA = case_names.index('pglib_opf_case1354_pegase')  ## < 1000 buses
     idxB = case_names.index('pglib_opf_case2736sp_k')  ## 1354 - 2383 buses
     idxC = case_names.index('pglib_opf_case6468_rte')  ## 2383 - 4661 buses
     idxD = case_names.index('pglib_opf_case13659_pegase')  ## 6468 - 10000 buses
     idxE = case_names.index('pglib_opf_case13659_pegase') + 1  ## 13659 buses
+    idx7000 = case_names.index('pglib_opf_case9241_pegase')
 
     if arg == 'A':
         idx_list = list(range(idxA0,idxA))
@@ -575,6 +582,12 @@ def batch(arg, subbatch=run_test_loop):
         idx_list = list(range(idxC,idxD))
     elif arg == 'E':
         idx_list = list(range(idxD,idxE))
+    elif arg == 'X':
+        idx_list = list(range(0,idxE))      # all cases
+    elif arg == 'Y':
+        idx_list = list(range(idxA,idxE))   # all >1,000 bus cases
+    elif arg == 'Z':
+        idx_list = list(range(idxA,idx7000))   # all >1,000 bus, <7,000 bus cases
 
     for idx in idx_list:
         subbatch(idx, show_plot=False, log_level=logging.CRITICAL)
@@ -583,7 +596,15 @@ def batch(arg, subbatch=run_test_loop):
 def main(argv):
 
     message = 'test_approximations.py usage must include a batch or a case: \n'
-    message += '  -b --batch=<A,B,C,D,E>      ::  run a preset batch of cases \n'
+    message += '  -b --batch=<letter>         ::  run a preset batch of cases \n'
+    message += ' \t A \t cases 3-588 \n'
+    message += ' \t B \t cases 1354-2383 \n'
+    message += ' \t C \t cases 2736-4661 \n'
+    message += ' \t D \t cases 6468-10000 \n'
+    message += ' \t E \t case 13659 \n'
+    message += ' \t X \t all cases \n'
+    message += ' \t Y \t all cases >1000 \n'
+    message += ' \t Z \t all cases >1000, <7000 \n'
     message += '  -c --case=<case_name/idx>   ::  run a specific case or case index \n'
     message += '  -d --data-only              ::  run summary data only \n'
     message += '  -n --nominal                ::  run a specific case with nominal demand only \n'

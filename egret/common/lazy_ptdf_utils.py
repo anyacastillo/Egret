@@ -62,7 +62,7 @@ def populate_default_ptdf_options(ptdf_options):
     if 'pu_vm_tol' not in ptdf_options:
         ptdf_options['pu_vm_tol'] = 1.e-5
     if 'abs_thermal_init_tol' not in ptdf_options:
-        ptdf_options['abs_thermal_init_tol'] = 0.01
+        ptdf_options['abs_thermal_init_tol'] = 0.1
     if 'rel_thermal_init_tol' not in ptdf_options:
         ptdf_options['rel_thermal_init_tol'] = 0.25
     if 'abs_vm_init_tol' not in ptdf_options:
@@ -135,7 +135,7 @@ def solve_m_pf(model, model_data):
     if 'ptdf' in list(md.data['system'].keys()):
         # Nodal net withdrawal to a Numpy array
         index_set_bus = md.attributes(element_type='bus')['names']
-        m_p_nw = np.fromiter((model.p_nw[b].value for b in index_set_bus), float, count=len(index_set_bus))
+        m_p_nw = np.fromiter((pe.value(model.p_nw[b]) for b in index_set_bus), float, count=len(index_set_bus))
         PTDF = md.data['system']['ptdf']
         PTDF_CONST = md.data['system']['ptdf_c']
         m_pf = PTDF.dot(m_p_nw) + PTDF_CONST
@@ -159,12 +159,12 @@ def solve_m_pf(model, model_data):
 
 def solve_m_qf(model, model_data):
     md = model_data
-    md_keys = list(md.data['system'].keys)
+    md_keys = list(md.data['system'].keys())
 
     if 'qtdf' in md_keys and 'vdf' in md_keys:
         # Nodal net withdrawal to a Numpy array
         index_set_bus = md.attributes(element_type='bus')['names']
-        m_q_nw = np.fromiter((model.q_nw[b].value for b in index_set_bus), float, count=len(index_set_bus))
+        m_q_nw = np.fromiter((pe.value(model.q_nw[b]) for b in index_set_bus), float, count=len(index_set_bus))
         QTDF = md.data['system']['qtdf']
         QTDF_CONST = md.data['system']['qtdf_c']
         VDF = md.data['system']['vdf']

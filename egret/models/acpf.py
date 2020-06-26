@@ -25,36 +25,49 @@ from math import pi
 from collections import OrderedDict
 
 
-def _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads, penalty=1):
+def _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads, penalty=1, quadratic_penalty=False):
     import egret.model_library.decl as decl
     slack_init = {k: 0 for k in bus_attrs['names']}
-    #slack_bounds = {k: (0, sum(bus_p_loads.values())) for k in bus_attrs['names']}
-    #slack_bounds = {k: (0, None) for k in bus_attrs['names']}
-    slack_bounds = {k: (0, 0.01) for k in bus_attrs['names']}
-    decl.declare_var('p_slack_pos', model=model, index_set=bus_attrs['names'],
-                     initialize=slack_init, bounds=slack_bounds
-                     )
-    decl.declare_var('p_slack_neg', model=model, index_set=bus_attrs['names'],
-                     initialize=slack_init, bounds=slack_bounds
-                     )
-    #slack_bounds = {k: (0, sum(bus_q_loads.values())) for k in bus_attrs['names']}
-    decl.declare_var('q_slack_pos', model=model, index_set=bus_attrs['names'],
-                     initialize=slack_init, bounds=slack_bounds
-                     )
-    decl.declare_var('q_slack_neg', model=model, index_set=bus_attrs['names'],
-                     initialize=slack_init, bounds=slack_bounds
-                     )
-    p_rhs_kwargs = {'include_feasibility_slack_pos':'p_slack_pos','include_feasibility_slack_neg':'p_slack_neg'}
-    q_rhs_kwargs = {'include_feasibility_slack_pos':'q_slack_pos','include_feasibility_slack_neg':'q_slack_neg'}
 
-    #p_penalty = penalty * (max([gen_attrs['p_cost'][k]['values'][1] for k in gen_attrs['names']]) + 1)
-    #q_penalty = penalty * (max(gen_attrs.get('q_cost', gen_attrs['p_cost'])[k]['values'][1] for k in gen_attrs['names']) + 1)
-    p_penalty = penalty
-    q_penalty = penalty
+    if quadratic_penalty:
+        slack_bounds = {k: (None, None) for k in bus_attrs['names']}
+        decl.declare_var('p_slack', model=model, index_set=bus_attrs['names'],
+                         initialize=slack_init, bounds=slack_bounds
+                         )
+        decl.declare_var('q_slack', model=model, index_set=bus_attrs['names'],
+                         initialize=slack_init, bounds=slack_bounds
+                         )
+        p_rhs_kwargs = {'include_feasibility_slack':'p_slack'}
+        q_rhs_kwargs = {'include_feasibility_slack':'q_slack'}
+        penalty_expr = penalty * sum( model.p_slack[bus_name]**2 + model.q_slack[bus_name]**2 for bus_name in bus_attrs['names'])
 
-    penalty_expr = sum(p_penalty * (model.p_slack_pos[bus_name] + model.p_slack_neg[bus_name])
-                    + q_penalty * (model.q_slack_pos[bus_name] + model.q_slack_neg[bus_name])
-                    for bus_name in bus_attrs['names'])
+    else:
+        #slack_bounds = {k: (0, sum(bus_p_loads.values())) for k in bus_attrs['names']}
+        #slack_bounds = {k: (0, None) for k in bus_attrs['names']}
+        slack_bounds = {k: (0, 0.10) for k in bus_attrs['names']}
+        decl.declare_var('p_slack_pos', model=model, index_set=bus_attrs['names'],
+                         initialize=slack_init, bounds=slack_bounds
+                         )
+        decl.declare_var('p_slack_neg', model=model, index_set=bus_attrs['names'],
+                         initialize=slack_init, bounds=slack_bounds
+                         )
+        slack_bounds = {k: (0, sum(bus_q_loads.values())) for k in bus_attrs['names']}
+        decl.declare_var('q_slack_pos', model=model, index_set=bus_attrs['names'],
+                         initialize=slack_init, bounds=slack_bounds
+                         )
+        decl.declare_var('q_slack_neg', model=model, index_set=bus_attrs['names'],
+                         initialize=slack_init, bounds=slack_bounds
+                         )
+        p_rhs_kwargs = {'include_feasibility_slack_pos':'p_slack_pos','include_feasibility_slack_neg':'p_slack_neg'}
+        q_rhs_kwargs = {'include_feasibility_slack_pos':'q_slack_pos','include_feasibility_slack_neg':'q_slack_neg'}
+        #p_penalty = penalty * (max([gen_attrs['p_cost'][k]['values'][1] for k in gen_attrs['names']]) + 1)
+        #q_penalty = penalty * (max(gen_attrs.get('q_cost', gen_attrs['p_cost'])[k]['values'][1] for k in gen_attrs['names']) + 1)
+        p_penalty = penalty
+        q_penalty = penalty
+        penalty_expr = sum(p_penalty * (model.p_slack_pos[bus_name] + model.p_slack_neg[bus_name])
+                        + q_penalty * (model.q_slack_pos[bus_name] + model.q_slack_neg[bus_name])
+                        for bus_name in bus_attrs['names'])
+
     return p_rhs_kwargs, q_rhs_kwargs, penalty_expr
 
 
@@ -110,7 +123,7 @@ def create_psv_acpf_model(model_data, include_feasibility_slack=False):
     q_rhs_kwargs = {}
     if include_feasibility_slack:
         print('...relaxing power balance...')
-        p_rhs_kwargs, q_rhs_kwargs, penalty_expr = _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads)
+        p_rhs_kwargs, q_rhs_kwargs, penalty_expr = _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads, quadratic_penalty=False)
 
     ### In a system with N buses and G generators, there are then 2(N-1)-(G-1) unknowns.
     ### fix the reference bus

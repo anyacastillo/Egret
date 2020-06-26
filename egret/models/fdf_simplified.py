@@ -730,14 +730,14 @@ def compare_fdf_options(md):
     va_dict = dict()
     vm_dict = dict()
     acpf_slack = dict()
-    vm_viol_dict = dict()
-    thermal_viol_dict = dict()
+    pf_error = dict()
 
     def update_solution_dicts(md, name="model_name"):
 
         try:
             print('...Solving ACPF for model {}.'.format(name))
             repopulate_acpf_to_modeldata(md, write_to_json=False)
+            print('...ACPF time: {}s'.format(md.data['acpf_data']['time']))
         except Exception as e:
             raise e
 
@@ -755,9 +755,7 @@ def compare_fdf_options(md):
         va_dict.update({name: bus['va']})
         vm_dict.update({name: bus['vm']})
         acpf_slack.update({name: {'slack' : md.data['acpf_data']['acpf_slack']}})
-        vm_viol_dict.update({name: md.data['acpf_data']['vm_viol']})
-        thermal_viol_dict.update({name: md.data['acpf_data']['thermal_viol']})
-
+        pf_error.update({name: md.data['acpf_data']['pf_error']})
 
     # solve ACOPF
     print('Solve ACOPF....')
@@ -824,6 +822,8 @@ def compare_fdf_options(md):
 
     print(termination)
 
+    return
+
     # display results in dataframes
     compare_dict = {'pg' : pg_dict,
                     'qg' : qg_dict,
@@ -834,8 +834,7 @@ def compare_fdf_options(md):
                     'va' : va_dict,
                     'vm' : vm_dict,
                     'slack' : acpf_slack,
-                    'vm_viol' : vm_viol_dict,
-                    'thermal_viol' : thermal_viol_dict
+                    'pf_error' : pf_error,
                     }
 
     for mv,results in compare_dict.items():

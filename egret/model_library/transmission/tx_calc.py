@@ -1233,9 +1233,9 @@ def implicit_factor_solve(sens_mat, rhs_mat, index_set, active_index_set=None):
 
 def truncate(_sens, abs_tol=0, rel_tol=1e-6):
 
-    max_val = _sens.max()
+    max_val = abs(_sens).max()
     eps = max(abs_tol, rel_tol * max_val)
-    _sens[_sens < eps] = 0
+    _sens[abs(_sens) < eps] = 0
 
     return _sens
 

@@ -481,6 +481,8 @@ def declare_eq_p_balance(model, index_set,
                     p_expr -= eval("m." + val)[bus_name]
                 if idx == 'include_feasibility_slack_neg':
                     p_expr += eval("m." + val)[bus_name]
+                if idx == 'include_feasibility_slack':
+                    p_expr += eval("m." + val)[bus_name]
 
         for gen_name in gens_by_bus[bus_name]:
             p_expr += m.pg[gen_name]
@@ -562,6 +564,8 @@ def declare_eq_q_balance(model, index_set,
                 if idx == 'include_feasibility_slack_pos':
                     q_expr -= eval("m." + val)[bus_name]
                 if idx == 'include_feasibility_slack_neg':
+                    q_expr += eval("m." + val)[bus_name]
+                if idx == 'include_feasibility_slack':
                     q_expr += eval("m." + val)[bus_name]
 
         for gen_name in gens_by_bus[bus_name]:
