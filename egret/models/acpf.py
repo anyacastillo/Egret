@@ -123,7 +123,7 @@ def create_psv_acpf_model(model_data, include_feasibility_slack=False):
     q_rhs_kwargs = {}
     if include_feasibility_slack:
         print('...relaxing power balance...')
-        p_rhs_kwargs, q_rhs_kwargs, penalty_expr = _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads, quadratic_penalty=False)
+        p_rhs_kwargs, q_rhs_kwargs, penalty_expr = _include_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads, quadratic_penalty=True)
 
     ### In a system with N buses and G generators, there are then 2(N-1)-(G-1) unknowns.
     ### fix the reference bus

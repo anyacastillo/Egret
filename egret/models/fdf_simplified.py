@@ -868,11 +868,11 @@ if __name__ == '__main__':
     #filename = 'pglib_opf_case179_goc.m'
     #filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
-    #filename = 'pglib_opf_case588_sdet.m'
+    filename = 'pglib_opf_case588_sdet.m'
     #filename = 'pglib_opf_case2000_tamu.m'
     #filename = 'pglib_opf_case1951_rte.m'
     #filename = 'pglib_opf_case1354_pegase.m'
-    filename = 'pglib_opf_case2316_sdet.m'
+    #filename = 'pglib_opf_case2316_sdet.m'
     #filename = 'pglib_opf_case2383wp_k.m'
     #filename = 'pglib_opf_case2869_pegase.m'
     matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
