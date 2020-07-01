@@ -42,6 +42,7 @@
     num_nonzeros
     model_density
     total_cost
+    lmp
     ploss
     qloss
     pgen
@@ -501,7 +502,7 @@ def run_test_loop(idx=None, show_plot=False, log_level=logging.CRITICAL):
         test_case=idx_to_test_case(idx)
 
     ## Model solves
-    solve_approximation_models(test_case, test_model_list, init_min=0.9, init_max=1.1, steps=20)
+    solve_approximation_models(test_case, test_model_list, init_min=0.95, init_max=1.05, steps=10)
 
     ## Generate summary data
     spu.create_full_summary(test_case, test_model_list, show_plot=show_plot)

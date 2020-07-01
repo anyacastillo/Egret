@@ -385,7 +385,6 @@ def add_thermal_violations(thermal_viol_lazy, SV, mb, md, solver, ptdf_options, 
         qf = mb.qf
         eq_qf_constr = mb.eq_qf_branch
         ineq_branch_thermal_constr = mb.ineq_branch_thermal_limit
-        _fdf_unitcircle = mb._fdf_unitcircle
 
         ## cache the dictionaries we need
         ba_qtdf = branch_attrs['qtdf']
@@ -422,8 +421,12 @@ def add_thermal_violations(thermal_viol_lazy, SV, mb, md, solver, ptdf_options, 
             solver.add_constraint(eq_pf_constr[bn])
             if include_reactive:
                 solver.add_constraint(eq_qf_constr[bn])
-                for x,y in _fdf_unitcircle:
-                    solver.add_constraint(ineq_branch_thermal_constr[bn,x,y])
+                if hasattr(mb, '_fdf_unitcircle'):
+                    _fdf_unitcircle = mb._fdf_unitcircle
+                    for x,y in _fdf_unitcircle:
+                        solver.add_constraint(ineq_branch_thermal_constr[bn,x,y])
+                else:
+                    solver.add_constraint(ineq_branch_thermal_constr[bn])
 
 ## voltage violation adder
 def add_vmag_violations(vmag_viol_lazy, VMAG, mb, md, solver, ptdf_options, bus_attrs, time=None):

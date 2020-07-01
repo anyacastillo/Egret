@@ -853,7 +853,7 @@ def compare_to_acopf(md):
 
 def compare_fdf_options(md):
 
-    from egret.data.test_utils import solve_infeas_model
+    from egret.data.test_utils import repopulate_acpf_to_modeldata
     from egret.models.tests.test_approximations import create_new_model_data
 
     logger = logging.getLogger('egret')
@@ -885,7 +885,7 @@ def compare_fdf_options(md):
         gen = md.attributes(element_type='generator')
         bus = md.attributes(element_type='bus')
         branch = md.attributes(element_type='branch')
-        system_data = md.data['system']
+        acpf_data = md.data['acpf_data']
 
         pg_dict.update({name: gen['pg']})
         qg_dict.update({name: gen['qg']})
@@ -895,15 +895,15 @@ def compare_fdf_options(md):
         qfl_dict.update({name: branch['qfl']})
         va_dict.update({name: bus['va']})
         vm_dict.update({name: bus['vm']})
-        acpf_slack.update({name: {'slack' : system_data['acpf_slack']}})
-        pf_error.update({name: system_data['pf_error']})
-        qf_error.update({name: system_data['qf_error']})
-        vm_viol_dict.update({name: system_data['vm_viol']})
-        thermal_viol_dict.update({name: system_data['thermal_viol']})
+        acpf_slack.update({name: {'slack' : acpf_data['acpf_slack']}})
+        pf_error.update({name: acpf_data['pf_error']})
+        qf_error.update({name: acpf_data['qf_error']})
+        vm_viol_dict.update({name: acpf_data['vm_viol']})
+        thermal_viol_dict.update({name: acpf_data['thermal_viol']})
 
     def acpf_to_md(md):
         try:
-            acpf_data = solve_infeas_model(md)
+            repopulate_acpf_to_modeldata(md, write_to_json=False)
         except Exception as e:
             return e
         logger.critical('ACPF was successful')
@@ -1100,13 +1100,13 @@ if __name__ == '__main__':
     #filename = 'pglib_opf_case14_ieee.m'
     #filename = 'pglib_opf_case30_ieee.m'
     #filename = 'pglib_opf_case57_ieee.m'
-    #filename = 'pglib_opf_case118_ieee.m'
+    filename = 'pglib_opf_case118_ieee.m'
     #filename = 'pglib_opf_case162_ieee_dtc.m'
     #filename = 'pglib_opf_case179_goc.m'
     #filename = 'pglib_opf_case300_ieee.m'
     #filename = 'pglib_opf_case500_tamu.m'
     #filename = 'pglib_opf_case588_sdet.m'
-    filename = 'pglib_opf_case1354_pegase.m'
+    #filename = 'pglib_opf_case1354_pegase.m'
     #filename = 'pglib_opf_case1888_rte.m'
     #filename = 'pglib_opf_case1951_rte.m'
     #filename = 'pglib_opf_case2000_tamu.m'

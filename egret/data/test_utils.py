@@ -156,6 +156,45 @@ def total_cost(md):
 
     return val
 
+def lmp(md):
+
+    if not duals(md):
+        return None
+
+    buses = dict(md.elements(element_type='bus'))
+    lmp = {}
+
+    for b, bus in buses.items():
+        lmp[b] = bus['lmp']
+
+    return lmp
+
+def lmp_error(md):
+
+    from egret.data.model_data import ModelData
+
+    # get ACOPF filename for same multiplier
+    mult = md.data['system']['mult']
+    filename = md.data['system']['model_name']
+    filename += '_acopf_'
+    filename += '{0:04.0f}.json'.format(mult * 1000)
+
+    case_folder = tau.get_solution_file_location(md.data['system']['model_name'])
+    dict_ac = json.load(open(os.path.join(case_folder, filename)))
+    md_ac = ModelData(dict_ac)
+    lmp_ac = lmp(md_ac)
+    lmp_md = lmp(md)
+
+    buses = list(set([k for k in lmp_ac.keys()] + [k for k in lmp_md.keys()]))
+    lmp_error = {}
+    for b in buses:
+        try:
+            lmp_error[b] = lmp_md[b] - lmp_ac[b]
+        except KeyError:
+            lmp_error[b] = None
+
+    return lmp_error
+
 def ploss(md):
 
     if not optimal(md):
