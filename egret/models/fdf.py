@@ -917,7 +917,7 @@ def compare_fdf_options(md):
     print(results.Solver)
 
     md_ac = create_new_model_data(md_ac, 1.0)
-    termination={}
+    compare={}
 
     #solve D-LOPF default
     print('Solve D-LOPF (lazy)....')
@@ -925,27 +925,26 @@ def compare_fdf_options(md):
     ptdf_options = {}
     ptdf_options['lazy'] = True
     ptdf_options['lazy_voltage'] = True
-    ptdf_options['rel_ptdf_tol'] = 1e-2
-    ptdf_options['rel_qtdf_tol'] = 1e-2
-    ptdf_options['rel_pldf_tol'] = 1e-2
-    ptdf_options['rel_qldf_tol'] = 1e-2
-    ptdf_options['rel_vdf_tol'] = 1e-2
+    #ptdf_options['rel_ptdf_tol'] = 1e-2
+    #ptdf_options['rel_qtdf_tol'] = 1e-2
+    #ptdf_options['rel_pldf_tol'] = 1e-2
+    #ptdf_options['rel_qldf_tol'] = 1e-2
+    #ptdf_options['rel_vdf_tol'] = 1e-2
     kwargs['ptdf_options'] = ptdf_options
-    kwargs['include_v_feasibility_slack'] = True
+    kwargs['include_v_feasibility_slack'] = False
+    kwargs['include_pf_feasibility_slack'] = False
+    kwargs['include_qf_feasibility_slack'] = False
     kwargs['include_feasibility_slack'] = False
     try:
-        md, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True,return_results=True, solver_tee=False, **kwargs)
-        print('Default cost: $%3.2f' % md.data['system']['total_cost'])
-        print(results.Solver)
-        print(md.data['results'])
+        md = solve_fdf(md_ac, "gurobi_persistent", return_model=False, return_results=False, solver_tee=False, **kwargs)
+        print('Lazy cost: $%3.2f' % md.data['system']['total_cost'])
         update_solution_dicts(md,'lazy')
-        termination['lazy'] = md.data['results']['termination']
+        compare['lazy'] = md.data['results']
+        print(compare)
     except Exception as e:
         raise e
         message = str(e)
         print(message)
-        m_list = message.split()
-        termination['lazy'] = m_list[-1]
 
 
     #solve D-LOPF tolerances
@@ -954,28 +953,27 @@ def compare_fdf_options(md):
     ptdf_options = {}
     ptdf_options['lazy'] = False
     ptdf_options['lazy_voltage'] = False
-    ptdf_options['rel_ptdf_tol'] = 1e-2
-    ptdf_options['rel_qtdf_tol'] = 1e-2
-    ptdf_options['rel_pldf_tol'] = 1e-2
-    ptdf_options['rel_qldf_tol'] = 1e-2
-    ptdf_options['rel_vdf_tol'] = 1e-2
+    #ptdf_options['rel_ptdf_tol'] = 1e-2
+    #ptdf_options['rel_qtdf_tol'] = 1e-2
+    #ptdf_options['rel_pldf_tol'] = 1e-2
+    #ptdf_options['rel_qldf_tol'] = 1e-2
+    #ptdf_options['rel_vdf_tol'] = 1e-2
     kwargs['ptdf_options'] = ptdf_options
+    kwargs['include_v_feasibility_slack'] = False
+    kwargs['include_pf_feasibility_slack'] = False
+    kwargs['include_qf_feasibility_slack'] = False
+    kwargs['include_feasibility_slack'] = False
     try:
-        md, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True,return_results=True, solver_tee=False,
-                                   **kwargs)
-        print('Tolerance cost: $%3.2f' % md.data['system']['total_cost'])
-        print(results.Solver)
-        print(md.data['results'])
+        md = solve_fdf(md_ac, "gurobi_persistent", return_model=False, return_results=False, solver_tee=False, **kwargs)
+        print('Default cost: $%3.2f' % md.data['system']['total_cost'])
         update_solution_dicts(md,'default')
-        termination['default'] = md.data['results']['termination']
+        compare['default'] = md.data['results']
     except Exception as e:
         raise e
         message = str(e)
         print(message)
-        m_list = message.split()
-        termination['default'] = m_list[-1]
 
-    print(termination)
+    print(pd.DataFrame(compare))
     return
 
     # display results in dataframes

@@ -62,7 +62,7 @@ def populate_default_ptdf_options(ptdf_options):
     if 'pu_vm_tol' not in ptdf_options:
         ptdf_options['pu_vm_tol'] = 1.e-5
     if 'abs_thermal_init_tol' not in ptdf_options:
-        ptdf_options['abs_thermal_init_tol'] = 0.1
+        ptdf_options['abs_thermal_init_tol'] = 0.01
     if 'rel_thermal_init_tol' not in ptdf_options:
         ptdf_options['rel_thermal_init_tol'] = 0.25
     if 'abs_vm_init_tol' not in ptdf_options:
@@ -74,9 +74,9 @@ def populate_default_ptdf_options(ptdf_options):
     if 'lp_iteration_limit' not in ptdf_options:
         ptdf_options['lp_iteration_limit'] = 100
     if 'max_violations_per_iteration' not in ptdf_options:
-        ptdf_options['max_violations_per_iteration'] = 15
+        ptdf_options['max_violations_per_iteration'] = 50
     if 'vm_max_violations_per_iteration' not in ptdf_options:
-        ptdf_options['vm_max_violations_per_iteration'] = 15
+        ptdf_options['vm_max_violations_per_iteration'] = 50
     if 'lazy' not in ptdf_options:
         ptdf_options['lazy'] = False
     if 'lazy_reactive' not in ptdf_options:
@@ -400,13 +400,13 @@ def add_thermal_violations(thermal_viol_lazy, SV, mb, md, solver, ptdf_options, 
                 expr = libbranch.get_expr_branch_pf_fdf_approx(mb, bn, ba_ptdf[bn], ba_ptdf_c[bn],
                                                                rel_tol=rel_ptdf_tol, abs_tol=abs_ptdf_tol,
                                                                **pf_rhs_kwargs)
-                eq_pf_constr[bn] = pf[bn] == expr
+                eq_pf_constr[bn] = (0, expr - pf[bn], 0)
                 if include_reactive:
                     ## add eq_qf_branch constraint
                     expr = libbranch.get_expr_branch_qf_fdf_approx(mb, bn, ba_qtdf[bn], ba_qtdf_c[bn],
                                                                    rel_tol=rel_qtdf_tol, abs_tol=abs_qtdf_tol,
                                                                    **qf_rhs_kwargs)
-                    eq_qf_constr[bn] = qf[bn] == expr
+                    eq_qf_constr[bn] = (0, expr - qf[bn], 0)
                     ## add ineq_branch_thermal_limit constraint
                     libbranch.add_constr_branch_thermal_limit(mb, branch, bn, ba_rating_long_term[bn])
             yield i, bn

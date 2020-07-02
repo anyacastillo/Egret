@@ -175,27 +175,27 @@ def generate_test_model_dict(test_model_list):
             tmd['solve_func'] = solve_lccm
             tmd['initial_solution'] = 'basepoint'
             tmd['solver'] = 'gurobi_persistent'
-            #tmd['kwargs']['include_pf_feasibility_slack'] = True
-            #tmd['kwargs']['include_qf_feasibility_slack'] = True
-            tmd['kwargs']['include_v_feasibility_slack'] = True
+            tmd['kwargs']['include_pf_feasibility_slack'] = False
+            tmd['kwargs']['include_qf_feasibility_slack'] = False
+            tmd['kwargs']['include_v_feasibility_slack'] = False
 
         elif 'dlopf' in tm:
             tmd['solve_func'] = solve_fdf
             tmd['initial_solution'] = 'basepoint'
             tmd['solver'] = 'gurobi_persistent'
             tmd['kwargs']['ptdf_options'] = dict(_ptdf_options)
-            #tmd['kwargs']['include_pf_feasibility_slack'] = True
-            #tmd['kwargs']['include_qf_feasibility_slack'] = True
-            tmd['kwargs']['include_v_feasibility_slack'] = True
+            tmd['kwargs']['include_pf_feasibility_slack'] = False
+            tmd['kwargs']['include_qf_feasibility_slack'] = False
+            tmd['kwargs']['include_v_feasibility_slack'] = False
 
         elif 'clopf' in tm:
             tmd['solve_func'] = solve_fdf_simplified
             tmd['initial_solution'] = 'basepoint'
             tmd['solver'] = 'gurobi_persistent'
             tmd['kwargs']['ptdf_options'] = dict(_ptdf_options)
-            #tmd['kwargs']['include_pf_feasibility_slack'] = True
-            #tmd['kwargs']['include_qf_feasibility_slack'] = True
-            tmd['kwargs']['include_v_feasibility_slack'] = True
+            tmd['kwargs']['include_pf_feasibility_slack'] = False
+            tmd['kwargs']['include_qf_feasibility_slack'] = False
+            tmd['kwargs']['include_v_feasibility_slack'] = False
 
         elif 'plopf' in tm:
             tmd['solve_func'] = solve_dcopf_losses
@@ -203,7 +203,7 @@ def generate_test_model_dict(test_model_list):
             tmd['solver'] = 'gurobi_persistent'
             tmd['kwargs']['ptdf_options'] = dict(_ptdf_options)
             tmd['kwargs']['dcopf_losses_model_generator'] = create_ptdf_losses_dcopf_model
-            #tmd['kwargs']['include_pf_feasibility_slack'] = True
+            tmd['kwargs']['include_pf_feasibility_slack'] = False
 
         elif 'ptdf' in tm:
             tmd['solve_func'] = solve_dcopf
@@ -211,7 +211,7 @@ def generate_test_model_dict(test_model_list):
             tmd['solver'] = 'gurobi_persistent'
             tmd['kwargs']['ptdf_options'] = dict(_ptdf_options)
             tmd['kwargs']['dcopf_model_generator'] = create_ptdf_dcopf_model
-            #tmd['kwargs']['include_pf_feasibility_slack'] = True
+            tmd['kwargs']['include_pf_feasibility_slack'] = False
 
         elif 'btheta' in tm:
             if 'qcp' in tm:
@@ -225,7 +225,7 @@ def generate_test_model_dict(test_model_list):
                 tmd['solver'] = 'gurobi_persistent'
                 tmd['kwargs']['dcopf_model_generator'] = create_btheta_dcopf_model
 
-            #tmd['kwargs']['include_pf_feasibility_slack'] = True
+            tmd['kwargs']['include_pf_feasibility_slack'] = False
 
         # settings to suppress non-lazy D-LOPF and C-LOPF models in large (>1,000 bus) cases
         dense_models = ['dlopf', 'clopf', 'plopf', 'ptdf']
@@ -355,6 +355,9 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
     num_bus = len(bus_attrs['names'])
     mult = md_flat.data['system']['mult']
 
+    # will try to relax constraints if initial solves are infeasible
+    relaxations = [None, 'include_v_feasibility_slack', 'include_qf_feasibility_slack', 'include_pf_feasibility_slack']
+
     for tm in test_model_list:
 
         tm_dict = test_model_dict[tm]
@@ -374,22 +377,35 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
         elif initial_solution == 'basepoint':
             md_input = md_basepoint
         else:
-            raise Exception('test_model_dict must provide valid inital_solution')
+            raise Exception('test_model_dict must provide valid initial_solution')
 
-        try:
-            md_out = solve_func(md_input, solver=solver, **kwargs)
-            logger.critical('\t COST = ${:,.2f}'.format(md_out.data['system']['total_cost']))
-            logger.critical('\t TIME = {:.5f} seconds'.format(md_out.data['results']['time']))
-        except Exception as e:
+        for r in relaxations:
+            if r is not None:
+                kwargs[r] = True
+                logger.critical('...applying relaxation with {}'.format(r))
+            try:
+                md_out = solve_func(md_input, solver=solver, **kwargs)
+                logger.critical('\t COST = ${:,.2f}'.format(md_out.data['system']['total_cost']))
+                logger.critical('\t TIME = {:.5f} seconds'.format(md_out.data['results']['time']))
+                is_feasible = True
+            except Exception as e:
+                is_feasible = False
+                model_error = str(e)
+                logger.critical('failed: {}'.format(model_error))
+            # end loop if solve is successful
+            if is_feasible:
+                break
+
+        # create results object if all relaxations failed
+        if not is_feasible:
             md_out = md_input
             md_out.data['results'] = {}
-            message = str(e)
-            print('...EXCEPTION OCCURRED: {}'.format(message))
-            if 'infeasible' in message:
-                md_out.data['results']['termination'] = 'infeasible'
-            else:
-                raise e
-                md_out.data['results']['termination'] = 'other'
+            md_out.data['results']['termination'] = 'infeasible'
+            md_out.data['results']['exception'] = model_error
+
+        # return relaxation kwargs to False
+        for r in relaxations:
+            kwargs[r] = False
 
         record_results(tm, md_out)
 
