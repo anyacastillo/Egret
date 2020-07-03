@@ -321,8 +321,22 @@ def _load_solution_to_model_data(m, md, results):
     gens = dict(md.elements(element_type='generator'))
     buses = dict(md.elements(element_type='bus'))
     branches = dict(md.elements(element_type='branch'))
+    bus_attrs = md.attributes(element_type='bus')
+    branch_attrs = md.attributes(element_type='branch')
 
-    md.data['system']['total_cost'] = value(m.obj)
+    # remove penalties from objective function
+    penalty_cost = 0
+    if hasattr(m, '_p_penalty') and hasattr(m, '_q_penalty'):
+        penalty_cost += value(fdf.get_balance_penalty_expr(m))
+    if hasattr(m, '_pf_penalty'):
+        penalty_cost += value(fdf.get_pf_penalty_expr(m, branch_attrs))
+    if hasattr(m, '_qf_penalty'):
+        penalty_cost += value(fdf.get_qf_penalty_expr(m, branch_attrs))
+    if hasattr(m, '_v_penalty'):
+        penalty_cost += value(fdf.get_v_penalty_expr(m, bus_attrs))
+
+    md.data['system']['total_cost'] = value(m.obj) - penalty_cost
+    md.data['system']['penalty_cost'] = penalty_cost
 
     for g,g_dict in gens.items():
         g_dict['pg'] = value(m.pg[g])

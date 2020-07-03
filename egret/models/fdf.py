@@ -53,9 +53,21 @@ def _include_system_feasibility_slack(model, gen_attrs, bus_p_loads, bus_q_loads
     p_penalty = penalty * (max([gen_attrs['p_cost'][k]['values'][1] for k in gen_attrs['names']]) + 1)
     q_penalty = penalty * (max(gen_attrs.get('q_cost', gen_attrs['p_cost'])[k]['values'][1] for k in gen_attrs['names']) + 1)
 
-    penalty_expr = p_penalty * (model.p_slack_pos + model.p_slack_neg) + q_penalty * (model.q_slack_pos + model.q_slack_neg)
+    model._p_penalty = p_penalty
+    model._q_penalty = q_penalty
+
+    penalty_expr = get_balance_penalty_expr(model)
 
     return p_rhs_kwargs, q_rhs_kwargs, penalty_expr
+
+def get_balance_penalty_expr(model):
+
+    p_penalty = model._p_penalty
+    q_penalty = model._q_penalty
+    penalty_expr = p_penalty * (model.p_slack_pos + model.p_slack_neg) \
+                   + q_penalty * (model.q_slack_pos + model.q_slack_neg)
+
+    return penalty_expr
 
 def _include_pf_feasibility_slack(model, branch_attrs, penalty=2000):
     import egret.model_library.decl as decl
@@ -69,11 +81,20 @@ def _include_pf_feasibility_slack(model, branch_attrs, penalty=2000):
                      )
     pf_rhs_kwargs = {'include_feasibility_slack_pos': 'pf_slack_pos', 'include_feasibility_slack_neg': 'pf_slack_neg'}
 
-    penalty_expr = penalty * (sum(model.pf_slack_pos[k] + model.pf_slack_neg[k] for k in branch_attrs["names"]))
-
+    model._pf_penalty = penalty
     model._pf_rhs_kwargs = pf_rhs_kwargs
 
+    penalty_expr = get_pf_penalty_expr(model, branch_attrs)
+
     return pf_rhs_kwargs, penalty_expr
+
+def get_pf_penalty_expr(model, branch_attrs):
+
+    penalty = model._pf_penalty
+
+    penalty_expr = penalty * (sum(model.pf_slack_pos[k] + model.pf_slack_neg[k] for k in branch_attrs["names"]))
+
+    return penalty_expr
 
 def _include_qf_feasibility_slack(model, branch_attrs, penalty=2000):
     import egret.model_library.decl as decl
@@ -87,11 +108,20 @@ def _include_qf_feasibility_slack(model, branch_attrs, penalty=2000):
                      )
     qf_rhs_kwargs = {'include_feasibility_slack_pos': 'qf_slack_pos', 'include_feasibility_slack_neg': 'qf_slack_neg'}
 
-    penalty_expr = penalty * (sum(model.qf_slack_pos[k] + model.qf_slack_neg[k] for k in branch_attrs["names"]))
-
+    model._qf_penalty = penalty
     model._qf_rhs_kwargs = qf_rhs_kwargs
 
+    penalty_expr = get_qf_penalty_expr(model, branch_attrs)
+
     return qf_rhs_kwargs, penalty_expr
+
+def get_qf_penalty_expr(model, branch_attrs):
+
+    penalty = model._qf_penalty
+
+    penalty_expr = penalty * (sum(model.qf_slack_pos[k] + model.qf_slack_neg[k] for k in branch_attrs["names"]))
+
+    return penalty_expr
 
 def _include_v_feasibility_slack(model, bus_attrs, gen_attrs, penalty=100):
     import egret.model_library.decl as decl
@@ -106,12 +136,21 @@ def _include_v_feasibility_slack(model, bus_attrs, gen_attrs, penalty=100):
     v_rhs_kwargs = {'include_feasibility_slack_pos': 'v_slack_pos', 'include_feasibility_slack_neg': 'v_slack_neg'}
 
     max_cost = max([gen_attrs['p_cost'][k]['values'][1] for k in gen_attrs['names']]) + 1
-    penalty_expr = penalty * max_cost * (sum(model.v_slack_pos[k] + model.v_slack_neg[k] for k in bus_attrs["names"]))
 
+    model._v_penalty = penalty * max_cost
     model._v_rhs_kwargs = v_rhs_kwargs
+
+    penalty_expr = get_v_penalty_expr(model, bus_attrs)
 
     return v_rhs_kwargs, penalty_expr
 
+def get_v_penalty_expr(model, bus_attrs):
+
+    penalty = model._v_penalty
+
+    penalty_expr = penalty * (sum(model.v_slack_pos[k] + model.v_slack_neg[k] for k in bus_attrs["names"]))
+
+    return penalty_expr
 
 def create_fixed_fdf_model(model_data, **kwargs):
     ## creates an FDF model with fixed m.pg and m.qg, and relaxed power balance
@@ -531,7 +570,19 @@ def _load_solution_to_model_data(m, md, results):
     branches_idx = branch_attrs['names']
     mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(bus_attrs['names'])}
 
-    md.data['system']['total_cost'] = value(m.obj)
+    # remove penalties from objective function
+    penalty_cost = 0
+    if hasattr(m,'_p_penalty') and hasattr(m,'_q_penalty'):
+        penalty_cost += value(get_balance_penalty_expr(m))
+    if hasattr(m,'_pf_penalty'):
+        penalty_cost += value(get_pf_penalty_expr(m, branch_attrs))
+    if hasattr(m,'_qf_penalty'):
+        penalty_cost += value(get_qf_penalty_expr(m, branch_attrs))
+    if hasattr(m,'_v_penalty'):
+        penalty_cost += value(get_v_penalty_expr(m, bus_attrs))
+
+    md.data['system']['total_cost'] = value(m.obj) - penalty_cost
+    md.data['system']['penalty_cost'] = penalty_cost
     md.data['system']['ploss'] = sum(value(m.pfl[b]) for b,b_dict in branches.items())
     md.data['system']['qloss'] = sum(value(m.qfl[b]) for b,b_dict in branches.items())
 
@@ -940,6 +991,7 @@ def compare_fdf_options(md):
         print('Lazy cost: $%3.2f' % md.data['system']['total_cost'])
         update_solution_dicts(md,'lazy')
         compare['lazy'] = md.data['results']
+        compare['lazy']['cost'] = md.data['system']['total_cost']
         print(compare)
     except Exception as e:
         raise e
@@ -968,6 +1020,7 @@ def compare_fdf_options(md):
         print('Default cost: $%3.2f' % md.data['system']['total_cost'])
         update_solution_dicts(md,'default')
         compare['default'] = md.data['results']
+        compare['default']['cost'] = md.data['system']['total_cost']
     except Exception as e:
         raise e
         message = str(e)

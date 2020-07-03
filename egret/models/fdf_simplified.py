@@ -85,18 +85,16 @@ def create_fixed_fdf_model(model_data, **kwargs):
     if 'include_feasibility_slack' not in kwlist:
         kwargs['include_feasibility_slack'] = True
     if 'include_v_feasibility_slack' not in kwlist:
-        kwargs['include_v_feasibility_slack']  = True
+        kwargs['include_v_feasibility_slack'] = True
     model, md = create_simplified_fdf_model(model_data, **kwargs)
 
-    #c = 0
+    gens = dict(model_data.elements(element_type='generator'))
+    baseMVA = model_data.data['system']['baseMVA']
 
     for g, pg in model.pg.items():
-        pg.value = value(m_ac.pg[g])
+        pg.value = gens[g]['pg'] / baseMVA
     for g, qg in model.qg.items():
-        qg.value = value(m_ac.qg[g])
-        #c += 1
-        #if c==4:
-        #    qg.fix()
+        qg.value = gens[g]['qg'] / baseMVA
 
     model.pg.fix()
     model.qg.fix()
@@ -109,8 +107,9 @@ def create_fixed_vm_fdf_model(model_data, **kwargs):
 
     model, md = create_simplified_fdf_model(model_data, include_feasibility_slack=True, include_v_feasibility_slack=False, **kwargs)
 
+    buses = dict(model_data.elements(element_type='bus'))
     for b, vm in model.vm.items():
-        vm.value = value(m_ac.vm[b])
+        vm.value = buses[b]['vm']
 
     model.vm.fix()
 
@@ -500,7 +499,19 @@ def _load_solution_to_model_data(m, md, results):
     branches_idx = branch_attrs['names']
     mapping_bus_to_idx = {bus_n: i for i, bus_n in enumerate(buses_idx)}
 
-    md.data['system']['total_cost'] = value(m.obj)
+    # remove penalties from objective function
+    penalty_cost = 0
+    if hasattr(m, '_p_penalty') and hasattr(m, '_q_penalty'):
+        penalty_cost += value(fdf.get_balance_penalty_expr(m))
+    if hasattr(m, '_pf_penalty'):
+        penalty_cost += value(fdf.get_pf_penalty_expr(m, branch_attrs))
+    if hasattr(m, '_qf_penalty'):
+        penalty_cost += value(fdf.get_qf_penalty_expr(m, branch_attrs))
+    if hasattr(m, '_v_penalty'):
+        penalty_cost += value(fdf.get_v_penalty_expr(m, bus_attrs))
+
+    md.data['system']['total_cost'] = value(m.obj) - penalty_cost
+    md.data['system']['penalty_cost'] = penalty_cost
     md.data['system']['ploss'] = value(m.ploss)
     md.data['system']['qloss'] = value(m.qloss)
 
