@@ -230,8 +230,8 @@ def generate_test_model_dict(test_model_list):
         # settings to suppress non-lazy D-LOPF and C-LOPF models in large (>1,000 bus) cases
         dense_models = ['dlopf', 'clopf', 'plopf', 'ptdf']
         if any(dm in tm for dm in ['dlopf', 'clopf']) and 'lazy' not in tm:
-            tmd['suppress_large_cases'] = True
-            #tmd['suppress_large_cases'] = False     # switch comment with previous line to suppress DF model solves of large cases
+            #tmd['suppress_large_cases'] = True
+            tmd['suppress_large_cases'] = False     # switch comment with previous line to suppress DF model solves of large cases
         else:
             tmd['suppress_large_cases'] = False
 

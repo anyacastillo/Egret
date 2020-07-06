@@ -1300,17 +1300,17 @@ def implicit_calc_p_sens(branches,buses,index_set_branch,index_set_bus,reference
 
 
     sens_dict = {}
-    sens_dict['ptdf'] = PTDF
-    sens_dict['ptdf_c'] = PT_constant
-    sens_dict['pldf'] = PLDF
-    sens_dict['pldf_c'] = PL_constant
+    sens_dict['ptdf'] = PTDF.astype(np.float32)
+    sens_dict['ptdf_c'] = PT_constant.astype(np.float32)
+    sens_dict['pldf'] = PLDF.astype(np.float32)
+    sens_dict['pldf_c'] = PL_constant.astype(np.float32)
     sens_dict['ploss_sens'] = LF
     sens_dict['ploss_const'] = LF_const
     sens_dict['ploss_resid_sens'] = LF - sum(PLDF)
     sens_dict['ploss_resid_const'] = LF_const - sum(PL_constant)
     sens_dict['ploss_distribution'] = ploss_dist
-    sens_dict['nodal_jacobian_p'] = M
-    sens_dict['offset_jacobian_p'] = M0
+    sens_dict['nodal_jacobian_p'] = M.astype(np.float32)
+    sens_dict['offset_jacobian_p'] = M0.astype(np.float32)
 
     return sens_dict
 
@@ -1379,19 +1379,19 @@ def implicit_calc_q_sens(branches,buses,index_set_branch,index_set_bus,reference
 
 
     sens_dict = {}
-    sens_dict['qtdf'] = QTDF
-    sens_dict['qtdf_c'] = QT_constant
-    sens_dict['qldf'] = QLDF
-    sens_dict['qldf_c'] = QL_constant
-    sens_dict['vdf'] = VDF
-    sens_dict['vdf_c'] = V_constant
+    sens_dict['qtdf'] = QTDF.astype(np.float32)
+    sens_dict['qtdf_c'] = QT_constant.astype(np.float32)
+    sens_dict['qldf'] = QLDF.astype(np.float32)
+    sens_dict['qldf_c'] = QL_constant.astype(np.float32)
+    sens_dict['vdf'] = VDF.astype(np.float32)
+    sens_dict['vdf_c'] = V_constant.astype(np.float32)
     sens_dict['qloss_sens'] = QLF
     sens_dict['qloss_const'] = QLF_const
     sens_dict['qloss_resid_sens'] = QLF - sum(QLDF)
     sens_dict['qloss_resid_const'] = QLF_const - sum(QL_constant)
     sens_dict['qloss_distribution'] = qloss_dist
-    sens_dict['nodal_jacobian_q'] = M
-    sens_dict['offset_jacobian_q'] = M0
+    sens_dict['nodal_jacobian_q'] = M.astype(np.float32)
+    sens_dict['offset_jacobian_q'] = M0.astype(np.float32)
 
     return sens_dict
 

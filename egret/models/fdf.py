@@ -927,6 +927,9 @@ def compare_fdf_options(md):
 
     def update_solution_dicts(md, name="model_name"):
 
+        filename = md.data['system']['model_name'] + '_fdf_' + '{}'.format(name)
+        md.data['system']['filename'] = filename
+
         try:
             print('...Solving ACPF for model {}.'.format(name))
             acpf_to_md(md)
@@ -954,7 +957,7 @@ def compare_fdf_options(md):
 
     def acpf_to_md(md):
         try:
-            repopulate_acpf_to_modeldata(md, write_to_json=False)
+            repopulate_acpf_to_modeldata(md, write_to_json=True)
         except Exception as e:
             return e
         logger.critical('ACPF was successful')

@@ -131,55 +131,72 @@ def add_monitored_vm_tracker(mb):
 def solve_m_pf(model, model_data):
 
     md = model_data
+    md_sys = md.data['system']
 
-    if 'ptdf' in list(md.data['system'].keys()):
+    if 'ptdf' in list(md_sys.keys()):
         # Nodal net withdrawal to a Numpy array
         index_set_bus = md.attributes(element_type='bus')['names']
-        m_p_nw = np.fromiter((pe.value(model.p_nw[b]) for b in index_set_bus), float, count=len(index_set_bus))
-        PTDF = md.data['system']['ptdf']
-        PTDF_CONST = md.data['system']['ptdf_c']
-        m_pf = PTDF.dot(m_p_nw) + PTDF_CONST
+        m_p_nw = np.fromiter((pe.value(model.p_nw[b]) for b in index_set_bus), np.float32, count=len(index_set_bus))
+        PTDF = md_sys['ptdf']
+        PTDF_CONST = md_sys['ptdf_c']
+        if PTDF.dtype != 'float32':             # cast to float32 to improve solution times
+            PTDF = PTDF.astype(np.float32)
+            PTDF_CONST = PTDF_CONST.astype(np.float32)
+        m_pf = np.matmul(PTDF, m_p_nw) + PTDF_CONST
 
         return m_pf
 
-    elif 'Ft' in list(md.data['system'].keys()):
+    elif 'Ft' in list(md_sys.keys()):
         ## Back-solve for theta then calculate real power flows with sparse sensitivity matrix
         THETA = tx_calc.linsolve_theta_fdf(model, md, solve_sparse_system=True)
-        Ft = md.data['system']['Ft']
-        ft_c = md.data['system']['ft_c']
-        m_pf = Ft.dot(THETA) + ft_c
+        Ft = md_sys['Ft']
+        ft_c = md_sys['ft_c']
+        if Ft.dtype != 'float32':             # cast to float32 to improve solution times
+            Ft = Ft.astype(np.float32)
+            ft_c = ft_c.astype(np.float32)
+        m_pf = np.matmul(Ft, THETA) + ft_c
 
         return m_pf
 
     else:
-        md_keys = list(md.data['system'].keys)
+        md_keys = list(md_sys.keys())
         message = 'Model data does not contain ptdf or Ft matrices.\n\t Keys: {}.'.format(md_keys)
         raise Exception(message)
 
 
 def solve_m_qf(model, model_data):
     md = model_data
-    md_keys = list(md.data['system'].keys())
+    md_sys = md.data['system']
+    md_keys = list(md_sys.keys())
 
     if 'qtdf' in md_keys and 'vdf' in md_keys:
         # Nodal net withdrawal to a Numpy array
         index_set_bus = md.attributes(element_type='bus')['names']
         m_q_nw = np.fromiter((pe.value(model.q_nw[b]) for b in index_set_bus), float, count=len(index_set_bus))
-        QTDF = md.data['system']['qtdf']
-        QTDF_CONST = md.data['system']['qtdf_c']
-        VDF = md.data['system']['vdf']
-        VDF_CONST = md.data['system']['vdf_c']
-        m_qf = QTDF.dot(m_q_nw) + QTDF_CONST
-        m_vm = VDF.dot(m_q_nw) + VDF_CONST
+        QTDF = md_sys['qtdf']
+        QTDF_CONST = md_sys['qtdf_c']
+        VDF = md_sys['vdf']
+        VDF_CONST = md_sys['vdf_c']
+        if QTDF.dtype != 'float32':             # cast to float32 to improve solution times
+            QTDF = QTDF.astype(np.float32)
+            QTDF_CONST  = QTDF_CONST.astype(np.float32)
+        if VDF.dtype != 'float32':             # cast to float32 to improve solution times
+            VDF = VDF.astype(np.float32)
+            VDF_CONST  = VDF_CONST.astype(np.float32)
+        m_qf = np.matmul(QTDF, m_q_nw) + QTDF_CONST
+        m_vm = np.matmul(VDF, m_q_nw) + VDF_CONST
 
         return m_qf, m_vm
 
     elif 'Fv' in md_keys:
         ## Back-solve for theta then calculate real power flows with sparse sensitivity matrix
         m_vm = tx_calc.linsolve_vmag_fdf(model, md, solve_sparse_system=False)
-        Fv = md.data['system']['Fv']
-        fv_c = md.data['system']['fv_c']
-        m_qf = Fv.dot(m_vm) + fv_c
+        Fv = md_sys['Fv']
+        fv_c = md_sys['fv_c']
+        if Fv.dtype != 'float32':             # cast to float32 to improve solution times
+            Fv = Fv.astype(np.float32)
+            fv_c = fv_c.astype(np.float32)
+        m_qf = np.matmul(Fv, m_vm) + fv_c
 
         return m_qf, m_vm
 
