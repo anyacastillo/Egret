@@ -381,6 +381,10 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
 
         for r in relaxations:
             if r is not None:
+                reactive_relax = any(s in r for s in ['_qf_', '_v_'])
+                reactive_model = any(m in tm for m in ['slopf', 'dlopf', 'clopf'])
+                if reactive_relax and not reactive_model:
+                    continue
                 kwargs[r] = True
                 logger.critical('...applying relaxation with {}'.format(r))
             try:
