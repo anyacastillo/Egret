@@ -12,8 +12,10 @@ This module provides functions that create the modules for typical ACOPF formula
 
 #TODO: document this with examples
 """
+import sys
 import pyomo.environ as pe
 import operator as op
+import egret.models.tests.test_approximations as test
 import egret.model_library.transmission.tx_utils as tx_utils
 import egret.model_library.transmission.tx_calc as tx_calc
 import egret.model_library.transmission.bus as libbus
@@ -796,18 +798,47 @@ def solve_acopf(model_data,
         return md, results
     return md
 
-if __name__ == '__main__':
-    import os
-    from egret.parsers.matpower_parser import create_ModelData
+def nominal_test(argv=None, tml=None):
+    # case list
+    if len(argv)==0:
+        idl = [0]
+    else:
+        print(argv)
+        idl = test.get_case_names(flag=argv)
+    # test model list
+    if tml is None:
+        tml = ['acopf']
+    # run cases
+    for idx in idl:
+        test.run_nominal_test(idx=idx, tml=tml)
 
-    path = os.path.dirname(__file__)
-    #filename = 'pglib_opf_case3_lmbd.m'
-    filename = 'pglib_opf_case14_ieee.m'
-    matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
-    model_data = create_ModelData(matpower_file)
-    kwargs = {'include_feasibility_slack':False}
-    md,m,results = solve_acopf(model_data, "ipopt",acopf_model_generator=create_psv_acopf_model,return_model=True, return_results=True,**kwargs)
-    m.pprint()
-    #md,m,results = solve_acopf(model_data, "ipopt",acopf_model_generator=create_rsv_acopf_model,return_model=True, return_results=True,**kwargs)
-    #md,m,results = solve_acopf(model_data, "ipopt",acopf_model_generator=create_riv_acopf_model,return_model=True, return_results=True,**kwargs)
+def loop_test(argv=None, tml=None):
+    # case list
+    if len(argv)==0:
+        idl = [0]
+    else:
+        idl = test.get_case_names(flag=argv)
+    # test model list
+    if tml is None:
+        tml = ['acopf']
+    # run cases
+    for idx in idl:
+        test.run_test_loop(idx=idx, tml=tml)
+
+
+if __name__ == '__main__':
+
+    #tml = ['acopf']
+    tml = None
+    if len(sys.argv)<=2:
+        nominal_test(sys.argv[1], tml=tml)
+    elif sys.argv[2]=='0':
+        nominal_test(sys.argv[1], tml=tml)
+    elif sys.argv[2]=='1':
+        loop_test(sys.argv[1], tml=tml)
+    else:
+        message = 'file usage: model.py <case> <option>\n'
+        message+= '\t case    = last N characters of cases to run\n'
+        message+= '\t option  = 0 to run nominal or 1 for full test loop'
+        print(message)
 

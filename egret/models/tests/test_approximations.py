@@ -103,36 +103,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 #test_cases = [os.path.join(current_dir, 'download', 'pglib-opf-master', '{}.m'.format(i)) for i in case_names]
 
 
-test_model_list = [
-    'acopf',
-    'slopf',
-    'dlopf_full',
-    'dlopf_e4',
-    'dlopf_e2',
-    'dlopf_lazy_full',
-    'dlopf_lazy_e4',
-    'dlopf_lazy_e2',
-    'clopf_full',
-    'clopf_e4',
-    'clopf_e2',
-    'clopf_lazy_full',
-    'clopf_lazy_e4',
-    'clopf_lazy_e2',
-    'plopf_full',
-    'plopf_e4',
-    'plopf_e2',
-    'plopf_lazy_full',
-    'plopf_lazy_e4',
-    'plopf_lazy_e2',
-    'ptdf_full',
-    'ptdf_e4',
-    'ptdf_e2',
-    'ptdf_lazy_full',
-    'ptdf_lazy_e4',
-    'ptdf_lazy_e2',
-    'btheta',
-    # 'btheta_qcp',
-]
+
 
 
 def generate_test_model_dict(test_model_list):
@@ -229,9 +200,16 @@ def generate_test_model_dict(test_model_list):
 
         # settings to suppress non-lazy D-LOPF and C-LOPF models in large (>1,000 bus) cases
         dense_models = ['dlopf', 'clopf', 'plopf', 'ptdf']
-        if any(dm in tm for dm in ['dlopf', 'clopf']) and 'lazy' not in tm:
-            #tmd['suppress_large_cases'] = True
-            tmd['suppress_large_cases'] = False     # switch comment with previous line to suppress DF model solves of large cases
+        if 'dlopf' in tm:
+            if 'lazy' in tm:
+                tmd['suppress_large_cases'] = False
+            else:
+                tmd['suppress_large_cases'] = False
+        if 'clopf' in tm:
+            if 'lazy' in tm:
+                tmd['suppress_large_cases'] = False
+            else:
+                tmd['suppress_large_cases'] = False
         else:
             tmd['suppress_large_cases'] = False
 
@@ -241,9 +219,56 @@ def generate_test_model_dict(test_model_list):
 
 
 
-def get_case_names():
-    return case_names
+def get_case_names(flag=None):
 
+    if flag=='misc':
+        remove_list = list()
+        for key in ['ieee','k','rte','sdet','tamu','pegase']:
+            N = len(flag)
+            remove_list += [c for c in case_names if flag in c[-N:]]
+        case_list = [c for c in case_names if c not in remove_list]
+
+    elif flag is not None:
+        N = len(flag)
+        case_list = [c for c in case_names if flag in c[-N:]]
+
+    else:
+        case_list = case_names
+
+    return case_list
+
+def get_test_model_list():
+    test_model_list = [
+        'acopf',
+        'slopf',
+        'dlopf_full',
+        'dlopf_e4',
+        'dlopf_e2',
+        'dlopf_lazy_full',
+        'dlopf_lazy_e4',
+        'dlopf_lazy_e2',
+        'clopf_full',
+        'clopf_e4',
+        'clopf_e2',
+        'clopf_lazy_full',
+        'clopf_lazy_e4',
+        'clopf_lazy_e2',
+        'plopf_full',
+        'plopf_e4',
+        'plopf_e2',
+        'plopf_lazy_full',
+        'plopf_lazy_e4',
+        'plopf_lazy_e2',
+        'ptdf_full',
+        'ptdf_e4',
+        'ptdf_e2',
+        'ptdf_lazy_full',
+        'ptdf_lazy_e4',
+        'ptdf_lazy_e2',
+        'btheta',
+        # 'btheta_qcp',
+    ]
+    return test_model_list
 
 def set_acopf_basepoint_min_max(model_data, init_min=0.9, init_max=1.1, **kwargs):
     """
@@ -350,7 +375,6 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
     sensitivities from md_basepoint or md_flat as appropriate for the model being solved
     '''
 
-    test_model_dict = generate_test_model_dict(test_model_list)
     bus_attrs = md_flat.attributes(element_type='bus')
     num_bus = len(bus_attrs['names'])
     mult = md_flat.data['system']['mult']
@@ -359,19 +383,14 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
     relaxations = [None, 'include_v_feasibility_slack', 'include_qf_feasibility_slack', 'include_pf_feasibility_slack']
 
     for tm in test_model_list:
-
-        tm_dict = test_model_dict[tm]
-
+        tm_dict = generate_test_model_dict([tm])[tm]
         if tm_dict['suppress_large_cases'] and num_bus > 1000:
             continue
-
         print('>>>>> BEGIN SOLVE: {} / {} <<<<<'.format(tm,mult))
-
         solve_func = tm_dict['solve_func']
         initial_solution = tm_dict['initial_solution']
         solver = tm_dict['solver']
         kwargs = tm_dict['kwargs']
-
         if initial_solution == 'flat':
             md_input = md_flat
         elif initial_solution == 'basepoint':
@@ -379,6 +398,7 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
         else:
             raise Exception('test_model_dict must provide valid initial_solution')
 
+        # Apply progressive relaxations if initial solve is infeasible
         for r in relaxations:
             if r is not None:
                 reactive_relax = any(s in r for s in ['_qf_', '_v_'])
@@ -502,7 +522,7 @@ def solve_approximation_models(test_case, test_model_list, init_min=0.9, init_ma
 
 
 
-def run_test_loop(idx=None, show_plot=False, log_level=logging.CRITICAL):
+def run_test_loop(idx=None, tml=None, show_plot=False, log_level=logging.CRITICAL):
     """
     solves models and generates plots for test case at test_cases[idx] or a default case
     """
@@ -520,15 +540,23 @@ def run_test_loop(idx=None, show_plot=False, log_level=logging.CRITICAL):
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
     else:
         test_case=idx_to_test_case(idx)
+
+    # file path correction if running from /models/
+    if os.path.basename(os.getcwd()) == 'models':
+        test_case = test_case[3:]
+
+    # Select test model list
+    if tml is None:
+        tml = get_test_model_list()
 
     ## Model solves
-    solve_approximation_models(test_case, test_model_list, init_min=0.95, init_max=1.05, steps=10)
+    solve_approximation_models(test_case, tml, init_min=0.95, init_max=1.05, steps=10)
 
     ## Generate summary data
-    spu.create_full_summary(test_case, test_model_list, show_plot=show_plot)
+    #spu.create_full_summary(test_case, tml, show_plot=show_plot)
 
 
-def run_nominal_test(idx=None, show_plot=False, log_level=logging.CRITICAL):
+def run_nominal_test(idx=None, tml=None, show_plot=False, log_level=logging.CRITICAL):
     """
     solves models and generates plots for test case at test_cases[idx] or a default case
     """
@@ -546,6 +574,14 @@ def run_nominal_test(idx=None, show_plot=False, log_level=logging.CRITICAL):
 #        test_case = join('../../download/pglib-opf-master/', 'pglib_opf_case300_ieee.m')
     else:
         test_case=idx_to_test_case(idx)
+
+    # file path correction if running from /models/
+    if os.path.basename(os.getcwd()) == 'models':
+        test_case = test_case[3:]
+
+    # Select test model list
+    if tml is None:
+        tml = get_test_model_list()
 
     ## Model solves
     md_flat = create_ModelData(test_case)
@@ -556,30 +592,36 @@ def run_nominal_test(idx=None, show_plot=False, log_level=logging.CRITICAL):
     md_basept.data['system']['mult'] = 1
     record_results('acopf', md_basept)
 
-    if 'acopf' in test_model_list:
-        test_model_list.remove('acopf')
+    # remove acopf from further solves since it is already solved above
+    if 'acopf' in tml:
+        tml.remove('acopf')
 
     ## put the sensitivities into modeData so they don't need to be recalculated for each model
-    create_dicts_of_fdf(md_basept)
-    create_dicts_of_ptdf(md_flat)
+    if any('lopf' in model for model in tml):
+        create_dicts_of_fdf(md_basept)
+    if any('ptdf' in model for model in tml):
+        create_dicts_of_ptdf(md_flat)
     md_basept = create_new_model_data(md_basept, 1.0)
     md_flat = create_new_model_data(md_flat, 1.0)
 
-    inner_loop_solves(md_basept, md_flat, test_model_list)
+    inner_loop_solves(md_basept, md_flat, tml)
 
     create_testcase_directory(test_case)
 
-    summarize_nominal_data(test_case=test_case, show_plot=show_plot)
+    #summarize_nominal_data(test_case=test_case, show_plot=show_plot)
 
-def summarize_nominal_data(idx=0, test_case=None,show_plot=True, log_level=None):
+def summarize_nominal_data(idx=0, tml=None, test_case=None,show_plot=True, log_level=None):
 
     if test_case is None:
         test_case = idx_to_test_case(idx)
 
+    if tml is None:
+        tml = get_test_model_list()
+
     #spu.update_data_file(test_case)
     #spu.update_data_tables()
-    #spu.acpf_violations_plot(test_case, test_model_list, show_plot=show_plot)
-    spu.create_full_summary(test_case,test_model_list,show_plot=show_plot)
+    #spu.acpf_violations_plot(test_case, tml, show_plot=show_plot)
+    spu.create_full_summary(test_case, tml, show_plot=show_plot)
 
 
 def batch(arg, subbatch=run_test_loop):

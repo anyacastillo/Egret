@@ -12,16 +12,15 @@ This module provides functions that create the modules for typical ACOPF formula
 
 #TODO: document this with examples
 """
+import sys
 import pyomo.environ as pe
-from math import inf, pi, sqrt
-import pandas as pd
+from math import inf, sqrt
 from egret.common.log import logger
 import logging
+import egret.models.tests.test_approximations as test
 import egret.model_library.transmission.tx_utils as tx_utils
-import egret.model_library.transmission.tx_calc as tx_calc
 import egret.model_library.transmission.bus as libbus
 import egret.model_library.transmission.branch as libbranch
-import egret.model_library.transmission.branch_deprecated as libbranch_deprecated
 import egret.model_library.transmission.gen as libgen
 import egret.models.fdf as fdf
 from egret.model_library.defn import ApproximationType, SensitivityCalculationMethod
@@ -704,31 +703,19 @@ def solve_fdf_simplified(model_data,
         return md, results
     return md
 
-def compare_results(results, c1, c2, tol=1e-6):
-    import numpy as np
-    c1_results = results.get(c1)
-    c2_results = results.get(c2)
-    c1_array = np.fromiter(c1_results.values(), dtype=float)
-    c2_array = np.fromiter(c2_results.values(), dtype=float)
-    diff = (c1_array - c2_array)
-    adiff = np.absolute(diff)
-    idx = adiff.argmax()
-    suma = sum(adiff)
-    if suma < tol:
-        print('Sum of absolute differences is less than {}.'.format(tol))
-    else:
-        print('Sum of absolute differences is {}.'.format(suma))
-        out_str = 'Largest difference is {} at index {}'.format(diff[idx],idx+1)
-        out_str += ' ({0} in {1} and {2} in {3}).'.format(c1_array[idx],c1,c2_array[idx],c2)
-        print(out_str)
 
+def compare_fdf_options():
 
-def printresults(results):
-    solver = results.attributes(element_type='Solver')
-
-def compare_fdf_options(md):
+    import os
+    from egret.parsers.matpower_parser import create_ModelData
     from egret.data.test_utils import repopulate_acpf_to_modeldata
     from egret.models.tests.test_approximations import create_new_model_data
+
+    # set case and filepath
+    path = os.path.dirname(__file__)
+    filename = 'pglib_opf_case14_ieee.m'
+    matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
+    md = create_ModelData(matpower_file)
 
     logger = logging.getLogger('egret')
     logger.setLevel(logging.ERROR)
@@ -861,36 +848,48 @@ def compare_fdf_options(md):
     #print('Lazy model:')
     #m2.pprint()
 
+
+def nominal_test(argv=None, tml=None):
+    # case list
+    if len(argv)==0:
+        idl = [0]
+    else:
+        print(argv)
+        idl = test.get_case_names(flag=argv)
+    # test model list
+    if tml is None:
+        tml = ['clopf_full', 'clopf_e4', 'clopf_e2', 'clopf_lazy_full', 'clopf_lazy_e4', 'clopf_lazy_e2']
+    # run cases
+    for idx in idl:
+        test.run_nominal_test(idx=idx, tml=tml)
+
+def loop_test(argv=None, tml=None):
+    # case list
+    if len(argv)==0:
+        idl = [0]
+    else:
+        idl = test.get_case_names(flag=argv)
+    # test model list
+    if tml is None:
+        tml = ['clopf_full', 'clopf_e4', 'clopf_e2', 'clopf_lazy_full', 'clopf_lazy_e4', 'clopf_lazy_e2']
+    # run cases
+    for idx in idl:
+        test.run_test_loop(idx=idx, tml=tml)
+
+
 if __name__ == '__main__':
 
-    #compare_to_acopf()
-
-    import os
-    from egret.parsers.matpower_parser import create_ModelData
-    from pyomo.environ import value
-
-    # set case and filepath
-    path = os.path.dirname(__file__)
-    #filename = 'pglib_opf_case3_lmbd.m'
-    #filename = 'pglib_opf_case5_pjm.m'
-    #filename = 'pglib_opf_case14_ieee.m'
-    #filename = 'pglib_opf_case30_ieee.m'
-    #filename = 'pglib_opf_case57_ieee.m'
-    filename = 'pglib_opf_case118_ieee.m'
-    #filename = 'pglib_opf_case162_ieee_dtc.m'
-    #filename = 'pglib_opf_case179_goc.m'
-    #filename = 'pglib_opf_case300_ieee.m'
-    #filename = 'pglib_opf_case500_tamu.m'
-    #filename = 'pglib_opf_case588_sdet.m'
-    #filename = 'pglib_opf_case1888_rte.m'
-    #filename = 'pglib_opf_case2000_tamu.m'
-    #filename = 'pglib_opf_case1951_rte.m'
-    #filename = 'pglib_opf_case1354_pegase.m'
-    #filename = 'pglib_opf_case2316_sdet.m'
-    #filename = 'pglib_opf_case2383wp_k.m'
-    #filename = 'pglib_opf_case2869_pegase.m'
-    matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
-    md = create_ModelData(matpower_file)
-
-    compare_fdf_options(md)
+    #tml = ['clopf_full']
+    tml = None
+    if len(sys.argv)<=2:
+        nominal_test(sys.argv[1], tml=tml)
+    elif sys.argv[2]=='0':
+        nominal_test(sys.argv[1], tml=tml)
+    elif sys.argv[2]=='1':
+        loop_test(sys.argv[1], tml=tml)
+    else:
+        message = 'file usage: model.py <case> <option>\n'
+        message+= '\t case    = last N characters of cases to run\n'
+        message+= '\t option  = 0 to run nominal or 1 for full test loop'
+        print(message)
 

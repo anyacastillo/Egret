@@ -16,7 +16,9 @@ the create_ptdf_losses_dcopf_model are not equivalent; the former is a QCP and t
 #TODO: document this with examples
 
 """
+import sys
 import pyomo.environ as pe
+import egret.models.tests.test_approximations as test
 import egret.model_library.transmission.tx_utils as tx_utils
 import egret.model_library.transmission.tx_calc as tx_calc
 import egret.model_library.transmission.bus as libbus
@@ -598,37 +600,48 @@ def solve_dcopf_losses(model_data,
         return md, results
     return md
 
+
+def nominal_test(argv=None, tml=None):
+    # case list
+    if len(argv)==0:
+        idl = [0]
+    else:
+        print(argv)
+        idl = test.get_case_names(flag=argv)
+    # test model list
+    if tml is None:
+        tml = ['plopf_full', 'plopf_e4', 'plopf_e2', 'plopf_lazy_full', 'plopf_lazy_e4', 'plopf_lazy_e2']
+    # run cases
+    for idx in idl:
+        test.run_nominal_test(idx=idx, tml=tml)
+
+def loop_test(argv=None, tml=None):
+    # case list
+    if len(argv)==0:
+        idl = [0]
+    else:
+        idl = test.get_case_names(flag=argv)
+    # test model list
+    if tml is None:
+        tml = ['plopf_full', 'plopf_e4', 'plopf_e2', 'plopf_lazy_full', 'plopf_lazy_e4', 'plopf_lazy_e2']
+    # run cases
+    for idx in idl:
+        test.run_test_loop(idx=idx, tml=tml)
+
+
 if __name__ == '__main__':
-    import os
-    from egret.parsers.matpower_parser import create_ModelData
 
-    path = os.path.dirname(__file__)
-    print(path)
-    #filename = 'pglib_opf_case3_lmbd.m'
-    #filename = 'pglib_opf_case5_pjm.m'
-    #filename = 'pglib_opf_case30_ieee.m'
-    filename = 'pglib_opf_case300_ieee.m'
-    test_case = os.path.join(path, '../../download/pglib-opf-master/', filename)
-    md_dict = create_ModelData(test_case)
-    dcopf_losses_model = create_ptdf_losses_dcopf_model
+    #tml = ['plopf_full']
+    tml = None
+    if len(sys.argv)<=2:
+        nominal_test(sys.argv[1], tml=tml)
+    elif sys.argv[2]=='0':
+        nominal_test(sys.argv[1], tml=tml)
+    elif sys.argv[2]=='1':
+        loop_test(sys.argv[1], tml=tml)
+    else:
+        message = 'file usage: model.py <case> <option>\n'
+        message+= '\t case    = last N characters of cases to run\n'
+        message+= '\t option  = 0 to run nominal or 1 for full test loop'
+        print(message)
 
-    from egret.models.acopf import solve_acopf
-
-    md_dict, _, _ = solve_acopf(md_dict, "ipopt", solver_tee=True, return_model=True, return_results=True)
-
-    kwargs = {}
-    md, results = solve_dcopf_losses(md_dict, "ipopt", dcopf_losses_model_generator=dcopf_losses_model,
-                                     solver_tee=False, return_results=True, **kwargs)
-
-    print('---MD---')
-    print(md)
-    print('---Results---')
-    print('-Problem:')
-    print(results.Problem)
-    print('-Solver:')
-    print(results.Solver)
-    print('-Solution:')
-    print(results.Solution)
-
-    print('DCOPF cost: $%3.2f' % md.data['system']['total_cost'])
-    print('DCOPF time: %3.5f' % md.data['results']['time'])

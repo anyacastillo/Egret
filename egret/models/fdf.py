@@ -12,16 +12,16 @@ This module provides functions that create the modules for typical ACOPF formula
 
 #TODO: document this with examples
 """
+import sys
 import pyomo.environ as pe
-from math import inf, pi, sqrt
+from math import inf, sqrt
 import pandas as pd
 from egret.common.log import logger
 import logging
+import egret.models.tests.test_approximations as test
 import egret.model_library.transmission.tx_utils as tx_utils
-import egret.model_library.transmission.tx_calc as tx_calc
 import egret.model_library.transmission.bus as libbus
 import egret.model_library.transmission.branch as libbranch
-import egret.model_library.transmission.branch_deprecated as libbranch_deprecated
 import egret.model_library.transmission.gen as libgen
 from egret.model_library.defn import ApproximationType, SensitivityCalculationMethod
 from egret.data.model_data import zip_items
@@ -787,125 +787,19 @@ def solve_fdf(model_data,
         return md, results
     return md
 
-def compare_results(results, c1, c2, display_results=False, tol=1e-6, n=6):
-
-    c1_results = results.get(c1)
-    c2_results = results.get(c2)
-
-    # handle empty dicts and possibly different key values
-    if not c1_results and not c2_results:
-        print('...Empty')
-        return
-    elif not c1_results:
-        c1_results = {k : 0 for k in c2_results.keys()}
-    elif not c2_results:
-        c2_results = {k : 0 for k in c1_results.keys()}
-    else:
-        c1_minus_c2 = set(c1_results.keys()) - set(c2_results.keys())
-        c2_minus_c1 = set(c2_results.keys()) - set(c1_results.keys())
-        for k in c2_minus_c1:
-            c1_results[k] = 0
-        for k in c1_minus_c2:
-            c2_results[k] = 0
-
-
-    df = pd.DataFrame(data=None,index=c1_results.keys())
-    df[c1] = c1_results.values()
-    df[c2] = c2_results.values()
-    df['diff'] = df[c1] - df[c2]
-    df['adiff'] = df['diff'].abs()
-
-    suma = sum(df['adiff'].values)
-    idx = df['adiff'].idxmax()
-    if suma < tol:
-        print('Sum of absolute differences is less than {}.'.format(tol))
-        if display_results:
-            print(df.nlargest(n,'adiff'))
-    else:
-        print('Sum of absolute differences is {}.'.format(suma))
-        print('Largest difference is {} at index {}.'.format(df['diff'].at[idx],idx))
-        print(df.nlargest(n,'adiff'))
-
-
-def compare_to_acopf(md):
-
-    # keyword arguments
-    kwargs = {'include_v_feasibility_slack': False}
-
-    # solve ACOPF
-    from egret.models.acopf import solve_acopf
-    md_ac, m_ac, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
-    print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
-    print(results.Solver)
-    gen = md_ac.attributes(element_type='generator')
-    bus = md_ac.attributes(element_type='bus')
-    branch = md_ac.attributes(element_type='branch')
-    pg_dict = {'acopf': gen['pg']}
-    qg_dict = {'acopf': gen['qg']}
-    tmp_pf = branch['pf']
-    tmp_pt = branch['pt']
-    tmp = {key: (tmp_pf[key] - tmp_pt.get(key, 0)) / 2 for key in tmp_pf.keys()}
-    pf_dict = {'acopf': tmp}
-    pfl_dict = {'acopf': branch['pfl']}
-    tmp_qf = branch['qf']
-    tmp_qt = branch['qt']
-    tmp = {key: (tmp_qf[key] - tmp_qt.get(key, 0)) / 2 for key in tmp_qf.keys()}
-    qf_dict = {'acopf': tmp}
-    qfl_dict = {'acopf': branch['qfl']}
-    va_dict = {'acopf': bus['va']}
-    vm_dict = {'acopf': bus['vm']}
-
-    # keyword arguments
-    kwargs = {}
-    ptdf_options = {}
-    ptdf_options['lazy'] = True
-    ptdf_options['lazy_voltage'] = True
-    ptdf_options['rel_ptdf_tol'] = 1e-2
-    ptdf_options['rel_qtdf_tol'] = 1e-2
-    ptdf_options['rel_pldf_tol'] = 1e-2
-    ptdf_options['rel_qldf_tol'] = 1e-2
-    ptdf_options['rel_vdf_tol'] = 1e-2
-    kwargs['ptdf_options'] = ptdf_options
-    kwargs['include_v_feasibility_slack'] = True
-    kwargs['include_feasibility_slack'] = False
-    # solve FDF...
-    md, m, results = solve_fdf(md_ac, "gurobi_persistent", fdf_model_generator=create_fixed_fdf_model, return_model=True,
-                               return_results=True, solver_tee=False, **kwargs)
-    print('FDF cost: $%3.2f' % md.data['system']['total_cost'])
-    print(results.Solver)
-
-    gen = md.attributes(element_type='generator')
-    bus = md.attributes(element_type='bus')
-    branch = md.attributes(element_type='branch')
-    pg_dict.update({'fdf': gen['pg']})
-    qg_dict.update({'fdf': gen['qg']})
-    pf_dict.update({'fdf': branch['pf']})
-    pfl_dict.update({'fdf': branch['pfl']})
-    qf_dict.update({'fdf': branch['qf']})
-    qfl_dict.update({'fdf': branch['qfl']})
-    va_dict.update({'fdf': bus['va']})
-    vm_dict.update({'fdf': bus['vm']})
-
-    # display results in dataframes
-    compare_dict = {'pg' : pg_dict,
-                    'qg' : qg_dict,
-                    'pf' : pf_dict,
-                    'qf' : qf_dict,
-                    'pfl' : pfl_dict,
-                    'qfl' : qfl_dict,
-                    'va' : va_dict,
-                    'vm' : vm_dict,
-                    }
-
-    for mv,results in compare_dict.items():
-        print('-{}:'.format(mv))
-        compare_results(results,'fdf', 'acopf', display_results=False)
-
 
 def compare_fdf_options(md):
 
+    import os
+    from egret.parsers.matpower_parser import create_ModelData
     from egret.data.test_utils import repopulate_acpf_to_modeldata
     from egret.models.tests.test_approximations import create_new_model_data
+
+    # set case and filepath
+    path = os.path.dirname(__file__)
+    filename = 'pglib_opf_case14_ieee.m'
+    matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
+    md = create_ModelData(matpower_file)
 
     logger = logging.getLogger('egret')
     logger.setLevel(logging.ERROR)
@@ -1050,133 +944,47 @@ def compare_fdf_options(md):
         print('-{}:'.format(mv))
         compare_results(results,'lazy', 'default', display_results=False)
 
-def test_dlopf(md):
 
-    from egret.data.test_utils import repopulate_acpf_to_modeldata
-    from egret.models.tests.test_approximations import create_new_model_data
+def nominal_test(argv=None, tml=None):
+    # case list
+    if len(argv)==0:
+        idl = [0]
+    else:
+        print(argv)
+        idl = test.get_case_names(flag=argv)
+    # test model list
+    if tml is None:
+        tml = ['dlopf_full', 'dlopf_e4', 'dlopf_e2', 'dlopf_lazy_full', 'dlopf_lazy_e4', 'dlopf_lazy_e2']
+    # run cases
+    for idx in idl:
+        test.run_nominal_test(idx=idx, tml=tml)
 
-    logger = logging.getLogger('egret')
-    logger.setLevel(logging.WARNING)
+def loop_test(argv=None, tml=None):
+    # case list
+    if len(argv)==0:
+        idl = [0]
+    else:
+        idl = test.get_case_names(flag=argv)
+    # test model list
+    if tml is None:
+        tml = ['dlopf_full', 'dlopf_e4', 'dlopf_e2', 'dlopf_lazy_full', 'dlopf_lazy_e4', 'dlopf_lazy_e2']
+    # run cases
+    for idx in idl:
+        test.run_test_loop(idx=idx, tml=tml)
 
-    def acpf_to_md(md):
-        try:
-            repopulate_acpf_to_modeldata(md, write_to_json=False)
-        except Exception as e:
-            return e
-
-
-    # solve ACOPF
-    print('Solve ACOPF....')
-    from egret.models.acopf import solve_acopf
-    md_ac, m_ac, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
-    print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
-    print(results.Solver)
-
-
-    md_ac = create_new_model_data(md_ac,1.0)
-
-
-    #solve D-LOPF tolerances
-    print('Solve D-LOPF (lazy e2)....')
-    kwargs = {}
-    ptdf_options = {}
-    ptdf_options['lazy'] = True
-    ptdf_options['lazy_voltage'] = True
-    ptdf_options['rel_ptdf_tol'] = 1e-2
-    ptdf_options['rel_qtdf_tol'] = 1e-2
-    ptdf_options['rel_pldf_tol'] = 1e-2
-    ptdf_options['rel_qldf_tol'] = 1e-2
-    ptdf_options['rel_vdf_tol'] = 1e-2
-    kwargs['ptdf_options'] = ptdf_options
-    try:
-        md, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True,return_results=True, solver_tee=False,
-                                   **kwargs)
-        print('D-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
-        print(results.Solver)
-        print(md.data['results'])
-    except Exception as e:
-        raise e
-        message = str(e)
-        print(message)
-
-    return
-
-    #solve D-LOPF tolerances
-    print('Solve D-LOPF (lazy full)....')
-    kwargs = {}
-    ptdf_options = {}
-    ptdf_options['lazy'] = True
-    ptdf_options['lazy_voltage'] = True
-    kwargs['ptdf_options'] = ptdf_options
-    try:
-        md, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True,return_results=True, solver_tee=False,
-                                   **kwargs)
-        print('D-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
-        print(results.Solver)
-        print(md.data['results'])
-    except Exception as e:
-        message = str(e)
-        print(message)
-
-    #solve D-LOPF tolerances
-    print('Solve D-LOPF (default e2)....')
-    kwargs = {}
-    ptdf_options = {}
-    ptdf_options['lazy'] = False
-    ptdf_options['lazy_voltage'] = False
-    ptdf_options['rel_ptdf_tol'] = 1e-2
-    ptdf_options['rel_qtdf_tol'] = 1e-2
-    ptdf_options['rel_pldf_tol'] = 1e-2
-    ptdf_options['rel_qldf_tol'] = 1e-2
-    ptdf_options['rel_vdf_tol'] = 1e-2
-    kwargs['ptdf_options'] = ptdf_options
-    try:
-        md, m, results = solve_fdf(md_ac, "gurobi_persistent", return_model=True,return_results=True, solver_tee=False,
-                                   **kwargs)
-        print('D-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
-        print(results.Solver)
-        print(md.data['results'])
-    except Exception as e:
-        message = str(e)
-        print(message)
 
 if __name__ == '__main__':
 
-    import os
-    from egret.parsers.matpower_parser import create_ModelData
-    from pyomo.environ import value
-    from collections import Counter
-
-    # set case and filepath
-    path = os.path.dirname(__file__)
-    #filename = 'pglib_opf_case3_lmbd.m'
-    #filename = 'pglib_opf_case5_pjm.m'
-    #filename = 'pglib_opf_case14_ieee.m'
-    #filename = 'pglib_opf_case30_ieee.m'
-    #filename = 'pglib_opf_case57_ieee.m'
-    filename = 'pglib_opf_case118_ieee.m'
-    #filename = 'pglib_opf_case162_ieee_dtc.m'
-    #filename = 'pglib_opf_case179_goc.m'
-    #filename = 'pglib_opf_case300_ieee.m'
-    #filename = 'pglib_opf_case500_tamu.m'
-    #filename = 'pglib_opf_case588_sdet.m'
-    #filename = 'pglib_opf_case1354_pegase.m'
-    #filename = 'pglib_opf_case1888_rte.m'
-    #filename = 'pglib_opf_case1951_rte.m'
-    #filename = 'pglib_opf_case2000_tamu.m'
-    #filename = 'pglib_opf_case2316_sdet.m'
-    #filename = 'pglib_opf_case2383wp_k.m'
-    #filename = 'pglib_opf_case2736sp_k.m'
-    #filename = 'pglib_opf_case2737sop_k.m'
-    #filename = 'pglib_opf_case2746wop_k.m'
-    #filename = 'pglib_opf_case2746wp_k.m'
-    #filename = 'pglib_opf_case2848_rte.m'
-    #filename = 'pglib_opf_case2853_sdet.m'
-    #filename = 'pglib_opf_case2868_rte.m'
-    #filename = 'pglib_opf_case2869_pegase.m'
-    matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
-    md = create_ModelData(matpower_file)
-
-    #compare_to_acopf(md)
-    compare_fdf_options(md)
-    #test_dlopf(md)
+    #tml = ['dlopf_full']
+    tml = None
+    if len(sys.argv)<=2:
+        nominal_test(sys.argv[1], tml=tml)
+    elif sys.argv[2]=='0':
+        nominal_test(sys.argv[1], tml=tml)
+    elif sys.argv[2]=='1':
+        loop_test(sys.argv[1], tml=tml)
+    else:
+        message = 'file usage: model.py <case> <option>\n'
+        message+= '\t case    = last N characters of cases to run\n'
+        message+= '\t option  = 0 to run nominal or 1 for full test loop'
+        print(message)

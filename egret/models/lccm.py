@@ -12,21 +12,21 @@ This module provides functions that create the modules for typical ACOPF formula
 
 #TODO: document this with examples
 """
+import sys
 import pyomo.environ as pe
-from math import inf, pi
-import pandas as pd
+from math import pi, radians, inf
+from egret.common.log import logger
+import logging
+import egret.models.tests.test_approximations as test
 import egret.model_library.transmission.tx_utils as tx_utils
-import egret.model_library.transmission.tx_calc as tx_calc
 import egret.model_library.transmission.bus as libbus
 import egret.model_library.transmission.branch as libbranch
-import egret.model_library.transmission.branch_deprecated as libbranch_deprecated
 import egret.model_library.transmission.gen as libgen
 from egret.model_library.defn import ApproximationType, SensitivityCalculationMethod
 from egret.data.model_data import zip_items
 import egret.data.data_utils_deprecated as data_utils_deprecated
 import egret.model_library.decl as decl
 import egret.models.fdf as fdf
-from math import pi, radians, inf
 
 
 def _include_system_feasibility_slack(model, bus_attrs, gen_attrs, bus_p_loads, bus_q_loads, penalty=1000):
@@ -86,9 +86,9 @@ def create_fixed_lccm_model(model_data, **kwargs):
     model, md = create_lccm_model(model_data, **kwargs)
 
     for g, pg in model.pg.items():
-        pg.value = value(m_ac.pg[g])
+        pg.value = pe.value(m_ac.pg[g])
     for g, qg in model.qg.items():
-        qg.value = value(m_ac.qg[g])
+        qg.value = pe.value(m_ac.qg[g])
 
     model.pg.fix()
     model.qg.fix()
@@ -446,112 +446,47 @@ def solve_lccm(model_data,
         return md, results
     return md
 
-def printresults(results):
-    solver = results.attributes(element_type='Solver')
 
-def compare_to_acopf(md):
-    # keyword arguments
-    kwargs = {'include_v_feasibility_slack': True}
+def nominal_test(argv=None, tml=None):
+    # case list
+    if len(argv)==0:
+        idl = [0]
+    else:
+        print(argv)
+        idl = test.get_case_names(flag=argv)
+    # test model list
+    if tml is None:
+        tml = ['slopf']
+    # run cases
+    for idx in idl:
+        test.run_nominal_test(idx=idx, tml=tml)
 
-    # solve ACOPF
-    from egret.models.acopf import solve_acopf
-    md_ac, m_ac, results = solve_acopf(md, "ipopt", return_model=True, return_results=True, solver_tee=False)
-    print('ACOPF cost: $%3.2f' % md_ac.data['system']['total_cost'])
-    print(results.Solver)
-    gen = md_ac.attributes(element_type='generator')
-    bus = md_ac.attributes(element_type='bus')
-    branch = md_ac.attributes(element_type='branch')
-    pg_dict = {'acopf': gen['pg']}
-    qg_dict = {'acopf': gen['qg']}
-    tmp_pf = branch['pf']
-    tmp_pt = branch['pt']
-    tmp = {key: (tmp_pf[key] - tmp_pt.get(key, 0)) / 2 for key in tmp_pf.keys()}
-    pf_dict = {'acopf': tmp}
-    pfl_dict = {'acopf': branch['pfl']}
-    tmp_qf = branch['qf']
-    tmp_qt = branch['qt']
-    tmp = {key: (tmp_qf[key] - tmp_qt.get(key, 0)) / 2 for key in tmp_qf.keys()}
-    qf_dict = {'acopf': tmp}
-    qfl_dict = {'acopf': branch['qfl']}
-    va_dict = {'acopf': bus['va']}
-    vm_dict = {'acopf': bus['vm']}
-
-    # solve S-LOPF
-    md, m, results = solve_lccm(md_ac, "gurobi_persistent", lccm_model_generator=create_lccm_model, return_model=True,
-                                return_results=True, solver_tee=False, **kwargs)
-
-    print('S-LOPF cost: $%3.2f' % md.data['system']['total_cost'])
-    print(results.Solver)
-
-    gen = md.attributes(element_type='generator')
-    bus = md.attributes(element_type='bus')
-    branch = md.attributes(element_type='branch')
-    pg_dict.update({'slopf': gen['pg']})
-    qg_dict.update({'slopf': gen['qg']})
-    pf_dict.update({'slopf': branch['pf']})
-    pfl_dict.update({'slopf': branch['pfl']})
-    qf_dict.update({'slopf': branch['qf']})
-    qfl_dict.update({'slopf': branch['qfl']})
-    va_dict.update({'slopf': bus['va']})
-    vm_dict.update({'slopf': bus['vm']})
-
-    # display results in dataframes
-    from egret.models.fdf import compare_results
-    print('-pg:')
-    compare_results(pg_dict, 'slopf', 'acopf')
-    #    print(pd.DataFrame(pg_dict))
-    print('-qg:')
-    compare_results(qg_dict, 'slopf', 'acopf')
-    #    print(pd.DataFrame(qg_dict))
-    #    print('-pt:')
-    #    print(pd.DataFrame(pt_dict))
-    print('-pf:')
-    compare_results(pf_dict, 'slopf', 'acopf', display_results=True)
-    #    print(pd.DataFrame(pf_dict))
-    print('-pfl:')
-    compare_results(pfl_dict, 'slopf', 'acopf')
-    #    print(pd.DataFrame(pfl_dict))
-    #    print('-qt:')
-    #    print(pd.DataFrame(qt_dict))
-    print('-qf:')
-    compare_results(qf_dict, 'slopf', 'acopf', display_results=True)
-    #    print(pd.DataFrame(qf_dict))
-    print('-qfl:')
-    compare_results(qfl_dict, 'slopf', 'acopf')
-    #    print(pd.DataFrame(qfl_dict))
-    #    print('-va:')
-    #    print(pd.DataFrame(va_dict))
-    print('-vm:')
-    compare_results(vm_dict, 'slopf', 'acopf')
-
-
-    print(pd.DataFrame(vm_dict))
+def loop_test(argv=None, tml=None):
+    # case list
+    if len(argv)==0:
+        idl = [0]
+    else:
+        idl = test.get_case_names(flag=argv)
+    # test model list
+    if tml is None:
+        tml = ['slopf']
+    # run cases
+    for idx in idl:
+        test.run_test_loop(idx=idx, tml=tml)
 
 
 if __name__ == '__main__':
-    import os
-    from egret.parsers.matpower_parser import create_ModelData
-    from pyomo.environ import value
 
-    # set case and filepath
-    path = os.path.dirname(__file__)
-    #filename = 'pglib_opf_case3_lmbd.m'
-    filename = 'pglib_opf_case5_pjm.m'
-    #filename = 'pglib_opf_case14_ieee.m'
-    #filename = 'pglib_opf_case30_ieee.m'
-    #filename = 'pglib_opf_case57_ieee.m'
-    #filename = 'pglib_opf_case118_ieee.m'
-    #filename = 'pglib_opf_case162_ieee_dtc.m'
-    #filename = 'pglib_opf_case179_goc.m'
-    #filename = 'pglib_opf_case300_ieee.m'
-    #filename = 'pglib_opf_case500_tamu.m'
-    matpower_file = os.path.join(path, '../../download/pglib-opf-master/', filename)
-    md = create_ModelData(matpower_file)
-
-    compare_to_acopf(md)
-
-# not solving pglib_opf_case57_ieee
-# pglib_opf_case500_tamu
-# pglib_opf_case162_ieee_dtc
-# pglib_opf_case179_goc
-# pglib_opf_case300_ieee
+    #tml = ['slopf']
+    tml = None
+    if len(sys.argv)<=2:
+        nominal_test(sys.argv[1], tml=tml)
+    elif sys.argv[2]=='0':
+        nominal_test(sys.argv[1], tml=tml)
+    elif sys.argv[2]=='1':
+        loop_test(sys.argv[1], tml=tml)
+    else:
+        message = 'file usage: model.py <case> <option>\n'
+        message+= '\t case    = last N characters of cases to run\n'
+        message+= '\t option  = 0 to run nominal or 1 for full test loop'
+        print(message)

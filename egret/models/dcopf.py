@@ -12,15 +12,19 @@ This module provides functions that create the modules for typical DCOPF formula
 
 #TODO: document this with examples
 """
+import sys
 import pyomo.environ as pe
+from pyomo.environ import value
 import numpy as np
+import egret.models.tests.test_approximations as test
 import egret.model_library.transmission.tx_utils as tx_utils
-from egret.model_library.transmission.tx_calc import calculate_y_matrix_from_branch, calculate_ifr, calculate_ifj, calculate_p
 import egret.model_library.transmission.bus as libbus
 import egret.model_library.transmission.branch as libbranch
 import egret.model_library.transmission.gen as libgen
 import egret.common.lazy_ptdf_utils as lpu
 import egret.data.data_utils as data_utils
+from egret.common.log import logger
+import logging
 
 from egret.model_library.defn import CoordinateType, ApproximationType, BasePointType
 from egret.data.model_data import map_items, zip_items
@@ -572,30 +576,48 @@ def constraint_resid_to_string(name, con, resid):
         return '{0:10.4g} | {2:10.4} <= {3:10.4g} <= {4:10.4g} : {1}'.format(resid, name, value(con.lower), value(con.body), value(con.upper))
 
 
+
+def nominal_test(argv=None, tml=None):
+    # case list
+    if len(argv)==0:
+        idl = [0]
+    else:
+        print(argv)
+        idl = test.get_case_names(flag=argv)
+    # test model list
+    if tml is None:
+        tml = ['ptdf_full', 'ptdf_e4', 'ptdf_e2', 'ptdf_lazy_full', 'ptdf_lazy_e4', 'ptdf_lazy_e2', 'btheta']
+    # run cases
+    for idx in idl:
+        test.run_nominal_test(idx=idx, tml=tml)
+
+def loop_test(argv=None, tml=None):
+    # case list
+    if len(argv)==0:
+        idl = [0]
+    else:
+        idl = test.get_case_names(flag=argv)
+    # test model list
+    if tml is None:
+        tml = ['ptdf_full', 'ptdf_e4', 'ptdf_e2', 'ptdf_lazy_full', 'ptdf_lazy_e4', 'ptdf_lazy_e2', 'btheta']
+    # run cases
+    for idx in idl:
+        test.run_test_loop(idx=idx, tml=tml)
+
+
 if __name__ == '__main__':
-    import os
-    from egret.parsers.matpower_parser import create_ModelData
 
-    path = os.path.dirname(__file__)
-    print(path)
-    #filename = 'pglib_opf_case30_ieee.m'
-    filename = 'pglib_opf_case300_ieee.m'
-    test_case = os.path.join(path, '../../download/pglib-opf-master/', filename)
-    md_dict = create_ModelData(test_case)
-
-    dcopf_model = create_ptdf_dcopf_model
-
-    kwargs = {'ptdf_options': {'save_to': test_case + '.pickle'}}
-    md_serialization, results = solve_dcopf(md_dict, "ipopt", dcopf_model_generator=dcopf_model, solver_tee=False,
-                                            return_results=True, **kwargs)
-    print('serialization...')
-    print('DCOPF cost: $%3.2f' % md_serialization.data['system']['total_cost'])
-    print('DCOPF time: %3.5f' % md_serialization.data['results']['time'])
-
-    kwargs = {'ptdf_options': {'load_from': test_case + '.pickle'}}
-    md_deserialization, results = solve_dcopf(md_dict, "ipopt", dcopf_model_generator=dcopf_model, solver_tee=False,
-                                              return_results=True, **kwargs)
-    print('deserialization...')
-    print('DCOPF cost: $%3.2f' % md_deserialization.data['system']['total_cost'])
-    print('DCOPF time: %3.5f' % md_deserialization.data['results']['time'])
+    #tml = ['plopf_full']
+    tml = None
+    if len(sys.argv)<=2:
+        nominal_test(sys.argv[1], tml=tml)
+    elif sys.argv[2]=='0':
+        nominal_test(sys.argv[1], tml=tml)
+    elif sys.argv[2]=='1':
+        loop_test(sys.argv[1], tml=tml)
+    else:
+        message = 'file usage: model.py <case> <option>\n'
+        message+= '\t case    = last N characters of cases to run\n'
+        message+= '\t option  = 0 to run nominal or 1 for full test loop'
+        print(message)
 
