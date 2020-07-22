@@ -509,7 +509,7 @@ def _load_solution_to_model_data(m, md, results):
     if hasattr(m, '_v_penalty'):
         penalty_cost += value(fdf.get_v_penalty_expr(m, bus_attrs))
 
-    md.data['system']['total_cost'] = value(m.obj) - penalty_cost
+    md.data['system']['total_cost'] = value(m.obj)
     md.data['system']['penalty_cost'] = penalty_cost
     md.data['system']['ploss'] = value(m.ploss)
     md.data['system']['qloss'] = value(m.qloss)
@@ -858,7 +858,15 @@ def nominal_test(argv=None, tml=None):
         idl = test.get_case_names(flag=argv)
     # test model list
     if tml is None:
-        tml = ['clopf_full', 'clopf_e4', 'clopf_e2', 'clopf_lazy_full', 'clopf_lazy_e4', 'clopf_lazy_e2']
+        tml = [
+            #'clopf_full',
+            'clopf_e4',
+            'clopf_e2',
+            'clopf_lazy_full',
+            'clopf_lazy_e4',
+            'clopf_lazy_e2'
+        ]
+        #tml = ['clopf_full', 'clopf_e4', 'clopf_e2', 'clopf_lazy_full', 'clopf_lazy_e4', 'clopf_lazy_e2']
     # run cases
     for idx in idl:
         test.run_nominal_test(idx=idx, tml=tml)

@@ -335,7 +335,7 @@ def _load_solution_to_model_data(m, md, results):
     if hasattr(m, '_v_penalty'):
         penalty_cost += value(fdf.get_v_penalty_expr(m, bus_attrs))
 
-    md.data['system']['total_cost'] = value(m.obj) - penalty_cost
+    md.data['system']['total_cost'] = value(m.obj)
     md.data['system']['penalty_cost'] = penalty_cost
 
     for g,g_dict in gens.items():

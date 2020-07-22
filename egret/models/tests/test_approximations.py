@@ -218,14 +218,13 @@ def generate_test_model_dict(test_model_list):
     return test_model_dict
 
 
-
 def get_case_names(flag=None):
 
     if flag=='misc':
         remove_list = list()
         for key in ['ieee','k','rte','sdet','tamu','pegase']:
-            N = len(flag)
-            remove_list += [c for c in case_names if flag in c[-N:]]
+            N = len(key)
+            remove_list += [c for c in case_names if key in c[-N:]]
         case_list = [c for c in case_names if c not in remove_list]
 
     elif flag is not None:
@@ -236,6 +235,16 @@ def get_case_names(flag=None):
         case_list = case_names
 
     return case_list
+
+def get_case_dict():
+
+    # get case dicts
+    case_sets = ['ieee','k','rte','sdet','tamu','pegase','misc']
+    case_dict = {}
+    for k in case_sets:
+        case_dict[k] = get_case_names(k)
+
+    return case_dict
 
 def get_test_model_list():
     test_model_list = [

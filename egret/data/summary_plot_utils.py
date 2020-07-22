@@ -12,8 +12,9 @@ This module contains several helper functions and classes that are useful when
 modifying the data dictionary
 """
 
-import os, shutil, glob, json
+import os, glob, json
 import pandas as pd
+import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
@@ -21,24 +22,10 @@ import matplotlib.colors as clrs
 import matplotlib.cm as cmap
 from matplotlib.colors import ListedColormap
 import seaborn as sns
-from cycler import cycler
-import math
-import numpy.ma as ma
-import unittest
-import logging
-from egret.common.log import logger
 import egret.data.test_utils as tu
 import egret.models.tests.ta_utils as tau
-from pyomo.opt import SolverFactory, TerminationCondition
-from egret.models.lccm import *
-from egret.models.dcopf_losses import *
-from egret.models.dcopf import *
-from egret.models.copperplate_dispatch import *
+import egret.models.tests.test_approximations as test
 from egret.data.model_data import ModelData
-from parameterized import parameterized
-from egret.parsers.matpower_parser import create_ModelData
-from os import listdir
-from os.path import isfile, join
 from scipy.stats.mstats import gmean,tmean
 
 # Functions to be summarized by averaging
@@ -137,180 +124,35 @@ def get_colors(map_name=None, trim=0.9):
 
     return colors
 
-def update_data_file(test_case):
+def read_data_file(filename="case_data_all.csv"):
 
+    source = tau.get_summary_file_location('data')
     try:
-        df1 = read_data_file()
-    except:
-        df1 = pd.DataFrame(data=None)
+        df_data = pd.read_csv(os.path.join(source, filename), index_col=0)
+    except FileNotFoundError:
+        df_data = None
 
-    df2 = read_json_files(test_case)
+    return df_data
 
-    # merge new data
-    new_index = list(set(list(df1.index.values) + list(df2.index.values)))
-    new_columns = list(set(list(df1.columns.values) + list(df2.columns.values)))
-    update = df1.reindex(index=new_index,columns=new_columns)
-    for idx,row in df2.iterrows():
-        update.loc[idx] = row
-    update.sort_index(inplace=True)
+def save_data_file(df_data, filename=None):
+
+    if filename is None:
+        raise ValueError('Must supply filename in save_data_file.')
 
     ## save DATA to csv
-    destination = tau.get_summary_file_location('data')
-    filename = "all_summary_data.csv"
     print('...out: {}'.format(filename))
-    update.to_csv(os.path.join(destination, filename))
+    destination = tau.get_summary_file_location('data')
+    df_data.to_csv(os.path.join(destination, filename))
 
+def save_figure(filename=None):
 
-def create_table1_solverstatus(df):
-
-    model_list = list(set(list(df.model.values)))
-    desc_list = ['base_model','trim','build_mode']
-    count_list = ['optimal','infeasible','duals','internalSolverError','maxIterations','maxTimeLimit','solverFailure']
-    df1 = pd.DataFrame(data=None, index=model_list, columns=desc_list+count_list)
-
-    # Table 1
-    for idx,row in df1.iterrows():
-        _df = df[df.model==idx]
-        dummy_row = _df.iloc[0]
-        for col in desc_list:
-            row[col] = dummy_row[col]
-        for col in count_list:
-            _col = _df[col]
-            _col[_col=='True'] = 1
-            _col[_col=='False'] = 0
-            row[col] = sum(_col.astype(int))
-    df1 = df1.sort_values(by=['base_model','build_mode','trim'], ascending=[1,1,0])
+    if filename is None:
+        raise ValueError('Must supply filename in save_figure.')
 
     ## save DATA to csv
-    destination = tau.get_summary_file_location('data')
-    filename = "table1_solverstatus.csv"
     print('...out: {}'.format(filename))
-    df1.to_csv(os.path.join(destination, filename))
-
-def create_table2_timeandcost(df):
-
-    model_list = list(set(list(df.model.values)))
-    desc_list = ['base_model','trim','build_mode']
-    gmean_list = ['solve_time_normalized','total_cost_normalized','acpf_slack','num_variables','num_constraints','num_nonzeros']
-    df2 = pd.DataFrame(data=None, index=model_list, columns=desc_list+gmean_list)
-
-    # Table 2
-    for idx, row in df2.iterrows():
-        _df = df[df.model == idx]
-        dummy_row = _df.iloc[0]
-        for col in desc_list:
-            row[col] = dummy_row[col]
-        for col in gmean_list:
-            df_nz = _df[_df[col]!=0]
-            array = abs(df_nz[col].dropna())
-            row[col] = gmean(array)
-    df2 = df2.sort_values(by=['base_model','build_mode','trim'], ascending=[1,1,0])
-
-    ## save DATA to csv
-    destination = tau.get_summary_file_location('data')
-    filename = "table2_timeandcost.csv"
-    print('...out: {}'.format(filename))
-    df2.to_csv(os.path.join(destination, filename))
-
-def create_table3_violations(df):
-
-    model_list = list(set(list(df.model.values)))
-    desc_list = ['base_model','trim','build_mode']
-    tmean_list = ['vm_viol_sum','vm_viol_max','thermal_viol_sum','thermal_viol_max']
-    max_list = tmean_list
-    df3_list = [c + '_avg' for c in tmean_list] + [c + '_max' for c in max_list]
-    df3 = pd.DataFrame(data=None, index=model_list, columns=desc_list+df3_list)
-
-    # Table 3
-    for idx, row in df3.iterrows():
-        _df = df[df.model == idx]
-        dummy_row = _df.iloc[0]
-        for col in desc_list:
-            row[col] = dummy_row[col]
-        for col in tmean_list:
-            row[col + '_avg'] = tmean(_df[col].dropna())
-        for col in max_list:
-            row[col + '_max'] = max(_df[col])
-    df3 = df3.sort_values(by=['base_model','build_mode','trim'], ascending=[1,1,0])
-
-    ## save DATA to csv
-    destination = tau.get_summary_file_location('data')
-    filename = "table3_violations.csv"
-    print('...out: {}'.format(filename))
-    df3.to_csv(os.path.join(destination, filename))
-
-
-
-
-def create_case_table(df_in, col_name, max_buses=None, min_buses=None):
-
-    model_list = list(set(list(df_in.model.values)))
-    desc_list = ['base_model','trim','build_mode']
-    case_list = tau.case_names
-    df_out = pd.DataFrame(data=None, index=model_list, columns=desc_list+case_list)
-
-    # Fill in table
-    for idx,row in df_out.iterrows():
-        _df = df_in[df_in.model==idx]
-        dummy_row = _df.iloc[0]
-        for col in desc_list:
-            row[col] = dummy_row[col]
-        for case in case_list:
-            _case = _df[_df.long_case==case]
-            if len(_case.index) == 1:
-                row[case] = _case[col_name]
-            elif len(_case.index) > 1:
-                array = _case[col_name].dropna().values
-                row[case] = gmean(array)
-            else:
-                row[case] = 9999
-    df_out = df_out.sort_values(by=['base_model','build_mode','trim'], ascending=[1,1,0])
-
-    # add short case name and num_bus to top two rows
-    df_top = pd.DataFrame(data=None, index=['case', 'num_buses'], columns=case_list)
-    for case in case_list:
-        _df = df_in[df_in.long_case==case]
-        if not _df.empty:
-            dummy_row = _df.iloc[0]
-            df_top.loc['case',case] = dummy_row['case']
-            df_top.loc['num_buses',case] = dummy_row['num_buses']
-    df_out = pd.concat([df_top, df_out], sort=False)
-
-    filename = 'table_' + col_name
-    if max_buses is not None:
-        filename += '_under_{}'.format(max_buses)
-        drop_col = [c for c in df_out.columns if df_out.loc['num_buses',c] <= max_buses]
-        df_out = df_out.drop(drop_col, axis='columns')
-    if min_buses is not None:
-        filename += '_over_{}'.format(min_buses)
-        drop_col = [c for c in df_out.columns if df_out.loc['num_buses',c] >= min_buses]
-        df_out = df_out.drop(drop_col, axis='columns')
-
-    ## save DATA to csv
-    destination = tau.get_summary_file_location('data')
-    filename += ".csv"
-    print('...out: {}'.format(filename))
-    df_out.to_csv(os.path.join(destination, filename))
-
-
-def update_data_tables():
-
-    df = read_data_file()
-
-    # Tables
-    create_table1_solverstatus(df)
-    create_table2_timeandcost(df)
-    create_table3_violations(df)
-
-    create_case_table(df,'acpf_slack', min_buses=1000)
-    create_case_table(df,'balance_slack', min_buses=1000)
-    create_case_table(df,'solve_time', min_buses=1000)
-    create_case_table(df,'total_cost_normalized', min_buses=1000)
-
-    create_case_table(df,'acpf_slack', max_buses=1000)
-    create_case_table(df,'balance_slack', max_buses=1000)
-    create_case_table(df,'solve_time', max_buses=1000)
-    create_case_table(df,'total_cost_normalized', max_buses=1000)
+    destination = tau.get_summary_file_location('figures')
+    plt.savefig(os.path.join(destination, filename))
 
 
 def read_json_files(test_case):
@@ -320,6 +162,9 @@ def read_json_files(test_case):
     case_folder = tau.get_solution_file_location(test_case)
     filename = case + "_*.json"
     file_list = glob.glob(os.path.join(case_folder, filename))
+
+    if len(file_list)==0:
+        return None
 
     data = {}
     for file in file_list:
@@ -366,438 +211,198 @@ def read_json_files(test_case):
 
     return df_data
 
-def normalize_solve_time(df_data, model_benchmark='acopf'):
+def update_case_data(case_list, tag=None):
 
-    df_benchmark = df_data[df_data.model==model_benchmark]
-    df_benchmark = df_benchmark.select_dtypes(include='number')
-    arr = list(df_benchmark.solve_time.values)
-    arr = [a for a in arr if a != 0]
-    gm_benchmark = gmean(arr)
-
-    df_data['solve_time_normalized'] = df_data['solve_time'] / gm_benchmark
-
-    return df_data
-
-def normalize_total_cost(df_data, model_benchmark='acopf'):
-
-    df_data = df_data.sort_values(by='mult')
-    is_benchmark = df_data['model']==model_benchmark
-    df_benchmark = df_data[is_benchmark]
-    tc2 = df_benchmark['total_cost'].to_numpy()
-
-    model_list = list(set(df_data.model.values))
-    model_list.sort()
-
-    for m in model_list:
-        df_m = df_data[df_data.model==m]
-        for idx,row in df_m.iterrows():
-            mult = row.mult
-            tc1 = row.total_cost
-            df2 = df_benchmark[df_benchmark.mult==mult]
-            tc2 = df2.total_cost.values.item()
-            try:
-                val = tc1 / tc2
-            except:
-                val = None
-            df_data.loc[idx, 'total_cost_normalized'] = val
-
-    return df_data
-
-def read_data_file(filename="all_summary_data.csv"):
-
-    source = tau.get_summary_file_location('data')
-    df_data = pd.read_csv(os.path.join(source, filename), index_col=0)
-
-    return df_data
-
-def build_sensitivity_plot(test_case, model_dict, y_data='acpf_slack', y_units='MW',
-                           colors=None, show_plot=True):
-
-    _, case_name = os.path.split(test_case)
-    case_name, ext = os.path.splitext(case_name)
-
-    df = read_data_file()
-
-    # filter by test case and model
-    model_list = [k for k,v in model_dict.items() if v]
-    df = df[df.long_case==case_name]
-    df = df[df.model.isin(model_list)]
-
-    if len(df.index) <= len(model_list):
-        print('...skipping sensitivity graph due to lack of data.')
+    data = pd.DataFrame(data=None)
+    for case in case_list:
+        df = read_json_files(case)
+        if df is not None:
+            data = pd.concat([data, df])
+    if data.empty:
         return
 
-    # create empty dataframe
-    idx_list = list(set(df.mult.values))
-    idx_list.sort()
-    df_data = pd.DataFrame(data=None, index=idx_list, columns=model_list)
+    ## save DATA to csv
+    filename = "case_data"
+    if tag is not None:
+        filename += "_" + tag
+    filename += ".csv"
+    save_data_file(data, filename=filename)
 
-    # fill dataframe with data
-    for idx,row in df.iterrows():
-        model = row.model
-        x = row.mult
-        y = row[y_data]
-        df_data.loc[x,model] = y
+
+def update_all_case_data(case_sets, tag=None):
+
+    data = pd.DataFrame(data=None)
+    for cs in case_sets:
+        filename = 'case_data_' + cs + '.csv'
+        df = read_data_file(filename=filename)
+        if df is not None:
+            data = pd.concat([data, df])
+    if data.empty:
+        return
 
     ## save DATA to csv
-    destination = tau.get_summary_file_location('data')
-    filename = "sensitivity_" + case_name + "_" + y_data + ".csv"
-    print('...out: {}'.format(filename))
-    df_data.to_csv(os.path.join(destination, filename))
+    filename = "case_data_all"
+    if tag is not None:
+        filename += "_" + tag
+    filename += ".csv"
+    save_data_file(data, filename=filename)
 
-    ## Create plot
-    fig, ax = plt.subplots()
 
-    #---- set properties
-    if colors is None:
-        colors = get_colors('cubehelix', trim=0.8)
-    marker_style = pareto_marker_style(model_list, colors=colors)
+def nominal_case_data(column, tag=None):
 
-    # plot
-    for m in model_list:
-        ms = marker_style[m]
-        ms['linestyle'] = 'solid'
-        ms['markeredgewidth'] = 1.5
-        if 'slopf' in m or 'btheta' in m:
-            ms['marker'] = 's'
-        elif 'dlopf' in m:
-            ms['marker'] = 'o'
-        elif 'clopf' in m or 'ptdf' in m:
-            ms['marker'] = 'x'
-        elif 'plopf' in m:
-            ms['marker'] = '+'
-        else:
-            ms['marker'] = None
-        ms['fillstyle'] = 'none'
-        x = idx_list
-        y = df_data[m]
-        ax.plot(x, y, **ms)
+    filename = 'case_data'
+    if tag is not None:
+        filename += '_' + tag
+    df = read_data_file(filename=filename + '.csv')
+    if df is None:
+        return
 
-    # formatting
-    ylabel = y_data
-    if y_units is not None:
-        ylabel += " (" + y_units +")"
-    ax.set_ylabel(ylabel)
-    ax.set_xlabel('Demand Multiplier')
+    # Remove all rows with mult != 1.000
+    df.drop(df[df['mult'] != 1.0].index, inplace=True)
 
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    idx_list = []
+    col_list = []
+    [idx_list.append(x) for x in df['case'].values if x not in idx_list]
+    [col_list.append(x) for x in df['model'].values if x not in col_list]
+
+    data = pd.DataFrame(data=None, index=idx_list, columns=col_list)
+    for index, row in df.iterrows():
+        idx = row['case']
+        col = row['model']
+        data.loc[idx, col] = row[column]
+
+    data.sort_index(axis=1, inplace=True)
+
+    ## save DATA to csv
+    filename += '_' + column + '.csv'
+    save_data_file(data, filename=filename)
+
+
+def nominal_all_data(case_keys, column='solve_time', function='gm'):
+
+    data = pd.DataFrame(data=None, index=case_keys)
+
+    for tag in case_keys:
+        filename = 'case_data' + '_' + tag + '_' + column
+        df = read_data_file(filename=filename + '.csv')
+        if df is None:
+            continue
+
+        for col in df.columns:
+            arr = df[col].dropna(0).values
+            if function=='gm':
+                f = gmean(arr)
+            elif function=='tm':
+                f = tmean(arr)
+            elif function=='max':
+                f = max(arr)
+            else:
+                message = '{} not accepted. Use gm, tm, or max.'.format(function)
+                raise ValueError(message)
+            data.loc[tag, col] = f
+
+    ## save DATA to csv
+    filename = 'set_data_' + column + '_' + function + '.csv'
+    save_data_file(data, filename=filename)
+
+
+def filter_dataframe(df_data, data_filters=None):
+
+    if df_data is None:
+        return None
+    if data_filters is not None:
+        for col,keepers in data_filters.items():
+            if col in df_data.columns:
+                drop_rows = []
+                for idx,row in df_data.iterrows():
+                    if not any(k in row[col] for k in keepers):
+                        drop_rows.append(idx)
+                df_data = df_data.drop(drop_rows)
+
+    return df_data
+
+
+def generate_boxplot(data_filters=None, data_name='solve_time', data_unit=None, order=None, category='model', hue=None,
+                         scale='linear', filename=None, show_plot=True):
+
+    if filename is None:
+        filename = "all_summary_data.csv"
+    df_data = read_data_file(filename=filename)
+    df_data = filter_dataframe(df_data, data_filters)
+    if df_data is None:
+        return
+
+    settings = {}
+    settings['order'] = order
+    settings['inner'] = 'quartile'
+    settings['scale'] = 'width'
+    settings['color'] = '0.8'
+    #settings['orient'] = 'h'
+    #settings['bw'] = 0.2
+    #ax = sns.violinplot(y=category, x=data_name, data=df_data, **settings)
+    #ax = sns.stripplot(y=category, x=data_name, data=df_data, order=order, dodge=True, size=2.5)
+    ax = sns.boxplot(y=category, x=data_name, data=df_data, order=order, hue=hue)
+    ax.set_ylabel(category)
+    if data_unit is None:
+        ax.set_xlabel(data_name)
+    else:
+        ax.set_xlabel(data_name + '('+data_unit+')')
+    #ax.set_yticklabels(ax.get_yticklabels(), rotation=90)
+    #ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+
+    plt.tight_layout()
+    plt.xscale(scale)
 
     ## save FIGURE as png
-    destination = tau.get_summary_file_location('figures')
-    filename = "sensitivity_" + case_name + "_" + y_data + ".png"
-    plt.savefig(os.path.join(destination, filename))
-
-    # display
-    if show_plot is True:
-        plt.show()
-    else:
-        plt.close('all')
-
-def calculate_case_gmean_data():
-
-    df = read_data_file()
-    df = df[df.optimal==1]
-
-    # create empty dataframe
-    model_list = list(set(df.model.values))
-    case_list = list(set(df.case.values))
-    df_data = pd.DataFrame(data=None)
-
-    # fill dataframe with data
-    for m in model_list:
-        _dfm = df[df.model==m]
-        for c in case_list:
-            _df = _dfm[_dfm.case==c]
-            df_num = _df.select_dtypes(include='number')
-            _df = _df.drop_duplicates(subset='case')
-            idx = list(_df.index)
-            for col in df_num.columns:
-                try:
-                    gm = gmean(df_num[col])
-                except:
-                    gm = None
-                _df.loc[idx,col] = gm
-            df_data = pd.concat([df_data, _df])
-
-    ## save DATA to csv
-    destination = tau.get_summary_file_location('data')
-    filename = "case_gmean_data.csv"
-    print('...out: {}'.format(filename))
-    df_data.to_csv(os.path.join(destination, filename))
-
-def calculate_model_gmean_data():
-
-    df = read_data_file()
-    #df = df[df.optimal==1]
-
-    # remove cases with suboptimal solves from
-    bad_case = []
-    for idx,row in df.iterrows():
-        if row.optimal != 1:
-            bad_case.append(row.case)
-    bad_case = list(set(bad_case))
-    bad_idx = list(df[df.case.isin(bad_case)].index)
-    df = df.drop(bad_idx)
-
-    # create empty dataframe
-    model_list = list(set(df.model.values))
-    df_data = pd.DataFrame(data=None)
-
-    # fill dataframe with data
-    for m in model_list:
-        _df = df[df.model==m]
-        df_num = _df.select_dtypes(include='number')
-        _df = _df.drop_duplicates(subset='model')
-        idx = list(_df.index)
-        for col in df_num.columns:
-            try:
-                gm = gmean(abs(df_num[col]))
-            except:
-                gm = None
-            _df.loc[idx,col] = gm
-        df_data = pd.concat([df_data, _df])
-
-    ## save DATA to csv
-    destination = tau.get_summary_file_location('data')
-    filename = "model_gmean_data.csv"
-    print('...out: {}'.format(filename))
-    df_data.to_csv(os.path.join(destination, filename))
-
-def build_scatterplot(model_keys=None, x_data='num_buses', y_data='solve_time',
-                      data_file="case_gmean_data.csv",
-                      hue_group=None, style_group=None, size_group=None,
-                      hue_order=None, style_order=None, size_order=None,
-                      xscale='log', yscale='log', file_tag=None,
-                      x_units=None, y_units='s', show_plot=True):
-
-    df = read_data_file(filename=data_file)
-
-    # filter by model
-    all_models = list(set(list(df.model.values)))
-    if model_keys is None:
-        model_list = all_models
-    else:
-        model_list = [m for m in all_models if any(k in m for k in model_keys)]
-    #model_list = [k for k,v in model_dict.items() if v]
-    df = df[df.model.isin(model_list)]
-
-    model_order = ['acopf','slopf','dlopf','clopf','plopf','ptdf','btheta']
-    build_order = ['default','lazy']
-    trim_order = ['full','e4','e2']
-    model_list = list(set(list(df.base_model.values)))
-    model_order = [m for m in model_order if m in model_list]
-
-    order = {'base_model':model_order, 'build_mode':build_order, 'trim':trim_order}
-    if hue_group in order.keys():
-        hue_order = order[hue_group]
-    if style_group in order.keys():
-        style_order = order[style_group]
-    if size_group in order.keys():
-        size_order = order[size_group]
-
-    # build scatterplot
-    ax = sns.scatterplot(x=x_data, y=y_data, data=df,
-                         hue=hue_group, hue_order=hue_order,
-                         style=style_group, style_order=style_order,
-                         size=size_group, size_order=size_order
-                         )
-    ax.set_xscale(xscale)
-    ax.set_yscale(yscale)
-    if x_units is not None:
-        ax.set_xlabel(x_data + ' (' + x_units + ')')
-    if y_units is not None:
-        ax.set_ylabel(y_data + ' (' + y_units + ')')
-
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0,box.width * 0.8, box.height])
-    plt.legend(bbox_to_anchor=(1,0.5),loc='center left')
-
-    ## save FIGURE as png
-    if file_tag is not None:
-        filename = y_data + "_vs_" + x_data + "_" + file_tag + ".png"
-    else:
-        filename = y_data + "_vs_" + x_data + ".png"
-    destination = tau.get_summary_file_location('figures')
-    print('...out: {}'.format(filename))
-    plt.savefig(os.path.join(destination, filename))
+    tag = data_filters['file_tag']
+    filename = "boxplot_" + data_name + "_" + tag + ".png"
+    save_figure(filename=filename)
 
     if show_plot:
         plt.show()
     else:
         plt.close('all')
 
-def short_summary():
 
-    function_list = ['num_buses', 'num_constraints', 'acpf_slack', 'solve_time']
-    keys = summary_functions.keys()
+def generate_boxplots(show_plot=False):
 
-    to_delete = []
-    for k in keys:
-        if k not in function_list:
-            to_delete.append(k)
-    for k in to_delete:
-            del summary_functions[k]
+    # lists used for filtering categorical labels
+    model_list = ['slopf','dlopf','clopf','plopf','ptdf','btheta']
+    dense_list = ['dlopf','clopf','plopf','ptdf']
+    case_sets = ['all','ieee','k','rte','sdet','tamu','pegase','misc']
 
-def read_solution_data(case_folder, test_model, data_generator=tu.solve_time):
-    parent, case = os.path.split(case_folder)
-    filename = case + "_" + test_model + "_*.json"
-    file_list = glob.glob(os.path.join(case_folder, filename))
+    for cs in case_sets:
 
-    data = {}
-    data_type = data_generator.__name__
-    for file in file_list:
-        md_dict = json.load(open(os.path.join(case_folder, file)))
-        md = ModelData(md_dict)
-        idx = md.data['system']['filename']
-        data[idx] = {}
-        data[idx]['case'] = case
-        data[idx]['model'] = test_model
-        data[idx]['mult'] = md.data['system']['mult']
-        data[idx][data_type] = data_generator(md)
+        # default mode results
+        filename = 'case_data_' + cs + '.csv'
+        filters = {}
+        filters['base_model'] = ['acopf','slopf','dlopf','clopf','plopf','ptdf','btheta']
+        filters['build_mode'] = ['default']
+        filters['trim'] = ['full']
+        filters['file_tag'] = cs + '_default_options'
+        generate_boxplot(data_name='solve_time', data_filters=filters, category='base_model', order=filters['base_model'],
+                         filename=filename, scale='linear', show_plot=show_plot)
 
-    df_data = pd.DataFrame(data).transpose()
+        # default/lazy mode results
+        filename = 'case_data_' + cs + '.csv'
+        filters = {}
+        filters['base_model'] = ['slopf','dlopf','clopf','plopf']
+        filters['trim'] = ['full']
+        filters['file_tag'] = cs + '_lazy_options'
+        generate_boxplot(data_name='solve_time', data_filters=filters, category='base_model', order=filters['base_model'],
+                         filename=filename, scale='linear', hue='build_mode', show_plot=show_plot)
 
-    return df_data
-
-def read_nominal_data(case_folder, test_model, data_generator=tu.thermal_viol):
-    parent, case = os.path.split(case_folder)
-    ## assumed that detailed data is only needed for the nominal demand case
-    filename = case + "_" + test_model + "_1000.json"
-
-    try:
-        md_dict = json.load(open(os.path.join(case_folder, filename)))
-    except:
-        return pd.DataFrame(data=None, index=[test_model])
-
-    md = ModelData(md_dict)
-    data = data_generator(md)
-    cols = list(data.keys())
-    new_cols = [int(c) for c in cols]
-    df_data = pd.DataFrame(data, index=[test_model])
-    df_data.columns = new_cols
-
-    return df_data
-
-def read_sensitivity_data(case_folder, test_model, data_generator=tu.total_cost):
-    parent, case = os.path.split(case_folder)
-    filename = case + "_" + test_model + "_*.json"
-    file_list = glob.glob(os.path.join(case_folder, filename))
-
-    data_type = data_generator.__name__
-
-    print("Reading " + data_type + " data from " + filename + ".")
-
-    data = {}
-    for file in file_list:
-        md_dict = json.load(open(file))
-        md = ModelData(md_dict)
-        mult = md.data['system']['mult']
-        data[mult] = data_generator(md)
-
-    data_is_vector = False
-    for d in data:
-        data_is_vector = hasattr(data[d], "__len__")
-
-    if data_is_vector:
-        df_data = pd.DataFrame(data)
-        df_data = df_data.sort_index(axis=1)
-        # print('data: {}'.format(df_data))
-    else:
-        df_data = pd.DataFrame(data, index=[test_model])
-        # df_data = df_data.transpose()
-        df_data = df_data.sort_index(axis=1)
-        # print('data: {}'.format(df_data))
-
-    return df_data
+        # factor tolerance results
+        filename = 'case_data_' + cs + '.csv'
+        filters = {}
+        filters['base_model'] = ['slopf','dlopf','clopf','plopf']
+        filters['build_mode'] = ['default']
+        filters['file_tag'] = cs + '_trim_options'
+        generate_boxplot(data_name='solve_time', data_filters=filters, category='base_model', order=filters['base_model'],
+                         filename=filename, scale='linear', hue='trim', show_plot=show_plot)
 
 
-def geometricMean(array):
-
-    geomean = list()
-
-    for row in array:
-        row = row[~np.isnan(row)]
-        n = len(row)
-        if n>0:
-            sum = 0
-            for i in range(n):
-                sum += math.log(row[i])
-            sum = sum / n
-            gm = math.exp(sum)
-            geomean.append(gm)
-        else:
-            geomean.append(np.nan)
-
-    return geomean
-
-
-def generate_summary_data(test_case, test_model_list, shorten=False):
-
-    if shorten:
-        short_summary()
-
-    case_location = tau.get_solution_file_location(test_case)
-    src_folder, case_name = os.path.split(test_case)
-    case_name, ext = os.path.splitext(case_name)
-
-    ## include acopf results
-    if 'acopf' not in test_model_list:
-        test_model_list.append('acopf')
-
-    df_data = pd.DataFrame(data=None, index=test_model_list)
-
-    for func_name, func_dict in summary_functions.items():
-        func = func_dict['function']
-        summarizers = func_dict['summarizers']
-        ## put data into blank DataFrame
-        df_func = pd.DataFrame(data=None)
-
-        for test_model in test_model_list:
-            # read data and place in df_func
-            df_raw = read_sensitivity_data(case_location, test_model, data_generator=func)
-            df_func = pd.concat([df_func , df_raw], sort=True)
-
-        ## also calculate geomean and maximum if function is solve_time()
-        if 'geomean' in summarizers:
-            gm = geometricMean(df_func.to_numpy())
-            gm_name = func_name + '_geomean'
-            df_gm = pd.DataFrame(data=gm, index=df_func.index, columns=[gm_name])
-            df_data[gm_name] = df_gm
-
-        if 'max' in summarizers:
-            max = df_func.max(axis=1)
-            max_name = func_name + '_max'
-            df_max = pd.DataFrame(data=max.values, index=df_func.index, columns=['max_' + func_name])
-            df_data[max_name] = df_max
-
-        if 'avg' in summarizers:
-            avg = df_func.mean(axis=1)
-            if 'num' in func_name:
-                avg_name = func_name
-            else:
-                avg_name = func_name + '_avg'
-            df_avg = pd.DataFrame(data=avg.values, index=df_func.index, columns=[func_name])
-            df_data[avg_name] = df_avg
-
-        if 'sum' in summarizers:
-            sum = df_func.sum(axis=1)
-            sum_name = func_name + '_sum'
-            df_sum = pd.DataFrame(data=sum.values, index=df_func.index, columns=[func_name])
-            df_data[sum_name] = df_sum
-
-        if func_name == 'solve_time':
-            acopf_geomean = df_data.at['acopf','solve_time_geomean']
-            df_data['solve_time_normalized'] = df_data['solve_time_geomean'].div(acopf_geomean)
-            df_data['speedup'] = acopf_geomean / df_data['solve_time_geomean']
-
-    ## save DATA to csv
-    destination = tau.get_summary_file_location('data')
-    filename = "summary_data_" + case_name + ".csv"
-    df_data.to_csv(os.path.join(destination, filename))
-
-def generate_violation_data(test_case, test_model_list, data_generator=None):
+def generate_network_data(test_case, test_model_list, data_generator=None):
 
     case_location = tau.get_solution_file_location(test_case)
     src_folder, case_name = os.path.split(test_case)
@@ -808,24 +413,18 @@ def generate_violation_data(test_case, test_model_list, data_generator=None):
     func_name = data_generator.__name__
 
     df_data = pd.DataFrame(data=None)
-
     for test_model in test_model_list:
-        # read data and place in df_func
         try:
             df_raw = read_nominal_data(case_location, test_model, data_generator=data_generator)
         except:
             df_raw = pd.DataFrame(data=None, index=[test_model])
-
         df_data = pd.concat([df_data, df_raw], sort=True)
-
     df_data = df_data.transpose()
-    #df_data = df_data.sort_index(axis='columns')
 
     ## save DATA to csv
-    destination = tau.get_summary_file_location('data')
     filename = func_name + '_' + case_name + ".csv"
-    print('...out: {}'.format(filename))
-    df_data.to_csv(os.path.join(destination, filename))
+    save_data_file(df_data, filename=filename)
+
 
 def generate_heatmap(test_case, test_model_dict=None, data_name=None, index_name=None, units=None, N=None,
                                file_tag=None, colormap=None, show_plot=False):
@@ -902,164 +501,393 @@ def generate_heatmap(test_case, test_model_dict=None, data_name=None, index_name
     else:
         plt.close('all')
 
-def generate_sum_data(test_case, test_model_list, function_list=sum_functions):
 
-    case_location = tau.get_solution_file_location(test_case)
-    src_folder, case_name = os.path.split(test_case)
-    case_name, ext = os.path.splitext(case_name)
-
-    ## include acopf results
-    if 'acopf' not in test_model_list:
-        test_model_list.append('acopf')
-
-    df_data = pd.DataFrame(data=None, index=test_model_list)
-
-    for func in function_list:
-        ## put data into blank DataFrame
-        df_func = pd.DataFrame(data=None)
-
-        for test_model in test_model_list:
-            # read data and place in df_func
-            df_raw = read_sensitivity_data(case_location, test_model, data_generator=func)
-            df_func = pd.concat([df_func , df_raw], sort=True)
-
-        func_name = func.__name__
-
-        df_func = df_func.sum(axis=1)
-        df_func = pd.DataFrame(data=df_func.values, index=df_func.index, columns=[func_name])
-
-        #df_data = pd.concat([df_data, df_func])
-        df_data[func_name] = df_func
-
-    ## save DATA to csv
-    destination = tau.get_summary_file_location('data')
-    filename = "sum_data_" + case_name + ".csv"
-    df_data.to_csv(os.path.join(destination, filename))
-
-def generate_serial_data(test_model_list, case_list=None, data_generator=tu.solve_time, benchmark=None):
-
-    data_name = data_generator.__name__
-
-    ## include acopf results
-    if benchmark is not None and benchmark not in test_model_list:
-        test_model_list.append(benchmark)
+def generate_heatmaps(case_list=None, colors=None, show_plot=False):
 
     if case_list is None:
-        case_list = tau.case_names[:]
+        case_list = test.get_case_names()
+    if colors is None:
+        colors=get_colors('coolwarm')
+    tml = test.get_test_model_list()
 
-    ## get data
-    df_data = pd.DataFrame(data=None)
-    for case in case_list:
-        case_folder = tau.get_solution_file_location(case)
-        src_folder, case_name = os.path.split(case)
-        case_name, ext = os.path.splitext(case_name)
+    # Generate data
+    data_list = [tu.pf_error, tu.qf_error, tu.thermal_viol, tu.vm_viol, tu.lmp]
+    for c in case_list:
+        for d in data_list:
+            generate_network_data(c, tml, data_generator=d)
 
-        case_is_empty = False
-        if benchmark is not None:
-            df_bench = read_solution_data(case_folder, benchmark, data_generator=data_generator)
-            if not df_bench.empty:
-                arr = list(df_bench[data_name].values)
-                denominator = gmean(arr)
-            else:
-                case_is_empty = True
-        else:
-            denominator = 1
+    for c in case_list:
+        model_dict = tau.get_vanilla_dict(tml)
+        generate_heatmap(c, test_model_dict=model_dict, data_name='pf_error', N=50, file_tag='vanilla',
+                         index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
 
-        if not case_is_empty:
-            print('Collecting ' + data_name + ' data for ' + case_name)
-            for test_model in test_model_list:
-                df_raw = read_solution_data(case_folder, test_model, data_generator=data_generator)
-                if not df_raw.empty:
-                    if benchmark is not None:
-                        df_raw[data_name + '_normalized'] = df_raw[data_name] / denominator
-                    df_data = pd.concat([df_data, df_raw])
+        model_dict['acopf'] = True
+        generate_heatmap(c, test_model_dict=model_dict, data_name='lmp', N=None, file_tag='vanilla',
+                         index_name='Bus', units='$/MW', colormap=get_colors('plasma'), show_plot=show_plot)
 
-    # add categorical columns
-    model_list = list(df_data.model)
-    setting_list = []
-    base_model_list = []
-    dense_settings = ['default','lazy','e5','e4','e3','e2']
+        model_dict = tau.get_lazy_dict(tml)
+        generate_heatmap(c, test_model_dict=model_dict, data_name='pf_error', N=50, file_tag='lazy',
+                         index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
+
+        model_dict = tau.get_trunc_dict(tml)
+        generate_heatmap(c, test_model_dict=model_dict, data_name='pf_error', N=50, file_tag='trunc',
+                         index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
+
+
+def generate_sensitivity(test_case, model_dict, y_data='acpf_slack', y_units='MW',
+                           colors=None, show_plot=True):
+
+    _, case_name = os.path.split(test_case)
+    case_name, ext = os.path.splitext(case_name)
+
+    df = read_data_file('case_data_all.csv')
+
+    # filter by test case and model
+    model_list = [k for k,v in model_dict.items() if v]
+    df = df[df.long_case==case_name]
+    df = df[df.model.isin(model_list)]
+
+    if len(df.index) <= len(model_list):
+        print('...skipping sensitivity graph due to lack of data.')
+        return
+
+    # create empty dataframe
+    idx_list = list(set(df.mult.values))
+    idx_list.sort()
+    df_data = pd.DataFrame(data=None, index=idx_list, columns=model_list)
+
+    # fill dataframe with data
+    for idx,row in df.iterrows():
+        model = row.model
+        x = row.mult
+        y = row[y_data]
+        df_data.loc[x,model] = y
+
+    ## save DATA to csv
+    filename = "sensitivity_" + case_name + "_" + y_data + ".csv"
+    save_data_file(df_data,filename=filename)
+
+    ## Create plot
+    fig, ax = plt.subplots()
+
+    #---- set properties
+    if colors is None:
+        colors = get_colors('cubehelix', trim=0.8)
+    marker_style = pareto_marker_style(model_list, colors=colors)
+
+    # plot
     for m in model_list:
-        setting = [ds for ds in dense_settings if ds in m]
-        if len(setting) > 0:
-            setting_list.append(setting[0])
-            short_name = m.replace('_'+setting[0],'')
-            base_model_list.append(short_name)
+        ms = marker_style[m]
+        ms['linestyle'] = 'solid'
+        ms['markeredgewidth'] = 1.5
+        if 'slopf' in m or 'btheta' in m:
+            ms['marker'] = 's'
+        elif 'dlopf' in m:
+            ms['marker'] = 'o'
+        elif 'clopf' in m or 'ptdf' in m:
+            ms['marker'] = 'x'
+        elif 'plopf' in m:
+            ms['marker'] = '+'
         else:
-            setting_list.append('sparse')
-            base_model_list.append(m)
-    df_data['setting'] = setting_list
-    df_data['base_model'] = base_model_list
+            ms['marker'] = None
+        ms['fillstyle'] = 'none'
+        x = idx_list
+        y = df_data[m]
+        ax.plot(x, y, **ms)
+
+    # formatting
+    ylabel = y_data
+    if y_units is not None:
+        ylabel += " (" + y_units +")"
+    ax.set_ylabel(ylabel)
+    ax.set_xlabel('Demand Multiplier')
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+    ## save FIGURE as png
+    filename = "sensitivity_" + case_name + "_" + y_data + ".png"
+    save_figure(filename)
+
+    # display
+    if show_plot is True:
+        plt.show()
+    else:
+        plt.close('all')
+
+
+def generate_sensitivities(case_list, show_plot=False):
+
+    tml = test.get_test_model_list()
+    model_dict = tau.get_sensitivity_dict(tml)
+
+    for case in case_list:
+        generate_sensitivity(case, model_dict, y_data='acpf_slack', y_units='MW', show_plot=show_plot)
+        # Note: 'total_cost_normalized' is only available if the acopf solve was successful
+        generate_sensitivity(case, model_dict, y_data='total_cost_normalized', y_units=None, show_plot=show_plot)
+        generate_sensitivity(case, model_dict, y_data='pf_error_1_norm', y_units='MW', show_plot=show_plot)
+        generate_sensitivity(case, model_dict, y_data='pf_error_inf_norm', y_units='MW', show_plot=show_plot)
+
+
+def update_data_file(test_case):
+
+    try:
+        df1 = read_data_file(filename='case_data_all.csv')
+    except:
+        df1 = pd.DataFrame(data=None)
+
+    df2 = read_json_files(test_case)
+
+    # merge new data
+    new_index = list(set(list(df1.index.values) + list(df2.index.values)))
+    new_columns = list(set(list(df1.columns.values) + list(df2.columns.values)))
+    update = df1.reindex(index=new_index,columns=new_columns)
+    for idx,row in df2.iterrows():
+        update.loc[idx] = row
+    update.sort_index(inplace=True)
 
     ## save DATA to csv
     destination = tau.get_summary_file_location('data')
-    filename = "serial_data_" + data_name + ".csv"
-    print('...Saved to ' + filename)
-    df_data.to_csv(os.path.join(destination, filename))
+    filename = "all_summary_data.csv"
+    print('...out: {}'.format(filename))
+    update.to_csv(os.path.join(destination, filename))
 
 
-def filter_dataframe(df_data, data_filters=None):
+def create_table1_solverstatus(df, tag=None):
 
-    if data_filters is not None:
-        for col,keepers in data_filters.items():
-            if col in df_data.columns:
-                drop_rows = []
-                for idx,row in df_data.iterrows():
-                    if not any(k in row[col] for k in keepers):
-                        drop_rows.append(idx)
-                df_data = df_data.drop(drop_rows)
+    model_list = list(set(list(df.model.values)))
+    desc_list = ['base_model','trim','build_mode']
+    count_list = ['optimal','infeasible','duals','internalSolverError','maxIterations','maxTimeLimit','solverFailure']
+    df1 = pd.DataFrame(data=None, index=model_list, columns=desc_list+count_list)
+
+    # Table 1
+    for idx,row in df1.iterrows():
+        _df = df[df.model==idx]
+        dummy_row = _df.iloc[0]
+        for col in desc_list:
+            row[col] = dummy_row[col]
+        for col in count_list:
+            _col = _df[col]
+            _col[_col=='True'] = 1
+            _col[_col=='False'] = 0
+            row[col] = sum(_col.astype(int))
+    df1 = df1.sort_values(by=['base_model','build_mode','trim'], ascending=[1,1,0])
+
+    ## save DATA to csv
+    filename = "table1_solverstatus"
+    if tag is not None:
+        filename += '_' + tag
+    filename += ".csv"
+    save_data_file(df1, filename=filename)
+
+def create_table2_timeandcost(df, tag=None):
+
+    model_list = list(set(list(df.model.values)))
+    desc_list = ['base_model','trim','build_mode']
+    gmean_list = ['solve_time_normalized','total_cost_normalized','acpf_slack','num_variables','num_constraints','num_nonzeros']
+    df2 = pd.DataFrame(data=None, index=model_list, columns=desc_list+gmean_list)
+
+    # Table 2
+    for idx, row in df2.iterrows():
+        _df = df[df.model == idx]
+        dummy_row = _df.iloc[0]
+        for col in desc_list:
+            row[col] = dummy_row[col]
+        for col in gmean_list:
+            df_nz = _df[_df[col]!=0]
+            array = abs(df_nz[col].dropna())
+            row[col] = gmean(array)
+    df2 = df2.sort_values(by=['base_model','build_mode','trim'], ascending=[1,1,0])
+
+    ## save DATA to csv
+    filename = "table2_timeandcost"
+    if tag is not None:
+        filename += '_' + tag
+    filename += ".csv"
+    save_data_file(df2, filename=filename)
+
+def create_table3_violations(df, tag=None):
+
+    model_list = list(set(list(df.model.values)))
+    desc_list = ['base_model','trim','build_mode']
+    tmean_list = ['vm_viol_sum','vm_viol_max','thermal_viol_sum','thermal_viol_max']
+    max_list = tmean_list
+    df3_list = [c + '_avg' for c in tmean_list] + [c + '_max' for c in max_list]
+    df3 = pd.DataFrame(data=None, index=model_list, columns=desc_list+df3_list)
+
+    # Table 3
+    for idx, row in df3.iterrows():
+        _df = df[df.model == idx]
+        dummy_row = _df.iloc[0]
+        for col in desc_list:
+            row[col] = dummy_row[col]
+        for col in tmean_list:
+            row[col + '_avg'] = tmean(_df[col].dropna())
+        for col in max_list:
+            row[col + '_max'] = max(_df[col])
+    df3 = df3.sort_values(by=['base_model','build_mode','trim'], ascending=[1,1,0])
+
+    ## save DATA to csv
+    filename = "table3_violations"
+    if tag is not None:
+        filename += '_' + tag
+    filename += ".csv"
+    save_data_file(df3, filename=filename)
+
+
+def create_table(df_in, col_name, max_buses=None, min_buses=None):
+
+    model_list = list(set(list(df_in.model.values)))
+    desc_list = ['base_model','trim','build_mode']
+    case_list = tau.case_names
+    df_out = pd.DataFrame(data=None, index=model_list, columns=desc_list+case_list)
+
+    # Fill in table
+    for idx,row in df_out.iterrows():
+        _df = df_in[df_in.model==idx]
+        dummy_row = _df.iloc[0]
+        for col in desc_list:
+            row[col] = dummy_row[col]
+        for case in case_list:
+            _case = _df[_df.long_case==case]
+            if len(_case.index) == 1:
+                row[case] = _case[col_name]
+            elif len(_case.index) > 1:
+                array = _case[col_name].dropna().values
+                row[case] = gmean(array)
+            else:
+                row[case] = 9999
+    df_out = df_out.sort_values(by=['base_model','build_mode','trim'], ascending=[1,1,0])
+
+    # add short case name and num_bus to top two rows
+    df_top = pd.DataFrame(data=None, index=['case', 'num_buses'], columns=case_list)
+    for case in case_list:
+        _df = df_in[df_in.long_case==case]
+        if not _df.empty:
+            dummy_row = _df.iloc[0]
+            df_top.loc['case',case] = dummy_row['case']
+            df_top.loc['num_buses',case] = dummy_row['num_buses']
+    df_out = pd.concat([df_top, df_out], sort=False)
+
+    filename = 'table_' + col_name
+    if max_buses is not None:
+        filename += '_under_{}'.format(max_buses)
+        drop_col = [c for c in df_out.columns if df_out.loc['num_buses',c] <= max_buses]
+        df_out = df_out.drop(drop_col, axis='columns')
+    if min_buses is not None:
+        filename += '_over_{}'.format(min_buses)
+        drop_col = [c for c in df_out.columns if df_out.loc['num_buses',c] >= min_buses]
+        df_out = df_out.drop(drop_col, axis='columns')
+
+    ## save DATA to csv
+    destination = tau.get_summary_file_location('data')
+    filename += ".csv"
+    print('...out: {}'.format(filename))
+    df_out.to_csv(os.path.join(destination, filename))
+
+
+def update_data_tables(tag=None):
+
+    filename = 'case_data'
+    if tag is not None:
+        filename += '_' + tag
+    df = read_data_file(filename=filename + '.csv')
+    if df is None:
+        return
+
+    # Tables
+    create_table1_solverstatus(df, tag=tag)
+    create_table2_timeandcost(df, tag=tag)
+    create_table3_violations(df, tag=tag)
+
+    # takes geomean of column in df
+    create_table(df,'acpf_slack')
+    create_table(df,'balance_slack')
+    create_table(df,'solve_time')
+    create_table(df,'total_cost_normalized')
+
+    # takes nominal value of column in df
+    nominal_case_data('total_cost_normalized', tag=tag)
+    nominal_case_data('solve_time', tag=tag)
+
+def normalize_solve_time(df_data, model_benchmark='acopf'):
+
+    df_benchmark = df_data[df_data.model==model_benchmark]
+    df_benchmark = df_benchmark.select_dtypes(include='number')
+    arr = list(df_benchmark.solve_time.values)
+    arr = [a for a in arr if a != 0]
+    gm_benchmark = gmean(arr)
+
+    df_data['solve_time_normalized'] = df_data['solve_time'] / gm_benchmark
+
+    return df_data
+
+def normalize_total_cost(df_data, model_benchmark='acopf'):
+
+    df_data = df_data.sort_values(by='mult')
+    is_benchmark = df_data['model']==model_benchmark
+    df_benchmark = df_data[is_benchmark]
+
+    model_list = list(set(df_data.model.values))
+    model_list.sort()
+
+    for m in model_list:
+        df_m = df_data[df_data.model==m]
+        for idx,row in df_m.iterrows():
+            mult = row.mult
+            tc1 = row.total_cost
+            df2 = df_benchmark[df_benchmark.mult==mult]
+            tc2 = df2.total_cost.values.item()
+            try:
+                val = tc1 / tc2
+            except:
+                val = None
+            df_data.loc[idx, 'total_cost_normalized'] = val
 
     return df_data
 
 
-def generate_violin_plot(data_filters=None, data_name='solve_time', data_unit=None, order=None, category='model', hue=None,
-                         scale='linear', show_plot=True):
+def read_solution_data(case_folder, test_model, data_generator=tu.solve_time):
+    parent, case = os.path.split(case_folder)
+    filename = case + "_" + test_model + "_*.json"
+    file_list = glob.glob(os.path.join(case_folder, filename))
 
-    filename = "all_summary_data.csv"
-    source = tau.get_summary_file_location('data')
-    df_data = pd.read_csv(os.path.join(source,filename))
+    data = {}
+    data_type = data_generator.__name__
+    for file in file_list:
+        md_dict = json.load(open(os.path.join(case_folder, file)))
+        md = ModelData(md_dict)
+        idx = md.data['system']['filename']
+        data[idx] = {}
+        data[idx]['case'] = case
+        data[idx]['model'] = test_model
+        data[idx]['mult'] = md.data['system']['mult']
+        data[idx][data_type] = data_generator(md)
 
-    df_data = filter_dataframe(df_data, data_filters)
+    df_data = pd.DataFrame(data).transpose()
 
-    if df_data.empty:
-        logger.warning('WARNING: attempted generate_violin_plot without sufficient data.')
-        return
+    return df_data
 
-    model_list = list(df_data.model.unique())
-    case_list = list(df_data.case.unique())
+def read_nominal_data(case_folder, test_model, data_generator=tu.thermal_viol):
+    parent, case = os.path.split(case_folder)
+    ## assumed that detailed data is only needed for the nominal demand case
+    filename = case + "_" + test_model + "_1000.json"
 
-    settings = {}
-    settings['order'] = order
-    settings['inner'] = 'quartile'
-    settings['scale'] = 'width'
-    settings['color'] = '0.8'
-    #settings['orient'] = 'h'
-    #settings['bw'] = 0.2
-    #ax = sns.violinplot(y=category, x=data_name, data=df_data, **settings)
-    #ax = sns.stripplot(y=category, x=data_name, data=df_data, order=order, dodge=True, size=2.5)
-    ax = sns.boxplot(y=category, x=data_name, data=df_data, order=order, hue=hue)
-    ax.set_ylabel(category)
-    if data_unit is None:
-        ax.set_xlabel(data_name)
-    else:
-        ax.set_xlabel(data_name + '('+data_unit+')')
-    #ax.set_yticklabels(ax.get_yticklabels(), rotation=90)
-    #ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+    try:
+        md_dict = json.load(open(os.path.join(case_folder, filename)))
+    except:
+        return pd.DataFrame(data=None, index=[test_model])
 
-    plt.tight_layout()
-    plt.xscale(scale)
+    md = ModelData(md_dict)
+    data = data_generator(md)
+    cols = list(data.keys())
+    new_cols = [int(c) for c in cols]
+    df_data = pd.DataFrame(data, index=[test_model])
+    df_data.columns = new_cols
 
-    ## save FIGURE as png
-    tag = data_filters['file_tag']
-    filename = "violin_" + data_name + "_" + tag + ".png"
-    print('...out: {}'.format(filename))
-    destination = tau.get_summary_file_location('figures')
-    plt.savefig(os.path.join(destination, filename))
+    return df_data
 
-    if show_plot:
-        plt.show()
-    else:
-        plt.close('all')
 
 def generate_speedup_data(case_list=None, mean_data='solve_time_geomean', benchmark='dlopf_lazy'):
 
@@ -1748,263 +1576,31 @@ def trunc_speedup_plot(test_model_list, colors=None, show_plot=True):
     generate_speedup_heatmap(test_model_dict=trunc_speedup_dict, mean_data='solve_time_geomean', benchmark='dlopf_default',
                              cscale='linear', include_benchmark=True, colormap=colors, show_plot=show_plot)
 
-def violin_plots(show_plot=True):
 
-    from egret.models.tests.ta_utils import cases_0toC, cases_CtoM, cases_MtoX
+def generate_plots(show_plot=False):
 
-    # deprecated and replaced with all_summary_data.csv
-    #generate_serial_data(test_model_list, data_generator=tu.solve_time,benchmark='acopf')
+    # Generate plots
+    case_dict = test.get_case_dict()
+    generate_boxplots(show_plot=show_plot)
+    generate_heatmaps(case_dict['ieee'], show_plot=show_plot)
+    generate_heatmaps(case_dict['k'], show_plot=show_plot)
+    generate_sensitivities(case_dict['ieee'], show_plot=show_plot)
 
-    # lists used for filtering categorical labels
-    model_list = ['slopf','dlopf','clopf','plopf','ptdf','btheta']
-    dense_list = ['dlopf','clopf','plopf','ptdf']
-    cases_dict = {'0toC_small':cases_0toC,
-                  'CtoM_medium':cases_CtoM,
-                  'MtoX_large':cases_MtoX}
+def create_full_summary(show_plot=False):
 
-    # default mode results
-    filters = {}
-    filters['base_model'] = ['acopf','slopf','dlopf','clopf','plopf','ptdf','btheta']
-    filters['build_mode'] = ['default']
-    filters['trim'] = ['full']
-    filters['file_tag'] = 'default_options'
-    generate_violin_plot(data_name='solve_time_normalized', data_filters=filters, category='base_model',
-                         order=filters['base_model'], scale='log', show_plot=show_plot)
-    # on bigger cases
-    filters['long_case'] = cases_CtoM
-    filters['file_tag'] = 'default_CtoM'
-    generate_violin_plot(data_name='solve_time_normalized', data_filters=filters, category='base_model',
-                         order=filters['base_model'], scale='log', show_plot=show_plot)
+    # Generate data files
+    case_sets = ['ieee','k','rte','sdet','tamu','pegase','misc']
+    case_dict = test.get_case_dict()
+    for k,case_list in case_dict.items():
+        update_case_data(case_list, tag=k)
+        update_data_tables(case_list, tag=k)
+    update_all_case_data(case_sets)
+    nominal_all_data(case_sets, 'solve_time')
 
-    # lazy mode results
-    filters = {}
-    filters['base_model'] = ['slopf','dlopf','clopf','plopf']
-    filters['trim'] = ['full']
-    filters['long_case'] = cases_0toC
-    filters['file_tag'] = 'lazy_0toC'
-    generate_violin_plot(data_name='solve_time_normalized', data_filters=filters, category='base_model', hue='build_mode',
-                         order=filters['base_model'], scale='log', show_plot=show_plot)
-    # lazy mode on bigger cases
-    filters['long_case'] = cases_CtoM
-    filters['file_tag'] = 'lazy_CtoM'
-    generate_violin_plot(data_name='solve_time_normalized', data_filters=filters, category='base_model', hue='build_mode',
-                         order=filters['base_model'], scale='log', show_plot=show_plot)
+    # Generate plots
+    generate_plots(show_plot=show_plot)
 
-    # truncation results
-    filters = {}
-    filters['base_model'] = ['dlopf','clopf']
-    filters['build_mode'] = ['default']
-    filters['long_case'] = cases_CtoM
-    filters['file_tag'] = 'trim_CtoM'
-    generate_violin_plot(data_name='solve_time_normalized', data_filters=filters, category='base_model', hue='trim',
-                         order=filters['base_model'], scale='linear', show_plot=show_plot)
-
-    # summary of "best methods" for each model
-    filters = {}
-    filters['model'] = ['acopf','slopf','dlopf_lazy_e2','clopf_lazy_e2','plopf_e2','ptdf_e2','btheta']
-    filters['long_case'] = cases_CtoM
-    filters['file_tag'] = 'best_methods_CtoM'
-    generate_violin_plot(data_name='solve_time_normalized', data_filters=filters, category='model',
-                         order=filters['model'], scale='log', show_plot=show_plot)
-    filters = {}
-    filters['model'] = ['acopf','slopf','dlopf_lazy_e2','clopf_lazy_e2','plopf_e2','ptdf_e2','btheta']
-    filters['long_case'] = cases_MtoX
-    filters['file_tag'] = 'best_methods_MtoX'
-    generate_violin_plot(data_name='solve_time', data_unit='s', data_filters=filters, category='model',
-                         order=filters['model'], scale='log', show_plot=show_plot)
-
-    return
-
-    # generic violins
-    for m in dense_list:
-        for cname,cases in cases_dict.items():
-            filters = {}
-            filters['model'] = [m]
-            filters['long_case'] = cases
-            filters['file_tag'] = m + '_' + cname
-            generate_violin_plot(data_name='solve_time_normalized',data_filters=filters,
-                                 category='model', show_plot=show_plot)
-
-    # special violins
-    filters = {}
-    filters['model'] = ['slopf','dlopf_lazy_e2','dlopf_e2','clopf_lazy_e2','clopf_e2']
-    filters['long_case'] = cases_CtoM
-    filters['file_tag'] = 'CtoM_medium'
-    generate_violin_plot(data_name='solve_time_normalized',data_filters=filters,
-                         category='model', show_plot=show_plot)
-
-    filters['long_case'] = cases_MtoX
-    filters['file_tag'] = 'MtoX_large'
-    generate_violin_plot(data_name='solve_time_normalized',data_filters=filters,
-                         category='model', show_plot=show_plot)
-
-
-def acpf_violations_plot(test_case, test_model_list, colors=None, show_plot=True):
-
-    if colors is None:
-        colors=get_colors('coolwarm')
-
-    generate_violation_data(test_case, test_model_list, data_generator=tu.pf_error)
-    generate_violation_data(test_case, test_model_list, data_generator=tu.qf_error)
-    generate_violation_data(test_case, test_model_list, data_generator=tu.thermal_viol)
-    generate_violation_data(test_case, test_model_list, data_generator=tu.vm_viol)
-    generate_violation_data(test_case, test_model_list, data_generator=tu.lmp)
-
-    violation_dict = tau.get_vanilla_dict(test_model_list)
-    generate_heatmap(test_case, test_model_dict=violation_dict, data_name='pf_error', N=50, file_tag='vanilla',
-                               index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
-    violation_dict['acopf'] = True
-    generate_heatmap(test_case, test_model_dict=violation_dict, data_name='lmp', N=None, file_tag='vanilla',
-                               index_name='Branch', units='MW', colormap=get_colors('plasma'), show_plot=show_plot)
-
-    violation_dict = tau.get_lazy_dict(test_model_list)
-    generate_heatmap(test_case, test_model_dict=violation_dict, data_name='pf_error', N=50, file_tag='lazy',
-                               index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
-
-    violation_dict = tau.get_trunc_dict(test_model_list)
-    generate_heatmap(test_case, test_model_dict=violation_dict, data_name='pf_error', N=50, file_tag='trunc',
-                               index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
-
-    # skipping the other maps since the above basically shows all of the important model results
-    return
-
-    generate_heatmap(test_case, test_model_dict=violation_dict,data_name='thermal_viol',
-                               index_name='Branch', units='MW', colormap=colors,show_plot=show_plot)
-    generate_heatmap(test_case, test_model_dict=violation_dict,data_name='vm_viol',
-                               index_name='Bus', units='p.u', colormap=colors,show_plot=show_plot)
-
-    # using these methods to plot errors (rather than violations)
-    generate_heatmap(test_case, test_model_dict=violation_dict, data_name='pf_error',
-                               index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
-    generate_heatmap(test_case, test_model_dict=violation_dict, data_name='qf_error',
-                               index_name='Branch', units='MVar', colormap=colors, show_plot=show_plot)
-
-    model_list = ['dlopf','clopf','plopf','ptdf']
-    for m in model_list:
-        violation_dict = tau.get_error_settings_dict(test_model_list, model=m)
-        generate_heatmap(test_case, test_model_dict=violation_dict, data_name='pf_error', file_tag=m,
-                                   index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
-        if m != 'ptdf':
-            generate_heatmap(test_case, test_model_dict=violation_dict, data_name='qf_error', file_tag=m,
-                                       index_name='Branch', units='MVar', colormap=colors, show_plot=show_plot)
-
-def create_pareto_all_summary(test_model_list, colors=None, show_plot=True):
-
-    if colors is None:
-        colors = get_colors(map_name='cubehelix', trim=0.8)
-
-    pareto_dict = tau.get_pareto_dict(test_model_list)
-    generate_pareto_all_data(test_model_list, data_column='solve_time_normalized', mean_type='geomean')
-    # sum of violations
-    generate_pareto_all_data(test_model_list, data_column='thermal_viol_sum_avg', mean_type='avg')
-    generate_pareto_all_data(test_model_list, data_column='vm_viol_sum_avg', mean_type='avg')
-    # percent violations
-    generate_pareto_all_data(test_model_list, data_column='thermal_viol_max_avg', mean_type='avg')
-    generate_pareto_all_data(test_model_list, data_column='vm_viol_max_avg', mean_type='avg')
-
-    generate_pareto_all_plot(pareto_dict,y_data='thermal_viol_sum_avg', x_data='solve_time_normalized',
-                             y_units='MW', x_units=None, colors=colors, show_plot=show_plot)
-    generate_pareto_all_plot(pareto_dict,y_data='vm_viol_sum_avg', x_data='solve_time_normalized',
-                             y_units='p.u.', x_units=None, colors=colors, show_plot=show_plot)
-    generate_pareto_all_plot(pareto_dict,y_data='thermal_viol_max_avg', x_data='solve_time_normalized',
-                             y_units='MW', x_units=None, colors=colors, show_plot=show_plot)
-    generate_pareto_all_plot(pareto_dict,y_data='vm_viol_max_avg', x_data='solve_time_normalized',
-                             y_units='p.u.', x_units=None, colors=colors, show_plot=show_plot)
-
-def create_detail_summary(test_case, test_model_list, show_plot=True):
-    """
-    generates plots for test_case
-    """
-
-    colors = get_colors(map_name='cubehelix', trim=0.8)
-    viol_colors = get_colors(map_name='coolwarm')
-    sensitivity_dict = tau.get_sensitivity_dict(test_model_list)
-
-    ## Generate data files
-    update_data_file(test_case)
-    update_data_tables()
-
-    ## Generate plots
-    acpf_violations_plot(test_case, test_model_list, colors=viol_colors, show_plot=show_plot)
-    build_sensitivity_plot(test_case, sensitivity_dict, y_data='acpf_slack', y_units='MW', show_plot=show_plot)
-    # Note: 'total_cost_normalized' is only available if the acopf solve was successful
-    build_sensitivity_plot(test_case, sensitivity_dict, y_data='total_cost_normalized', y_units=None, show_plot=show_plot)
-    build_sensitivity_plot(test_case, sensitivity_dict, y_data='pf_error_1_norm', y_units='MW', show_plot=show_plot)
-    build_sensitivity_plot(test_case, sensitivity_dict, y_data='pf_error_inf_norm', y_units='MW', show_plot=show_plot)
-
-    # Skipping this plot for now, was not very imformative
-    #pareto_test_case_plot(test_case, test_model_list, colors=colors, show_plot=show_plot)
-
-def scatter_plots(show_plot=True):
-
-    calculate_case_gmean_data()
-
-    full_list=None
-    build_scatterplot(model_keys=full_list, y_data='solve_time_normalized', x_data='num_buses',
-                          y_units='s', x_units=None, file_tag='full', show_plot=show_plot,
-                          hue_group='base_model', style_group='build_mode', size_group='trim')
-
-    filtered_list=['acopf','slopf','btheta','lopf_e2','lopf_lazy_e2']
-    build_scatterplot(model_keys=filtered_list, y_data='solve_time_normalized', x_data='num_buses',
-                          y_units='s', x_units=None, file_tag='filtered', show_plot=show_plot,
-                          hue_group='base_model', style_group='build_mode', size_group=None)
-
-    for m in ['dlopf','clopf','plopf','ptdf']:
-        build_scatterplot(model_keys=[m], y_data='solve_time', x_data='num_buses',
-                              y_units='s', x_units=None, file_tag=m, show_plot=show_plot,
-                              hue_group='trim', style_group='build_mode', size_group=None)
-
-        build_scatterplot(model_keys=[m], y_data='num_nonzeros', x_data='num_buses',
-                              y_units='s', x_units=None, file_tag=m, show_plot=show_plot,
-                              hue_group='trim', style_group='build_mode', size_group=None)
-
-    # TODO: update speedup heatmaps (or may skip... similar info as violins)
-    #colors = get_colors(map_name='cubehelix', trim=0.8)
-    #speed_colors = get_colors(map_name='inferno')
-    #lazy_speedup_plot(test_model_list, colors=speed_colors, show_plot=show_plot)
-    #trunc_speedup_plot(test_model_list, colors=speed_colors, show_plot=show_plot)
-
-def pareto_plots(show_plot=True):
-
-    calculate_model_gmean_data()
-
-    pareto_keys = ['slopf','btheta','_e2']
-    build_scatterplot(model_keys=pareto_keys, y_data='acpf_slack', x_data='solve_time_normalized',
-                          y_units='MW', x_units=None, file_tag='pareto1', show_plot=show_plot,
-                          yscale='log', data_file='case_gmean_data.csv',
-                          hue_group='base_model', style_group='build_mode', size_group=None)
-
-    build_scatterplot(model_keys=pareto_keys, y_data='acpf_slack', x_data='solve_time_normalized',
-                          y_units='MW', x_units=None, file_tag='pareto2', show_plot=show_plot,
-                          yscale='log', data_file='model_gmean_data.csv',
-                          hue_group='base_model', style_group='build_mode', size_group=None)
-
-    build_scatterplot(model_keys=pareto_keys, y_data='pf_error_1_norm', x_data='solve_time_normalized',
-                          y_units='MW', x_units=None, file_tag=None, show_plot=show_plot,
-                          yscale='log', data_file='case_gmean_data.csv',
-                          hue_group='base_model', style_group='build_mode', size_group=None)
-
-    build_scatterplot(model_keys=pareto_keys, y_data='pf_error_inf_norm', x_data='solve_time_normalized',
-                          y_units='MW', x_units=None, file_tag=None, show_plot=show_plot,
-                          yscale='log', data_file='case_gmean_data.csv',
-                          hue_group='base_model', style_group='build_mode', size_group=None)
-
-def create_full_summary(test_case, test_model_list, show_plot=True):
-
-    create_detail_summary(test_case, test_model_list, show_plot=show_plot)
-    violin_plots(show_plot=show_plot)
-
-    #scatter_plots(show_plot=show_plot)
-    #pareto_plots(show_plot=show_plot)
 
 if __name__ == '__main__':
-    import sys
-    try:
-        test_case = tau.idx_to_test_case(sys.argv[1])
-    except:
-        test_case = tau.idx_to_test_case(0)
 
-    from egret.models.tests.test_approximations import test_model_list
-
-    #acpf_violations_plot(test_case,test_model_list)
-    create_full_summary(test_case,test_model_list)
+    create_full_summary(show_plot=False)
