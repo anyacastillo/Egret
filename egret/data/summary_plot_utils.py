@@ -261,15 +261,18 @@ def nominal_case_data(column, tag=None):
     df.drop(df[df['mult'] != 1.0].index, inplace=True)
 
     idx_list = []
-    col_list = []
     [idx_list.append(x) for x in df['case'].values if x not in idx_list]
-    [col_list.append(x) for x in df['model'].values if x not in col_list]
+
+    #col_list = []
+    #[col_list.append(x) for x in df['model'].values if x not in col_list]
+    col_list = ['slopf','dlopf_full','clopf_full','plopf_full','ptdf_full','btheta']
 
     data = pd.DataFrame(data=None, index=idx_list, columns=col_list)
     for index, row in df.iterrows():
         idx = row['case']
         col = row['model']
-        data.loc[idx, col] = row[column]
+        if col in col_list:
+            data.loc[idx, col] = row[column]
 
     data.sort_index(axis=1, inplace=True)
 
@@ -332,16 +335,25 @@ def generate_boxplot(data_filters=None, data_name='solve_time', data_unit=None, 
     if df_data is None:
         return
 
+    if hue=='trim':
+        hue_order = ['full', 'e4', 'e2']
+    elif hue=='build_mode':
+        hue_order = ['default', 'lazy']
+    else:
+        hue_order = None
+
     settings = {}
+    settings['hue'] = hue
     settings['order'] = order
-    settings['inner'] = 'quartile'
-    settings['scale'] = 'width'
-    settings['color'] = '0.8'
+    settings['hue_order'] = hue_order
+    #settings['inner'] = 'quartile'
+    #settings['scale'] = 'width'
+    #settings['color'] = '0.8'
     #settings['orient'] = 'h'
     #settings['bw'] = 0.2
     #ax = sns.violinplot(y=category, x=data_name, data=df_data, **settings)
     #ax = sns.stripplot(y=category, x=data_name, data=df_data, order=order, dodge=True, size=2.5)
-    ax = sns.boxplot(y=category, x=data_name, data=df_data, order=order, hue=hue)
+    ax = sns.boxplot(y=category, x=data_name, data=df_data, **settings)
     ax.set_ylabel(category)
     if data_unit is None:
         ax.set_xlabel(data_name)
@@ -466,8 +478,8 @@ def generate_heatmap(test_case, test_model_dict=None, data_name=None, index_name
         kwargs['vmin'] = min(vmin,-vmax)
         kwargs['vmax'] = max(vmax,-vmin)
     elif data_name == 'lmp':
-        kwargs['vmin'] = max(vmin,-100)
-        kwargs['vmax'] = min(vmax, 100)
+        kwargs['vmin'] = max(vmin,-250)
+        kwargs['vmax'] = min(vmax, 250)
     kwargs['linewidth'] = 0
     kwargs['cmap'] = colormap
     kwargs['cbar_kws'] = cbar_dict
@@ -507,7 +519,8 @@ def generate_heatmaps(case_list=None, colors=None, show_plot=False):
     if case_list is None:
         case_list = test.get_case_names()
     if colors is None:
-        colors=get_colors('coolwarm')
+        colors = get_colors('coolwarm')
+        lmp_colors = get_colors('bone')
     tml = test.get_test_model_list()
 
     # Generate data
@@ -517,13 +530,13 @@ def generate_heatmaps(case_list=None, colors=None, show_plot=False):
             generate_network_data(c, tml, data_generator=d)
 
     for c in case_list:
-        model_dict = tau.get_vanilla_dict(tml)
+        model_dict = tau.get_vanilla_dict(tml, case=c)
         generate_heatmap(c, test_model_dict=model_dict, data_name='pf_error', N=50, file_tag='vanilla',
                          index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
 
         model_dict['acopf'] = True
         generate_heatmap(c, test_model_dict=model_dict, data_name='lmp', N=None, file_tag='vanilla',
-                         index_name='Bus', units='$/MW', colormap=get_colors('plasma'), show_plot=show_plot)
+                         index_name='Bus', units='$/MWh', colormap=lmp_colors, show_plot=show_plot)
 
         model_dict = tau.get_lazy_dict(tml)
         generate_heatmap(c, test_model_dict=model_dict, data_name='pf_error', N=50, file_tag='lazy',
@@ -629,6 +642,51 @@ def generate_sensitivities(case_list, show_plot=False):
         generate_sensitivity(case, model_dict, y_data='pf_error_1_norm', y_units='MW', show_plot=show_plot)
         generate_sensitivity(case, model_dict, y_data='pf_error_inf_norm', y_units='MW', show_plot=show_plot)
 
+def summarize_sensitivity(data_name, flag=None, show_plot=False):
+
+    case_list = test.get_case_names(flag=flag)
+    if 'pglib_opf_case300_ieee' in case_list:
+        case_list.remove('pglib_opf_case300_ieee')
+
+    df = pd.DataFrame(data=None)
+    for case in case_list:
+        filename = 'sensitivity_' + case + '_' + data_name + '.csv'
+        _df = read_data_file(filename)
+        if 'acopf' in _df.columns:
+            _df.drop('acopf', axis=1, inplace=True)
+        _df = _df.melt(var_name='model', value_name=data_name)
+        _df['case'] = case[10:]
+        df = pd.concat([df, _df])
+
+    if flag is not None:
+        filename = 'sensitivity_pglib_opf_' + flag + '_' + data_name + '.csv'
+    else:
+        filename = 'sensitivity_pglib_opf_' + data_name + '.csv'
+    save_data_file(df, filename=filename)
+
+    ax = sns.barplot(x='model', y=data_name, hue='case', data=df)
+    ax.set_ylabel(data_name)
+    ax.set_xlabel('Model')
+
+    if data_name == 'total_cost_normalized':
+        ax.set(ylim=(0.99, 1.006))
+
+    filename = "barplot_" + data_name
+    if flag is not None:
+        filename += "_" + flag
+    save_figure(filename=filename + ".png")
+
+    if show_plot:
+        plt.show()
+    else:
+        plt.close('all')
+
+
+def summarize_sensitivities(flag=None, show_plot=False):
+
+    stats = ['total_cost_normalized', 'acpf_slack', 'pf_error_1_norm', 'pf_error_inf_norm']
+    for s in stats:
+        summarize_sensitivity(s, flag=flag, show_plot=show_plot)
 
 def update_data_file(test_case):
 
@@ -1253,309 +1311,6 @@ def generate_pareto_plot(test_case, test_model_dict, y_data='acpf_slack', x_data
 
 
 
-def generate_sensitivity_plot(test_case, test_model_dict, plot_data='acpf_slack', units='p.u.',
-                              colors=cmap.viridis, show_plot=False):
-
-    ## get data
-    _, case_name = os.path.split(test_case)
-    case_name, ext = os.path.splitext(case_name)
-    input = "sensitivity_data_" + case_name + "_" + plot_data + ".csv"
-    df_data = get_data(input, test_model_dict=test_model_dict)
-
-    models = list(df_data.columns.values)
-
-
-    ## Create plot
-    fig, ax = plt.subplots()
-
-    #---- set property cycles
-    markers = ['+','o','x','s']
-    if colors is not None:
-        n = len(df_data.columns)
-        m = len(markers)
-        ax.set_prop_cycle(color=[colors(i) for i in np.linspace(0,1,n)],
-                          marker=[markers[i%m] for i in range(n)])
-    else:
-        ax.set_prop_cycle(marker=markers)
-
-    for m in models:
-        y = df_data[m]
-        if m =='acopf':
-            ax.plot(y, label=m, marker='')
-        else:
-            ax.plot(y, label=m, fillstyle='none')
-
-
-    ax.set_title(plot_data + " (" + case_name + ")")
-    # output.set_ylim(top=0)
-    ax.set_xlabel("Demand Multiplier")
-
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-
-    ax.set_ylabel(plot_data + " (" +  units + ")")
-
-    ## save FIGURE as png
-    destination = tau.get_summary_file_location('figures')
-    filename = "sensitivityplot_" + case_name + "_" + plot_data + ".png"
-    plt.savefig(os.path.join(destination, filename))
-
-    # display
-    if show_plot is True:
-        plt.show()
-    else:
-        plt.close('all')
-
-
-def generate_case_size_plot_seaborn(test_model_dict, case_list=None,
-                            y_data='solve_time_geomean', y_units='s',
-                            x_data='num_buses', x_units=None,
-                            s_data=None, s_units=None,
-                            colors=cmap.viridis, s_max=250, s_min=1, x_min = 0,
-                            yscale='linear',xscale='linear',
-                            annotate_plot=False, show_plot=False):
-
-    ## get data
-    if case_list is None:
-        case_list = tau.case_names[:]
-    if s_data is None:
-        var_names = ['model',x_data,y_data]
-    else:
-        var_names = ['model',x_data,y_data,s_data]
-    sns_data = pd.DataFrame(data=None,columns=var_names)
-    cases = []
-    for case in case_list:
-        try:
-            input = "summary_data_" + case + ".csv"
-            df_data = get_data(input, test_model_dict=test_model_dict)
-            if 'con_per_bus' in var_names:
-                df_data['con_per_bus'] = df_data['num_constraints'] / df_data['num_buses']
-
-            models = list(df_data.index.values)
-            df_data['model'] = models
-
-            var_drop = [var for var in df_data.columns if var not in var_names]
-            df_data = df_data.drop(labels=var_drop, axis=1)
-
-            sns_data = sns_data.append(df_data, ignore_index=True)
-            cases.append(case)
-
-        except:
-            pass
-
-    sns.set(style="ticks", palette='colorblind')
-    if s_data is None:
-        g = sns.scatterplot(x=x_data, y=y_data, size=s_data, hue='model', style='model', data=sns_data)
-    else:
-        g = sns.scatterplot(x=x_data, y=y_data, size=s_data, hue='model', data=sns_data)
-    sns.despine()
-
-    plt.yscale(yscale)
-    plt.xscale(xscale)
-    #plt.tight_layout()
-
-    # set legend location
-    box = g.get_position()
-    g.set_position([box.x0, box.y0, 0.75 * box.width, box.height])
-    plt.legend(bbox_to_anchor=(1, 0.5), loc=6)
-
-
-    ## save FIGURE to png
-    figure_dest = tau.get_summary_file_location('figures')
-    filename = "casesizeplot_" + y_data + "_v_" + x_data + ".png"
-    plt.savefig(os.path.join(figure_dest, filename))
-
-    if show_plot:
-        plt.show()
-    else:
-        plt.close('all')
-
-
-def generate_case_size_plot(test_model_dict, case_list=None,
-                            y_data='solve_time_geomean', y_units='s',
-                            x_data='num_buses', x_units=None,
-                            s_data=None, colors=cmap.viridis, s_max=250, s_min=1,
-                            yscale='linear',xscale='linear',
-                            annotate_plot=False, show_plot=False):
-
-    ## get data
-    if case_list is None:
-        case_list = tau.case_names[:]
-    y_dict = {}
-    x_dict = {}
-    s_dict = {}
-    if s_data is None:
-        var_names = ['model',x_data,y_data]
-    else:
-        var_names = ['model',x_data,y_data,s_data]
-    for case in case_list:
-        try:
-            input = "summary_data_" + case + ".csv"
-            df_data = get_data(input, test_model_dict=test_model_dict)
-            if 'con_per_bus' in var_names:
-                df_data['con_per_bus'] = df_data['num_constraints'] / df_data['num_buses']
-            models = list(df_data.index.values)
-            for m in models:
-                if m in y_dict.keys():
-                    y_dict[m].append(df_data.at[m, y_data])
-                    x_dict[m].append(df_data.at[m, x_data])
-                    if s_data is None:
-                        s_dict[m].append(36)
-                    else:
-                        s_dict[m].append(df_data.at[m, s_data])
-                else:
-                    y_dict[m] = [df_data.at[m, y_data]]
-                    x_dict[m] = [df_data.at[m, x_data]]
-                    if s_data is None:
-                        s_dict[m] = [36]
-                    else:
-                        s_dict[m] = [df_data.at[m, s_data]]
-
-        except:
-            pass
-
-    df_y_data = pd.DataFrame(y_dict).fillna(0)
-    df_x_data = pd.DataFrame(x_dict).fillna(0)
-    df_s_data = pd.DataFrame(s_dict).fillna(0)
-
-    # scale s_data
-    if s_data is not None:
-        arr = df_s_data.values
-        data_max = arr.max()
-        arr = arr * (s_max / data_max)
-        arr[arr<s_min] = s_min
-        df_s_data = pd.DataFrame(data=arr, columns=models)
-
-
-    ## Create plot
-    #fig, ax = plt.subplots(figsize=(9, 4))
-    fig, ax = plt.subplots()
-    plt.yscale(yscale)
-    plt.xscale(xscale)
-
-    #---- set color cycle
-    if colors is not None:
-        ax.set_prop_cycle(color=[colors(i) for i in np.linspace(0,1,len(df_data))])
-
-    #---- plot data
-    for m in models:
-
-        x = df_x_data[m]
-        y = df_y_data[m]
-        mark_size = df_s_data[m]
-        ax.scatter(x, y, s=mark_size, label=None)
-
-        if annotate_plot:
-            ax.annotate(m, (x,y))
-
-    # ---- plot empty data to help format the legend
-    for m in models:
-        x = []
-        y = []
-        mark_size = None
-        ax.scatter(x, y, s=mark_size, label=m)
-
-
-    #ax.set_title(y_data + " vs. " + x_data)
-    if y_units is None:
-        ax.set_ylabel(y_data)
-    else:
-        ax.set_ylabel(y_data + " (" + y_units + ")")
-    if x_units is None:
-        ax.set_xlabel(x_data)
-    else:
-        ax.set_xlabel(x_data + " (" + x_units + ")")
-
-    plt.tight_layout()
-
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, 0.8 * box.width, box.height])
-    first_legend = plt.legend(title='models', bbox_to_anchor=(1, 0.35), loc='lower left')
-    plt.gca().add_artist(first_legend)
-
-    if s_data is not None:
-        lgd_title = s_data
-        create_circlesize_legend(title=lgd_title,s_min=s_min, s_max=s_max, data_max=data_max)
-
-
-    ## save FIGURE to png
-    figure_dest = tau.get_summary_file_location('figures')
-    filename = "casesizeplot_" + y_data + "_v_" + x_data + ".png"
-    plt.savefig(os.path.join(figure_dest, filename))
-
-    if show_plot:
-        plt.show()
-    else:
-        plt.close('all')
-
-
-def create_circlesize_legend(title=None, s_min=1, s_max=500, data_min=2, data_max=1000):
-
-    c = '0.75'
-    sizes = np.linspace(s_min, s_max, num=4)
-    data = np.linspace(data_min, data_max, num=4)
-#    if s_min <= 0:
-#        s_min=0.1
-#    if data_min <= 0:
-#        data_min = 0.1
-#    sizes = np.logspace(np.log10(s_min), np.log10(s_max), num=4)
-#    data = np.logspace(np.log10(data_min), np.log10(data_max), num=4)
-
-    dots = [plt.scatter([], [], color=c, s=sizes[i]) for i in range(len(sizes))]
-    labels = [str(int(round(data[i],0))) for i in range(len(sizes))]
-
-    new_legend = plt.legend(dots, labels,title=title, bbox_to_anchor=(1.05,0.35), loc='upper left')
-    plt.gca().add_artist(new_legend)
-
-def sensitivity_plot(test_case, test_model_list, colors=None, show_plot=True):
-
-    if colors is None:
-        colors=get_colors('cubehelix')
-
-    sensitivity_dict = tau.get_sensitivity_dict(test_model_list)
-    generate_sensitivity_data(test_case, test_model_list, data_generator=tu.acpf_slack)
-    generate_sensitivity_plot(test_case, sensitivity_dict, plot_data='acpf_slack', units='MW', colors=colors, show_plot=show_plot)
-
-def pareto_test_case_plot(test_case, test_model_list, colors=None, show_plot=True):
-
-    if colors is None:
-        colors=get_colors('cubehelix')
-
-    pareto_dict = tau.get_pareto_dict(test_model_list)
-#    generate_pareto_plot(test_case, pareto_dict, y_data='acpf_slack_avg', x_data='solve_time_geomean', y_units='MW', x_units='s',
-    generate_pareto_plot(test_case, pareto_dict, y_data='thermal_viol_sum_avg', x_data='solve_time_geomean', y_units='MW', x_units='s',
-                         mark_acopf='*', colors=colors,annotate_plot=False, show_plot=show_plot)
-    generate_pareto_plot(test_case, pareto_dict, y_data='vm_viol_sum_avg', x_data='solve_time_geomean', y_units='p.u.', x_units='s',
-                         mark_acopf='*', colors=colors,annotate_plot=False, show_plot=show_plot)
-
-
-def solution_time_plot(test_model_list, colors=None, show_plot=True):
-
-    if colors is None:
-        colors=get_colors('cubehelix')
-
-    case_size_dict = tau.get_case_size_dict(test_model_list)
-    generate_case_size_plot(case_size_dict, y_data='num_constraints', y_units=None,
-                            x_data='num_buses', x_units=None, s_data=None, colors=colors,
-                            xscale='log', yscale='log',show_plot=show_plot)
-
-    generate_case_size_plot(case_size_dict, y_data='num_variables', y_units=None,
-                            x_data='num_buses', x_units=None, s_data=None, colors=colors,
-                            xscale='log', yscale='log',show_plot=show_plot)
-
-    generate_case_size_plot(case_size_dict, y_data='num_nonzeros', y_units=None,
-                            x_data='num_buses', x_units=None, s_data=None, colors=colors,
-                            xscale='log', yscale='log',show_plot=show_plot)
-
-    generate_case_size_plot(case_size_dict, y_data='solve_time_geomean', y_units='s',
-                            x_data='num_buses', x_units=None, s_data=None, colors=colors,
-                            xscale='log', yscale='log',show_plot=show_plot)
-
-    generate_case_size_plot(case_size_dict, y_data='solve_time_geomean', y_units='s',
-                            x_data='num_nonzeros', x_units=None, s_data=None, colors=colors,
-                            xscale='log', yscale='log',show_plot=show_plot)
-
 def lazy_speedup_plot(test_model_list, colors=None, show_plot=True):
 
     if colors is None:
@@ -1585,6 +1340,7 @@ def generate_plots(show_plot=False):
     generate_heatmaps(case_dict['ieee'], show_plot=show_plot)
     generate_heatmaps(case_dict['k'], show_plot=show_plot)
     generate_sensitivities(case_dict['ieee'], show_plot=show_plot)
+    summarize_sensitivities(flag='ieee',show_plot=show_plot)
 
 def create_full_summary(show_plot=False):
 
@@ -1593,7 +1349,7 @@ def create_full_summary(show_plot=False):
     case_dict = test.get_case_dict()
     for k,case_list in case_dict.items():
         update_case_data(case_list, tag=k)
-        update_data_tables(case_list, tag=k)
+        update_data_tables(tag=k)
     update_all_case_data(case_sets)
     nominal_all_data(case_sets, 'solve_time')
 
@@ -1604,3 +1360,4 @@ def create_full_summary(show_plot=False):
 if __name__ == '__main__':
 
     create_full_summary(show_plot=False)
+    #summarize_sensitivities(flag='ieee',show_plot=True)

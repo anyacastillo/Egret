@@ -22,35 +22,54 @@ def _make_sensi_dict_from_csr( name_list, csr_array ):
     return { name_list[j] : val for j, val in zip(a_coo.col, a_coo.data) }
 
 def missing_dense_p_sensitivities(md, branches, buses=None):
+    ## Assumes that if ANY of the sensitivities are present, then the calc_p_sens step can be skipped. This allows us
+    ## to skip recalculating the larger test cases that, by default, do not calculate all sensitivities.
+    need_branch_sensi = True
+    for bn,branch in branches.items():
+        if 'ptdf'in branch.keys() and 'pldf' in branch.keys():
+            need_branch_sensi = False
+            break
 
-    need_branch_sensi = False
-    for branch in branches:
-        need_branch_sensi += not hasattr(branch, 'ptdf')
-        need_branch_sensi += not hasattr(branch, 'pldf')
-
-    need_bus_sensi = False
+    need_bus_sensi = True
     if buses is not None:
-        for bus in buses:
-            need_branch_sensi += not hasattr(bus, 'ploss_sens')
+        for bn,bus in buses.items():
+            if 'ploss_sens' in bus.keys():
+                need_bus_sensi = False
+                break
 
-    needs_update = need_branch_sensi + need_bus_sensi
+    needs_update = need_branch_sensi or need_bus_sensi
+
+    return needs_update
+
+
+def missing_dense_ptdf_sensitivities(md, branches):
+    ## Assumes that if ANY of the sensitivities are present, then the calc_p_sens step can be skipped. This allows us
+    ## to skip recalculating the larger test cases that, by default, do not calculate all sensitivities.
+    needs_update = True
+    for bn,branch in branches.items():
+        if 'ptdf' in branch.keys():
+            needs_update = False
+            break
 
     return needs_update
 
 
 def missing_dense_q_sensitivities(md, branches, buses):
+    ## Assumes that if ANY of the sensitivities are present, then the calc_q_sens step can be skipped. This allows us
+    ## to skip recalculating the larger test cases that, by default, do not calculate all sensitivities.
+    need_sys_data = not 'vdf' in md.data['system'].keys() or not 'vdf_c' in md.data['system'].keys()
 
-    need_sys_data = not hasattr(md.data['system'], 'vdf') or not hasattr(md.data['system'], 'vdf_c')
-
-    need_branch_sensi = False
-    for branch in branches:
-        need_branch_sensi += not hasattr(branch, 'qtdf')
-        need_branch_sensi += not hasattr(branch, 'qldf')
+    need_branch_sensi = True
+    for bn,branch in branches.items():
+        if 'qtdf' in branch.keys() and 'qldf' in branch.keys():
+            need_branch_sensi = False
+            break
 
     need_bus_sensi = False
-    for bus in buses:
-        need_branch_sensi += not hasattr(bus, 'vdf')
-        need_branch_sensi += not hasattr(bus, 'vdf_c')
+    for bn,bus in buses.items():
+        if 'vdf' in bus.keys() and 'vdf_c' in bus.keys():
+            need_bus_sensi = False
+            break
 
     needs_update = need_sys_data or need_branch_sensi or need_bus_sensi
 
@@ -59,20 +78,20 @@ def missing_dense_q_sensitivities(md, branches, buses):
 
 def missing_sparse_sys_flow_sensitivities(md):
 
-    need_sys_data = not hasattr(md.data['system'], 'Ft')
-    need_sys_data += not hasattr(md.data['system'], 'ft_c')
-    need_sys_data += not hasattr(md.data['system'], 'Fv')
-    need_sys_data += not hasattr(md.data['system'], 'fv_c')
+    need_sys_data = not 'Ft' in md.data['system'].keys()
+    need_sys_data += not 'ft_c' in md.data['system'].keys()
+    need_sys_data += not 'Fv' in md.data['system'].keys()
+    need_sys_data += not 'fv_c' in md.data['system'].keys()
 
     return need_sys_data
 
 
 def missing_sparse_sys_loss_sensitivities(md):
 
-    need_sys_data = not hasattr(md.data['system'], 'Lt')
-    need_sys_data += not hasattr(md.data['system'], 'lt_c')
-    need_sys_data += not hasattr(md.data['system'], 'Lv')
-    need_sys_data += not hasattr(md.data['system'], 'lv_c')
+    need_sys_data = not 'Lt' in md.data['system'].keys()
+    need_sys_data += not 'lt_c' in md.data['system'].keys()
+    need_sys_data += not 'Lv' in md.data['system'].keys()
+    need_sys_data += not 'lv_c' in md.data['system'].keys()
 
     return need_sys_data
 
@@ -81,11 +100,11 @@ def missing_sparse_branch_p_sensitivities(md,branches):
 
     need_branch_sensi = False
 
-    for branch in branches:
-        need_branch_sensi += not hasattr(branch, 'Ft')
-        need_branch_sensi += not hasattr(branch, 'ft_c')
-        need_branch_sensi += not hasattr(branch, 'Lt')
-        need_branch_sensi += not hasattr(branch, 'lt_c')
+    for bn,branch in branches.items():
+        need_branch_sensi += not 'Ft' in branch.keys()
+        need_branch_sensi += not 'ft_c' in branch.keys()
+        need_branch_sensi += not 'Lt' in branch.keys()
+        need_branch_sensi += not 'lt_c' in branch.keys()
 
     return need_branch_sensi
 
@@ -94,37 +113,13 @@ def missing_sparse_branch_q_sensitivities(md,branches):
 
     need_branch_sensi = False
 
-    for branch in branches:
-        need_branch_sensi += not hasattr(branch, 'Fv')
-        need_branch_sensi += not hasattr(branch, 'fv_c')
-        need_branch_sensi += not hasattr(branch, 'Lv')
-        need_branch_sensi += not hasattr(branch, 'lv_c')
+    for bn,branch in branches.items():
+        need_branch_sensi += not 'Fv' in branch.keys()
+        need_branch_sensi += not 'fv_c' in branch.keys()
+        need_branch_sensi += not 'Lv' in branch.keys()
+        need_branch_sensi += not 'lv_c' in branch.keys()
 
     return need_branch_sensi
-
-def missing_ploss_sensitivities(md,buses):
-
-    need_const = not hasattr(md, 'ploss_const')
-
-    need_sens = False
-    for bus in buses:
-        need_sens += not hasattr(bus, 'ploss_sens')
-
-    needs_update = need_const + need_sens
-
-    return needs_update
-
-def missing_qloss_sensitivities(md,buses):
-
-    need_const = not hasattr(md, 'qloss_const')
-
-    need_sens = False
-    for bus in buses:
-        need_sens += not hasattr(bus, 'qloss_sens')
-
-    needs_update = need_const + need_sens
-
-    return needs_update
 
 def create_dicts_of_fdf(md, base_point=BasePointType.SOLUTION):
     create_dicts_of_lccm(md, base_point=base_point)
@@ -311,7 +306,7 @@ def create_dicts_of_ptdf_losses(md, base_point=BasePointType.SOLUTION):
             bus['ploss_sens'] = p_sens['ploss_sens'][idx]
 
 
-def create_dicts_of_ptdf(md, base_point=BasePointType.FLATSTART):
+def create_dicts_of_ptdf(md, base_point=BasePointType.FLATSTART, active_branches=None):
     create_dicts_of_lccm(md, base_point=base_point)
 
     branches = dict(md.elements(element_type='branch'))
@@ -324,10 +319,10 @@ def create_dicts_of_ptdf(md, base_point=BasePointType.FLATSTART):
 
     reference_bus = md.data['system']['reference_bus']
 
-    update_dense_p = missing_dense_p_sensitivities(md, branches, buses)
+    update_dense_p = missing_dense_ptdf_sensitivities(md, branches)
 
     if update_dense_p:
-        p_sens = tx_calc.implicit_calc_p_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point)
+        p_sens = tx_calc.implicit_calc_p_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point, active_index_set_branch=active_branches)
         md.data['system']['ptdf'] = p_sens['ptdf']
         md.data['system']['ptdf_c'] = p_sens['ptdf_c']
         md.data['system']['nodal_jacobian_p'] = p_sens['nodal_jacobian_p']

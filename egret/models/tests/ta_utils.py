@@ -249,7 +249,7 @@ def get_violin_dict(test_model_list):
     tm_dict = get_case_size_dict(test_model_list)
     return tm_dict
 
-def get_vanilla_dict(test_model_list):
+def get_vanilla_dict(test_model_list, case=None):
 
     tm_dict = {}
     for key in test_model_list:
@@ -262,9 +262,12 @@ def get_vanilla_dict(test_model_list):
         else:
             tm_dict[key] = True
 
+    if case is not None:
+        replace_unsolved_case(tm_dict, case)
+
     return tm_dict
 
-def get_lazy_dict(test_model_list):
+def get_lazy_dict(test_model_list, case=None):
 
     tm_dict = {}
     for key in test_model_list:
@@ -277,9 +280,12 @@ def get_lazy_dict(test_model_list):
         else:
             tm_dict[key] = True
 
+    if case is not None:
+        replace_unsolved_case(tm_dict, case)
+
     return tm_dict
 
-def get_trunc_dict(test_model_list):
+def get_trunc_dict(test_model_list, case=None):
 
     tm_dict = {}
     for key in test_model_list:
@@ -289,6 +295,9 @@ def get_trunc_dict(test_model_list):
             tm_dict[key] = False
         else:
             tm_dict[key] = True
+
+    if case is not None:
+        replace_unsolved_case(tm_dict, case)
 
     return tm_dict
 
@@ -307,3 +316,47 @@ def get_error_settings_dict(test_model_list, model='dlopf'):
             tm_dict[key] = False
 
     return tm_dict
+
+
+def replace_unsolved_case(tm_dict, case):
+
+    if 'pglib_opf_' not in case:
+        case = 'pglib_opf_' + case
+    location = get_solution_file_location(case)
+    file_base = os.path.join(location,case)
+
+    for model,include in tm_dict.items():
+        if include:
+            file_name = file_base + '_' + model + '_1000.json'
+            if os.path.exists(file_name):
+                continue
+            tm_dict[model] = False
+
+            # go through each model and ensure that one is included "True" in the dict
+            if 'dlopf' in model:
+                for tm in ['dlopf_full','dlopf_lazy_full','dlopf_e4','dlopf_lazy_e4','dlopf_e2','dlopf_lazy_e2']:
+                    file_name = file_base + '_' + tm + '_1000.json'
+                    if os.path.exists(file_name):
+                        tm_dict[tm] = True
+                        break
+            if 'clopf' in model:
+                for tm in ['clopf_full','clopf_lazy_full','clopf_e4','clopf_lazy_e4','clopf_e2','clopf_lazy_e2']:
+                    file_name = file_base + '_' + tm + '_1000.json'
+                    if os.path.exists(file_name):
+                        tm_dict[tm] = True
+                        break
+            if 'plopf' in model:
+                for tm in ['plopf_full','plopf_lazy_full','plopf_e4','plopf_lazy_e4','plopf_e2','plopf_lazy_e2']:
+                    file_name = file_base + '_' + tm + '_1000.json'
+                    if os.path.exists(file_name):
+                        tm_dict[tm] = True
+                        break
+            if 'ptdf' in model:
+                for tm in ['ptdf_full','ptdf_lazy_full','ptdf_e4','ptdf_lazy_e4','ptdf_e2','ptdf_lazy_e2']:
+                    file_name = file_base + '_' + tm + '_1000.json'
+                    if os.path.exists(file_name):
+                        tm_dict[tm] = True
+                        break
+
+    return tm_dict
+

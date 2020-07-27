@@ -71,11 +71,8 @@
 
 '''
 
-import os, shutil, glob, json, gc
+import shutil, glob, gc
 import sys, getopt
-import pandas as pd
-import math
-import unittest
 import logging
 import copy
 import egret.data.test_utils as tu
@@ -83,20 +80,16 @@ import egret.data.summary_plot_utils as spu
 from pyomo.opt import SolverFactory, TerminationCondition
 from egret.common.log import logger
 from egret.models.acopf import solve_acopf, create_psv_acopf_model
-from egret.models.ccm import solve_ccm, create_ccm_model
 from egret.models.fdf import solve_fdf, create_fdf_model
 from egret.models.fdf_simplified import solve_fdf_simplified, create_simplified_fdf_model
 from egret.models.lccm import solve_lccm, create_lccm_model
 from egret.models.dcopf_losses import solve_dcopf_losses, create_btheta_losses_dcopf_model, create_ptdf_losses_dcopf_model
 from egret.models.dcopf import solve_dcopf, create_btheta_dcopf_model, create_ptdf_dcopf_model
-from egret.models.copperplate_dispatch import solve_copperplate_dispatch, create_copperplate_dispatch_approx_model
 from egret.models.tests.ta_utils import *
 from egret.data.data_utils_deprecated import destroy_dicts_of_fdf, create_dicts_of_ptdf, create_dicts_of_fdf
-from egret.data.model_data import ModelData
-from parameterized import parameterized
 from egret.parsers.matpower_parser import create_ModelData
-from os import listdir
-from os.path import isfile, join
+from egret.model_library.transmission.tx_calc import reduce_branches
+from os.path import join
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 # test_cases = [join('../../../download/pglib-opf-master/', f) for f in listdir('../../../download/pglib-opf-master/') if isfile(join('../../../download/pglib-opf-master/', f)) and f.endswith('.m')]
@@ -178,7 +171,7 @@ def generate_test_model_dict(test_model_list):
 
         elif 'ptdf' in tm:
             tmd['solve_func'] = solve_dcopf
-            tmd['initial_solution'] = 'flat'
+            tmd['initial_solution'] = 'lossy'
             tmd['solver'] = 'gurobi_persistent'
             tmd['kwargs']['ptdf_options'] = dict(_ptdf_options)
             tmd['kwargs']['dcopf_model_generator'] = create_ptdf_dcopf_model
@@ -192,7 +185,7 @@ def generate_test_model_dict(test_model_list):
                 tmd['kwargs']['dcopf_losses_model_generator'] = create_btheta_losses_dcopf_model
             else:
                 tmd['solve_func'] = solve_dcopf
-                tmd['initial_solution'] = 'flat'
+                tmd['initial_solution'] = 'lossy'
                 tmd['solver'] = 'gurobi_persistent'
                 tmd['kwargs']['dcopf_model_generator'] = create_btheta_dcopf_model
 
@@ -358,7 +351,7 @@ def multiplier_loop(md, init=0.9, steps=10, acopf_model=create_psv_acopf_model):
     return final_mult
 
 
-def create_new_model_data(model_data, mult):
+def create_new_model_data(model_data, mult, loss_adj=1.0):
     md = model_data.clone_in_service()
 
     loads = dict(md.elements(element_type='load'))
@@ -369,15 +362,15 @@ def create_new_model_data(model_data, mult):
 
     # multiply loads
     for k in loads.keys():
-        loads[k]['p_load'] = init_p_loads[k] * mult
-        loads[k]['q_load'] = init_q_loads[k] * mult
+        loads[k]['p_load'] = init_p_loads[k] * mult * loss_adj
+        loads[k]['q_load'] = init_q_loads[k] * mult * loss_adj
 
     md.data['system']['mult'] = mult
 
     return md
 
 
-def inner_loop_solves(md_basepoint, md_flat, test_model_list):
+def inner_loop_solves(md_basepoint, md_flat, md_lossy, test_model_list):
     '''
     solve models in test_model_dict (ideally, only one model is passed here)
     loads are multiplied by mult
@@ -404,6 +397,8 @@ def inner_loop_solves(md_basepoint, md_flat, test_model_list):
             md_input = md_flat
         elif initial_solution == 'basepoint':
             md_input = md_basepoint
+        elif initial_solution == 'lossy':
+            md_input = md_lossy
         else:
             raise Exception('test_model_dict must provide valid initial_solution')
 
@@ -453,11 +448,11 @@ def record_results(idx, md):
     mult = md.data['system']['mult']
     filename = md.data['system']['model_name'] + '_' + idx + '_{0:04.0f}'.format(mult * 1000)
     md.data['system']['filename'] = filename
-
-    tu.repopulate_acpf_to_modeldata(md)
-
     md.write_to_json(filename)
     print('...out: {}.json'.format(filename))
+
+    tu.repopulate_acpf_to_modeldata(md)
+    md.write_to_json(filename)
 
     if md.data['results']['termination'] == 'optimal':
         del md
@@ -496,6 +491,21 @@ def create_testcase_directory(test_case):
     return destination
 
 
+def calc_loss_adj(model_data):
+    # Calculate demand multiplier to adjust for losses
+    from egret.model_library.transmission.tx_utils import dict_of_bus_fixed_shunts
+
+    buses = dict(model_data.elements(element_type='bus'))
+    loads = dict(model_data.elements(element_type='load'))
+    gens = dict(model_data.elements(element_type='generator'))
+    shunts = dict(model_data.elements(element_type='shunt'))
+    bus_bs, bus_gs = dict_of_bus_fixed_shunts(buses, shunts)
+    tot_d = sum(loads[k]['p_load'] for k in loads.keys()) + sum(bus_gs[k] * buses[k]['vm']**2 for k in buses.keys())
+    tot_g = sum(gens[k]['pg'] for k in gens.keys())
+    loss_adj = tot_g / tot_d
+
+    return loss_adj
+
 def solve_approximation_models(test_case, test_model_list, init_min=0.9, init_max=1.1, steps=20):
     '''
     1. initialize base case and demand range
@@ -504,16 +514,16 @@ def solve_approximation_models(test_case, test_model_list, init_min=0.9, init_ma
     '''
 
     _md_flat = create_ModelData(test_case)
+    _len_bus = tu.num_buses(_md_flat)
+    _len_branch = tu.num_branches(_md_flat)
+    _len_cycle = _len_branch - _len_bus + 1
+    tml = test_model_list
 
     logger.critical("Beginning solution loop for: {}".format(_md_flat.data['system']['model_name']))
 
     _md_basept, min_mult, max_mult = set_acopf_basepoint_min_max(_md_flat, init_min, init_max)
-    if 'acopf' not in test_model_list:
-        test_model_list.append('acopf')
-
-    ## put the sensitivities into modeData so they don't need to be recalculated for each model
-    create_dicts_of_fdf(_md_basept)
-    create_dicts_of_ptdf(_md_flat)
+    if 'acopf' not in tml:
+        tml.append('acopf')
 
     # Calculate sensitivity multiplers, and make sure the base case mult=1 is included
     inc = (max_mult - min_mult) / steps
@@ -522,10 +532,30 @@ def solve_approximation_models(test_case, test_model_list, init_min=0.9, init_ma
         multipliers.append(1.0)
         multipliers.sort()
 
+    loss_adj = calc_loss_adj(_md_basept)
+    branches = dict(_md_basept.elements(element_type='branch'))
+    active_branches = reduce_branches(branches, _len_cycle)
+    incl_lopf = any('lopf' in model for model in tml)
+    incl_loss = any('ptdf' in model for model in tml) or any('btheta' in model for model in tml)
+    if incl_lopf:
+        create_dicts_of_fdf(_md_basept)
+    else:
+        del _md_basept
+    if incl_loss:
+        create_dicts_of_ptdf(_md_flat, active_branches=active_branches)
+
     for mult in multipliers:
-        md_basept = create_new_model_data(_md_basept, mult)
         md_flat = create_new_model_data(_md_flat, mult)
-        inner_loop_solves(md_basept, md_flat, test_model_list)
+        if incl_lopf:
+            md_basept = create_new_model_data(_md_basept, mult)
+        else:
+            md_basept = None
+        if incl_loss:
+            md_lossy = create_new_model_data(_md_flat, mult, loss_adj=loss_adj)
+        else:
+            md_lossy = None
+
+        inner_loop_solves(md_basept, md_flat, md_lossy, test_model_list)
 
     create_testcase_directory(test_case)
 
@@ -594,6 +624,10 @@ def run_nominal_test(idx=None, tml=None, show_plot=False, log_level=logging.CRIT
 
     ## Model solves
     md_flat = create_ModelData(test_case)
+    _len_bus = tu.num_buses(md_flat)
+    _len_branch = tu.num_branches(md_flat)
+    _len_cycle = _len_branch - _len_bus + 1
+
     print('>>>>> BEGIN SOLVE: acopf <<<<<')
     md_basept = solve_acopf(md_flat,solver='ipopt',solver_tee=False)
     logger.critical('\t COST = ${:,.2f}'.format(md_basept.data['system']['total_cost']))
@@ -606,14 +640,22 @@ def run_nominal_test(idx=None, tml=None, show_plot=False, log_level=logging.CRIT
         tml.remove('acopf')
 
     ## put the sensitivities into modeData so they don't need to be recalculated for each model
+    loss_adj = calc_loss_adj(md_basept)
+    branches = dict(md_basept.elements(element_type='branch'))
+    active_branches = reduce_branches(branches, _len_cycle)
+    md_flat = create_new_model_data(md_flat, 1.0)
     if any('lopf' in model for model in tml):
         create_dicts_of_fdf(md_basept)
-    if any('ptdf' in model for model in tml):
-        create_dicts_of_ptdf(md_flat)
-    md_basept = create_new_model_data(md_basept, 1.0)
-    md_flat = create_new_model_data(md_flat, 1.0)
+        md_basept = create_new_model_data(md_basept, 1.0)
+    else:
+        md_basept = None
+    if any('ptdf' in model for model in tml) or any('btheta' in model for model in tml):
+        create_dicts_of_ptdf(md_flat, active_branches=active_branches)
+        md_lossy = create_new_model_data(md_flat, 1.0, loss_adj=loss_adj)
+    else:
+        md_lossy = None
 
-    inner_loop_solves(md_basept, md_flat, tml)
+    inner_loop_solves(md_basept, md_flat, md_lossy, tml)
 
     create_testcase_directory(test_case)
 

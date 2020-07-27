@@ -25,6 +25,8 @@ import egret.model_library.transmission.bus as libbus
 import egret.model_library.transmission.branch as libbranch
 import egret.model_library.transmission.gen as libgen
 import egret.data.data_utils_deprecated as data_utils_deprecated
+from egret.models.acopf import solve_acopf
+from egret.parsers.matpower_parser import create_ModelData
 
 import egret.data.data_utils as data_utils
 import egret.common.lazy_ptdf_utils as lpu
@@ -628,6 +630,71 @@ def loop_test(argv=None, tml=None):
     for idx in idl:
         test.run_test_loop(idx=idx, tml=tml)
 
+def quick_solve(argv=None):
+
+    logger = logging.getLogger('egret')
+    logger.setLevel(logging.CRITICAL)
+
+    # case list
+    if len(argv)==0:
+        idl = [0]
+    else:
+        idl = test.get_case_names(flag=argv)
+
+    # model listlist
+    tml = ['plopf_full', 'plopf_e4', 'plopf_e2', 'plopf_lazy_full', 'plopf_lazy_e4', 'plopf_lazy_e2']
+    relaxations = [None, 'include_pf_feasibility_slack']
+
+    # Outer loop: test cases
+    for idx in idl:
+        test_case = test.idx_to_test_case(idx)
+        test_case = test_case[3:]
+        md = create_ModelData(test_case)
+
+        print('>>>>> BEGIN SOLVE: acopf <<<<<')
+        md_basept = solve_acopf(md, solver='ipopt', solver_tee=False)
+        logger.critical('\t COST = ${:,.2f}'.format(md_basept.data['system']['total_cost']))
+        logger.critical('\t TIME = {:.5f} seconds'.format(md_basept.data['results']['time']))
+
+        # Inner loop: test models
+        for tm in tml:
+            tm_dict = test.generate_test_model_dict([tm])[tm]
+            print('>>>>> BEGIN SOLVE: {} <<<<<'.format(tm))
+            solve_func = tm_dict['solve_func']
+            solver = tm_dict['solver']
+            kwargs = tm_dict['kwargs']
+
+            # Apply progressive relaxations if initial solve is infeasible
+            for r in relaxations:
+                if r is not None:
+                    kwargs[r] = True
+                    logger.critical('...applying relaxation with {}'.format(r))
+                try:
+                    md_out = solve_func(md_basept, solver=solver, **kwargs)
+                    logger.critical('\t COST = ${:,.2f}'.format(md_out.data['system']['total_cost']))
+                    logger.critical('\t TIME = {:.5f} seconds'.format(md_out.data['results']['time']))
+                    is_feasible = True
+                except Exception as e:
+                    is_feasible = False
+                    model_error = str(e)
+                    logger.critical('failed: {}'.format(model_error))
+                # end loop if solve is successful
+                if is_feasible:
+                    break
+
+            # create results object if all relaxations failed
+            if not is_feasible:
+                md_out = md_basept
+                md_out.data['results'] = {}
+                md_out.data['results']['termination'] = 'infeasible'
+                md_out.data['results']['exception'] = model_error
+            else:
+                md_out.data['system']['mult'] = 1
+
+            test.record_results(tm, md_out)
+
+        test.create_testcase_directory(test_case)
+
 
 if __name__ == '__main__':
 
@@ -639,6 +706,8 @@ if __name__ == '__main__':
         nominal_test(sys.argv[1], tml=tml)
     elif sys.argv[2]=='1':
         loop_test(sys.argv[1], tml=tml)
+    elif sys.argv[2]=='2':
+        quick_solve(sys.argv[1])
     else:
         message = 'file usage: model.py <case> <option>\n'
         message+= '\t case    = last N characters of cases to run\n'
