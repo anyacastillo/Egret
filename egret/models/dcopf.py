@@ -26,7 +26,7 @@ import egret.model_library.transmission.tx_calc as tx_calc
 import egret.data.test_utils as tu
 from egret.models.acopf import solve_acopf
 from egret.parsers.matpower_parser import create_ModelData
-import egret.data.data_utils as data_utils
+import egret.data.data_utils_deprecated as data_utils_deprecated
 from egret.common.log import logger
 import logging
 
@@ -621,6 +621,7 @@ def quick_solve(argv=None):
 
     # model listlist
     tml = ['ptdf_full', 'ptdf_e4', 'ptdf_e2', 'ptdf_lazy_full', 'ptdf_lazy_e4', 'ptdf_lazy_e2', 'btheta']
+    tml.reverse()
     relaxations = [None, 'include_pf_feasibility_slack']
 
     # Outer loop: test cases
@@ -636,11 +637,14 @@ def quick_solve(argv=None):
         md_basept = solve_acopf(md, solver='ipopt', solver_tee=False)
         logger.critical('\t COST = ${:,.2f}'.format(md_basept.data['system']['total_cost']))
         logger.critical('\t TIME = {:.5f} seconds'.format(md_basept.data['results']['time']))
+        md_basept.data['system']['mult'] = 1
+        test.record_results('acopf', md_basept)
+        test.create_testcase_directory(test_case)
 
         loss_adj = test.calc_loss_adj(md_basept)
         branches = dict(md_basept.elements(element_type='branch'))
         active_branches = tx_calc.reduce_branches(branches, _len_cycle)
-        tx_calc.create_dicts_of_ptdf(md, active_branches=active_branches)
+        data_utils_deprecated.create_dicts_of_ptdf(md, active_branches=active_branches)
         md_lossy = test.create_new_model_data(md, 1.0, loss_adj=loss_adj)
 
         # Inner loop: test models
@@ -675,12 +679,10 @@ def quick_solve(argv=None):
                 md_out.data['results'] = {}
                 md_out.data['results']['termination'] = 'infeasible'
                 md_out.data['results']['exception'] = model_error
-            else:
-                md_out.data['system']['mult'] = 1
 
+            md_out.data['system']['mult'] = 1
             test.record_results(tm, md_out)
-
-        test.create_testcase_directory(test_case)
+            test.create_testcase_directory(test_case)
 
 
 if __name__ == '__main__':

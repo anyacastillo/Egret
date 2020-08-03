@@ -330,6 +330,8 @@ def solve_infeas_model(model_data):
 
     # calculate voltage infeasibilities
     for bus_name, bus_dict in AC_buses.items():
+        if bus_dict['v_max'] is None or bus_dict['v_min'] is None:
+            continue
         vm = bus_dict['vm']
         if vm > bus_dict['v_max']:
             vm_viol_dict[bus_name] = vm - bus_dict['v_max']
@@ -340,6 +342,8 @@ def solve_infeas_model(model_data):
 
     # calculate thermal infeasibilities
     for branch_name, branch_dict in AC_branches.items():
+        if branch_dict['rating_long_term'] is None:
+            continue
         sf = sqrt(branch_dict["pf"]**2 + branch_dict["qf"]**2)
         st = sqrt(branch_dict["pt"]**2 + branch_dict["qt"]**2)
         if sf > st: # to avoid double counting

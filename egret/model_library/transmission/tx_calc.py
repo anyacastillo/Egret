@@ -1574,8 +1574,8 @@ def reduce_branches(branches, N, min_N=3):
     s_max = {k: branches[k]['rating_long_term'] for k in branches.keys()}
     sf = {k: math.sqrt(branches[k]['pf']**2 + branches[k]['qf']**2) for k in branches.keys()}
     st = {k: math.sqrt(branches[k]['pt']**2 + branches[k]['qt']**2) for k in branches.keys()}
-    rel_room = {k: 1 - max(sf[k], st[k]) / lim for k,lim in s_max.items()}
-    abs_room = {k: lim - max(sf[k], st[k]) for k,lim in s_max.items()}
+    rel_room = {k: 1 - max(sf[k], st[k]) / lim for k,lim in s_max.items() if lim is not None}
+    abs_room = {k: lim - max(sf[k], st[k]) for k,lim in s_max.items() if lim is not None}
     rel_val = max(nsmallest(N, rel_room.values()))
     abs_val = max(nsmallest(N, abs_room.values()))
     rel_list = [k for k,v in rel_room.items() if v <= rel_val]

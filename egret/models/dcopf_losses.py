@@ -17,6 +17,7 @@ the create_ptdf_losses_dcopf_model are not equivalent; the former is a QCP and t
 
 """
 import sys
+import logging
 import pyomo.environ as pe
 import egret.models.tests.test_approximations as test
 import egret.model_library.transmission.tx_utils as tx_utils
@@ -271,10 +272,6 @@ def create_ptdf_losses_dcopf_model(model_data, include_feasibility_slack=False,
                                          bus_gs_fixed_shunts)
 
     ### declare the current flows in the branches
-    p_max = {k: branches[k]['rating_long_term'] for k in branches.keys()}
-    pfl_bounds = {k: (-p_max[k]**2,p_max[k]**2) for k in branches.keys()}
-    pfl_init = {k: 0 for k in branches.keys()}
-
     s_max = {k: branches[k]['rating_long_term'] for k in branches.keys()}
     ac_qf = {k: branches[k]['qf'] for k in branches.keys()}
     ac_qt = {k: branches[k]['qt'] for k in branches.keys()}
@@ -643,6 +640,7 @@ def quick_solve(argv=None):
 
     # model listlist
     tml = ['plopf_full', 'plopf_e4', 'plopf_e2', 'plopf_lazy_full', 'plopf_lazy_e4', 'plopf_lazy_e2']
+    tml.reverse()
     relaxations = [None, 'include_pf_feasibility_slack']
 
     # Outer loop: test cases
@@ -655,6 +653,9 @@ def quick_solve(argv=None):
         md_basept = solve_acopf(md, solver='ipopt', solver_tee=False)
         logger.critical('\t COST = ${:,.2f}'.format(md_basept.data['system']['total_cost']))
         logger.critical('\t TIME = {:.5f} seconds'.format(md_basept.data['results']['time']))
+        md_basept.data['system']['mult'] = 1
+        test.record_results('acopf', md_basept)
+        test.create_testcase_directory(test_case)
 
         # Inner loop: test models
         for tm in tml:
@@ -688,12 +689,10 @@ def quick_solve(argv=None):
                 md_out.data['results'] = {}
                 md_out.data['results']['termination'] = 'infeasible'
                 md_out.data['results']['exception'] = model_error
-            else:
-                md_out.data['system']['mult'] = 1
 
+            md_out.data['system']['mult'] = 1
             test.record_results(tm, md_out)
-
-        test.create_testcase_directory(test_case)
+            test.create_testcase_directory(test_case)
 
 
 if __name__ == '__main__':

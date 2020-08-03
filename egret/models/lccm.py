@@ -501,6 +501,9 @@ def quick_solve(argv=None):
         md_basept = solve_acopf(md, solver='ipopt', solver_tee=False)
         logger.critical('\t COST = ${:,.2f}'.format(md_basept.data['system']['total_cost']))
         logger.critical('\t TIME = {:.5f} seconds'.format(md_basept.data['results']['time']))
+        md_basept.data['system']['mult'] = 1
+        test.record_results('acopf', md_basept)
+        test.create_testcase_directory(test_case)
 
         # Inner loop: test models
         for tm in tml:
@@ -534,12 +537,10 @@ def quick_solve(argv=None):
                 md_out.data['results'] = {}
                 md_out.data['results']['termination'] = 'infeasible'
                 md_out.data['results']['exception'] = model_error
-            else:
-                md_out.data['system']['mult'] = 1
 
+            md_out.data['system']['mult'] = 1
             test.record_results(tm, md_out)
-
-        test.create_testcase_directory(test_case)
+            test.create_testcase_directory(test_case)
 
 
 if __name__ == '__main__':

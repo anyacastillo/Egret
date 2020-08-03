@@ -326,7 +326,7 @@ def filter_dataframe(df_data, data_filters=None):
 
 
 def generate_boxplot(data_filters=None, data_name='solve_time', data_unit=None, order=None, category='model', hue=None,
-                         scale='linear', filename=None, show_plot=True):
+                         scale='linear', filename=None, sns_plot=sns.boxplot, palette=None, show_plot=True):
 
     if filename is None:
         filename = "all_summary_data.csv"
@@ -346,6 +346,7 @@ def generate_boxplot(data_filters=None, data_name='solve_time', data_unit=None, 
     settings['hue'] = hue
     settings['order'] = order
     settings['hue_order'] = hue_order
+    settings['palette'] = palette
     #settings['inner'] = 'quartile'
     #settings['scale'] = 'width'
     #settings['color'] = '0.8'
@@ -353,7 +354,8 @@ def generate_boxplot(data_filters=None, data_name='solve_time', data_unit=None, 
     #settings['bw'] = 0.2
     #ax = sns.violinplot(y=category, x=data_name, data=df_data, **settings)
     #ax = sns.stripplot(y=category, x=data_name, data=df_data, order=order, dodge=True, size=2.5)
-    ax = sns.boxplot(y=category, x=data_name, data=df_data, **settings)
+    #ax = sns.boxplot(y=category, x=data_name, data=df_data, **settings)
+    ax = sns_plot(y=category, x=data_name, data=df_data, **settings)
     ax.set_ylabel(category)
     if data_unit is None:
         ax.set_xlabel(data_name)
@@ -388,12 +390,14 @@ def generate_boxplots(show_plot=False):
         # default mode results
         filename = 'case_data_' + cs + '.csv'
         filters = {}
-        filters['base_model'] = ['acopf','slopf','dlopf','clopf','plopf','ptdf','btheta']
-        filters['build_mode'] = ['default']
-        filters['trim'] = ['full']
-        filters['file_tag'] = cs + '_default_options'
-        generate_boxplot(data_name='solve_time', data_filters=filters, category='base_model', order=filters['base_model'],
-                         filename=filename, scale='linear', show_plot=show_plot)
+        #filters['base_model'] = ['acopf','slopf','dlopf','clopf','plopf','ptdf','btheta']
+        #filters['build_mode'] = ['default']
+        #filters['trim'] = ['full']
+        #filters['file_tag'] = cs + '_default_options'
+        filters['file_tag'] = cs + '_allbuilds'
+        model_order = test.get_test_model_list()
+        generate_boxplot(data_name='solve_time', data_unit='s', data_filters=filters, category='model', order=model_order,
+                         filename=filename, scale='log', sns_plot=sns.stripplot, palette='gnuplot', show_plot=show_plot)
 
         # default/lazy mode results
         filename = 'case_data_' + cs + '.csv'
@@ -401,8 +405,8 @@ def generate_boxplots(show_plot=False):
         filters['base_model'] = ['slopf','dlopf','clopf','plopf']
         filters['trim'] = ['full']
         filters['file_tag'] = cs + '_lazy_options'
-        generate_boxplot(data_name='solve_time', data_filters=filters, category='base_model', order=filters['base_model'],
-                         filename=filename, scale='linear', hue='build_mode', show_plot=show_plot)
+        generate_boxplot(data_name='solve_time', data_unit='s', data_filters=filters, category='base_model', order=filters['base_model'],
+                         filename=filename, scale='linear', hue='build_mode', palette='gnuplot2', show_plot=show_plot)
 
         # factor tolerance results
         filename = 'case_data_' + cs + '.csv'
@@ -410,8 +414,8 @@ def generate_boxplots(show_plot=False):
         filters['base_model'] = ['slopf','dlopf','clopf','plopf']
         filters['build_mode'] = ['default']
         filters['file_tag'] = cs + '_trim_options'
-        generate_boxplot(data_name='solve_time', data_filters=filters, category='base_model', order=filters['base_model'],
-                         filename=filename, scale='linear', hue='trim', show_plot=show_plot)
+        generate_boxplot(data_name='solve_time', data_unit='s', data_filters=filters, category='base_model', order=filters['base_model'],
+                         filename=filename, scale='linear', hue='trim', palette='gnuplot2', show_plot=show_plot)
 
 
 def generate_network_data(test_case, test_model_list, data_generator=None):
@@ -1361,3 +1365,4 @@ if __name__ == '__main__':
 
     create_full_summary(show_plot=False)
     #summarize_sensitivities(flag='ieee',show_plot=True)
+    #generate_boxplots(show_plot=True)
