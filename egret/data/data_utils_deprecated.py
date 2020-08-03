@@ -133,12 +133,13 @@ def create_dicts_of_fdf(md, base_point=BasePointType.SOLUTION):
     bus_name_list = bus_attrs['names']
 
     reference_bus = md.data['system']['reference_bus']
+    file_tag = md.data['system']['model_name']
 
     update_dense_p = missing_dense_p_sensitivities(md, branches, buses)
     update_dense_q = missing_dense_q_sensitivities(md, branches, buses)
 
     if update_dense_p:
-        p_sens = tx_calc.implicit_calc_p_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point)
+        p_sens = tx_calc.implicit_calc_p_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point, filename=file_tag)
         md.data['system']['ptdf'] = p_sens['ptdf']
         md.data['system']['ptdf_c'] = p_sens['ptdf_c']
         #md.data['system']['pldf'] = p_sens['pldf']
@@ -147,7 +148,7 @@ def create_dicts_of_fdf(md, base_point=BasePointType.SOLUTION):
         md.data['system']['offset_jacobian_p'] = p_sens['offset_jacobian_p']
 
     if update_dense_q:
-        q_sens = tx_calc.implicit_calc_q_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point)
+        q_sens = tx_calc.implicit_calc_q_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point, filename=file_tag)
         md.data['system']['qtdf'] = q_sens['qtdf']
         md.data['system']['qtdf_c'] = q_sens['qtdf_c']
         #md.data['system']['qldf'] = q_sens['qldf']
@@ -271,11 +272,12 @@ def create_dicts_of_ptdf_losses(md, base_point=BasePointType.SOLUTION):
     bus_name_list = bus_attrs['names']
 
     reference_bus = md.data['system']['reference_bus']
+    file_tag = md.data['system']['model_name']
 
     update_dense_p = missing_dense_p_sensitivities(md, branches, buses)
 
     if update_dense_p:
-        p_sens = tx_calc.implicit_calc_p_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point)
+        p_sens = tx_calc.implicit_calc_p_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point, filename=file_tag)
         md.data['system']['ptdf'] = p_sens['ptdf']
         md.data['system']['ptdf_c'] = p_sens['ptdf_c']
         #md.data['system']['pldf'] = p_sens['pldf']
@@ -318,11 +320,13 @@ def create_dicts_of_ptdf(md, base_point=BasePointType.FLATSTART, active_branches
     bus_name_list = bus_attrs['names']
 
     reference_bus = md.data['system']['reference_bus']
+    file_tag = md.data['system']['model_name']
 
     update_dense_p = missing_dense_ptdf_sensitivities(md, branches)
 
     if update_dense_p:
-        p_sens = tx_calc.implicit_calc_p_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point, active_index_set_branch=active_branches)
+        p_sens = tx_calc.implicit_calc_p_sens(branches, buses, branch_name_list, bus_name_list, reference_bus, base_point,
+                                              active_index_set_branch=active_branches, filename=file_tag)
         md.data['system']['ptdf'] = p_sens['ptdf']
         md.data['system']['ptdf_c'] = p_sens['ptdf_c']
         md.data['system']['nodal_jacobian_p'] = p_sens['nodal_jacobian_p']

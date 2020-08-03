@@ -11,6 +11,7 @@
 This module collects some helper functions useful for performing
 different computations for transmission models
 """
+import os, time
 import math
 import numpy as np
 import scipy as sp
@@ -1240,9 +1241,37 @@ def truncate(_sens, abs_tol=0, rel_tol=1e-6):
     return _sens
 
 
+def save_sens_mat(sens_dict, filename):
+
+    location = os.path.join(os.getcwd(), 'sensitivity_mat')
+    if not os.path.exists(location):
+        os.mkdir(location)
+    file = os.path.join(location, filename)
+    np.save(file, sens_dict)
+
+def load_sens_mat(filename):
+
+    location = os.path.join(os.getcwd(), 'sensitivity_mat')
+    file = os.path.join(location, filename)
+    sens_numpy = np.load(file + '.npy', allow_pickle=True)
+    sens_dict = sens_numpy[()]
+    return sens_dict
+
+
 def implicit_calc_p_sens(branches,buses,index_set_branch,index_set_bus,reference_bus,
                        base_point=BasePointType.SOLUTION, active_index_set_branch=None,
-                       mapping_bus_to_idx=None):
+                       mapping_bus_to_idx=None, filename=None):
+
+    if filename is not None:
+        try:
+            sens_dict = load_sens_mat('p_sens_' + filename)
+            print('Loading pre-computed p-sensitivity dictionaries.')
+            return sens_dict
+        except FileNotFoundError:
+            pass
+
+    print('Could not find p-sensitivity dictionaries. Calculating...', end =" ")
+    start = time.clock()
 
     # use active branch/bus mapping for large test cases
     _len_bus = len(index_set_bus)
@@ -1317,11 +1346,27 @@ def implicit_calc_p_sens(branches,buses,index_set_branch,index_set_bus,reference
     sens_dict['nodal_jacobian_p'] = M.astype(np.float32)
     sens_dict['offset_jacobian_p'] = M0.astype(np.float32)
 
+    elapsed = time.clock() - start
+    print('it took {} seconds.'.format(elapsed))
+    if filename is not None:
+        save_sens_mat(sens_dict, 'p_sens_' + filename)
+
     return sens_dict
 
 def implicit_calc_q_sens(branches,buses,index_set_branch,index_set_bus,reference_bus,
                        base_point=BasePointType.SOLUTION, active_index_set_branch=None,
-                       active_index_set_bus=None, mapping_bus_to_idx=None):
+                       active_index_set_bus=None, mapping_bus_to_idx=None, filename=None):
+
+    if filename is not None:
+        try:
+            sens_dict = load_sens_mat('q_sens_' + filename)
+            print('Loading pre-computed q-sensitivity dictionaries.')
+            return sens_dict
+        except FileNotFoundError:
+            pass
+
+    print('Could not find q-sensitivity dictionaries. Calculating...', end =" ")
+    start = time.clock()
 
     # use active branch/bus mapping for large test cases
     _len_bus = len(index_set_bus)
@@ -1397,6 +1442,11 @@ def implicit_calc_q_sens(branches,buses,index_set_branch,index_set_bus,reference
     sens_dict['qloss_distribution'] = qloss_dist
     sens_dict['nodal_jacobian_q'] = M.astype(np.float32)
     sens_dict['offset_jacobian_q'] = M0.astype(np.float32)
+
+    elapsed = time.clock() - start
+    print('it took {} seconds.'.format(elapsed))
+    if filename is not None:
+        save_sens_mat(sens_dict, 'q_sens_' + filename)
 
     return sens_dict
 
