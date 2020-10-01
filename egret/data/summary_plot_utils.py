@@ -27,6 +27,9 @@ import egret.models.tests.ta_utils as tau
 import egret.models.tests.test_approximations as test
 from egret.data.model_data import ModelData
 from scipy.stats.mstats import gmean,tmean
+from egret.parsers.matpower_parser import create_ModelData
+from egret.data.data_utils_deprecated import create_dicts_of_lccm, create_dicts_of_ptdf, create_dicts_of_fdf
+import networkx, scipy
 
 # Functions to be summarized by averaging
 mean_functions = [tu.num_buses,
@@ -265,7 +268,7 @@ def nominal_case_data(column, tag=None):
 
     #col_list = []
     #[col_list.append(x) for x in df['model'].values if x not in col_list]
-    col_list = ['slopf','dlopf_full','clopf_full','plopf_full','ptdf_full','btheta']
+    col_list = ['slopf','dlopf_full','dlopf_lazy_e2','clopf_full','clopf_lazy_e2','plopf_full','plopf_lazy_e2','ptdf_full','ptdf_lazy_e2','btheta']
 
     data = pd.DataFrame(data=None, index=idx_list, columns=col_list)
     for index, row in df.iterrows():
@@ -417,6 +420,16 @@ def generate_boxplots(show_plot=False):
         generate_boxplot(data_name='solve_time', data_unit='s', data_filters=filters, category='base_model', order=filters['base_model'],
                          filename=filename, scale='linear', hue='trim', palette='gnuplot2', show_plot=show_plot)
 
+        # factor tolerance results
+        filename = 'case_data_' + cs + '.csv'
+        filters = {}
+        filters['model'] = ['acopf','slopf','dlopf_full','dlopf_lazy_e2','clopf_full','clopf_lazy_e2','plopf_full','plopf_lazy_e2','ptdf_full','ptdf_lazy_e2','btheta']
+        filters['file_tag'] = cs + '_compare_simplified'
+        generate_boxplot(data_name='solve_time', data_unit='s', data_filters=filters, category='model', order=filters['model'],
+                         filename=filename, scale='linear', sns_plot=sns.boxplot, palette='gnuplot2', show_plot=show_plot)
+
+
+
 
 def generate_network_data(test_case, test_model_list, data_generator=None):
 
@@ -440,6 +453,66 @@ def generate_network_data(test_case, test_model_list, data_generator=None):
     ## save DATA to csv
     filename = func_name + '_' + case_name + ".csv"
     save_data_file(df_data, filename=filename)
+
+
+def generate_barplot(test_case, test_model_dict=None, data_name=None, units=None, file_tag=None, show_plot=False):
+
+    src_folder, case_name = os.path.split(test_case)
+    case_name, ext = os.path.splitext(case_name)
+
+    if data_name is None:
+        data_name = 'thermal_viol'
+    if units is None:
+        units = data_name
+    else:
+        units = data_name + " (" + units + ")"
+
+    filename = data_name + "_" + case_name + ".csv"
+    df_data = get_data(filename, test_model_dict=test_model_dict)
+    if df_data.empty:
+        return
+
+    # median, mean, and maximum error statistics
+    data = df_data.fillna(0).abs()
+    df_med = pd.DataFrame(data=None)
+    df_med['model'] = data.columns
+    df_med['error'] = data.median().values
+    df_med['statistic'] = 'median'
+    df_avg = pd.DataFrame(data=None)
+    df_avg['model'] = data.columns
+    df_avg['error'] = data.mean().values
+    df_avg['statistic'] = 'mean'
+    df_max = pd.DataFrame(data=None)
+    df_max['model'] = data.columns
+    df_max['error'] = data.max().values
+    df_max['statistic'] = 'max'
+    df_summary = pd.concat([df_med, df_avg, df_max])
+
+    ## Create plot
+    sns.set(style="whitegrid")
+    ax = sns.barplot(x='model', y='error', hue='statistic', data=df_summary)
+    ax.set_yscale("log")
+
+    #ax.set_title(case_name + " " + viol_name)
+    ax.set_xlabel("Model")
+    ax.set_ylabel(units)
+    #ax.set_yticks([])
+
+    plt.tight_layout()
+
+    ## save FIGURE as png
+    filename = case_name + "_" + data_name + "_barplot"
+    if file_tag is not None:
+        filename += "_" + file_tag
+    filename += ".png"
+    print('...out: {}'.format(filename))
+    destination = tau.get_summary_file_location('figures')
+    plt.savefig(os.path.join(destination, filename))
+
+    if show_plot:
+        plt.show()
+    else:
+        plt.close('all')
 
 
 def generate_heatmap(test_case, test_model_dict=None, data_name=None, index_name=None, units=None, N=None,
@@ -537,6 +610,7 @@ def generate_heatmaps(case_list=None, colors=None, show_plot=False):
         model_dict = tau.get_vanilla_dict(tml, case=c)
         generate_heatmap(c, test_model_dict=model_dict, data_name='pf_error', N=50, file_tag='vanilla',
                          index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
+        generate_barplot(c, test_model_dict=model_dict, data_name='pf_error', units='MW', show_plot=show_plot)
 
         model_dict['acopf'] = True
         generate_heatmap(c, test_model_dict=model_dict, data_name='lmp', N=None, file_tag='vanilla',
@@ -668,6 +742,7 @@ def summarize_sensitivity(data_name, flag=None, show_plot=False):
         filename = 'sensitivity_pglib_opf_' + data_name + '.csv'
     save_data_file(df, filename=filename)
 
+    sns.set(style="whitegrid")
     ax = sns.barplot(x='model', y=data_name, hue='case', data=df)
     ax.set_ylabel(data_name)
     ax.set_xlabel('Model')
@@ -798,7 +873,7 @@ def create_table3_violations(df, tag=None):
     save_data_file(df3, filename=filename)
 
 
-def create_table(df_in, col_name, max_buses=None, min_buses=None):
+def create_table(df_in, col_name, max_buses=None, min_buses=None, tag=None):
 
     model_list = list(set(list(df_in.model.values)))
     desc_list = ['base_model','trim','build_mode']
@@ -814,12 +889,12 @@ def create_table(df_in, col_name, max_buses=None, min_buses=None):
         for case in case_list:
             _case = _df[_df.long_case==case]
             if len(_case.index) == 1:
-                row[case] = _case[col_name]
+                row[case] = _case.iloc[0][col_name]
             elif len(_case.index) > 1:
-                array = _case[col_name].dropna().values
-                row[case] = gmean(array)
+                _case = _case[_case.mult==1]
+                row[case] = _case.iloc[0][col_name]
             else:
-                row[case] = 9999
+                pass
     df_out = df_out.sort_values(by=['base_model','build_mode','trim'], ascending=[1,1,0])
 
     # add short case name and num_bus to top two rows
@@ -832,6 +907,10 @@ def create_table(df_in, col_name, max_buses=None, min_buses=None):
             df_top.loc['num_buses',case] = dummy_row['num_buses']
     df_out = pd.concat([df_top, df_out], sort=False)
 
+    # Find the columns where each value is null and drop from the dataframe
+    empty_cols = [col for col in df_out.columns if df_out[col].isnull().all()]
+    df_out.drop(empty_cols, axis=1, inplace=True)
+
     filename = 'table_' + col_name
     if max_buses is not None:
         filename += '_under_{}'.format(max_buses)
@@ -841,6 +920,8 @@ def create_table(df_in, col_name, max_buses=None, min_buses=None):
         filename += '_over_{}'.format(min_buses)
         drop_col = [c for c in df_out.columns if df_out.loc['num_buses',c] >= min_buses]
         df_out = df_out.drop(drop_col, axis='columns')
+    if tag is not None:
+        filename += '_' + tag
 
     ## save DATA to csv
     destination = tau.get_summary_file_location('data')
@@ -864,14 +945,15 @@ def update_data_tables(tag=None):
     create_table3_violations(df, tag=tag)
 
     # takes geomean of column in df
-    create_table(df,'acpf_slack')
-    create_table(df,'balance_slack')
-    create_table(df,'solve_time')
-    create_table(df,'total_cost_normalized')
+    create_table(df,'acpf_slack', tag=tag)
+    create_table(df,'balance_slack', tag=tag)
+    create_table(df,'solve_time', tag=tag)
+    create_table(df,'total_cost_normalized', tag=tag)
 
     # takes nominal value of column in df
     nominal_case_data('total_cost_normalized', tag=tag)
     nominal_case_data('solve_time', tag=tag)
+    nominal_case_data('speedup', tag=tag)
 
 def normalize_solve_time(df_data, model_benchmark='acopf'):
 
@@ -882,6 +964,7 @@ def normalize_solve_time(df_data, model_benchmark='acopf'):
     gm_benchmark = gmean(arr)
 
     df_data['solve_time_normalized'] = df_data['solve_time'] / gm_benchmark
+    df_data['speedup'] = gm_benchmark / df_data['solve_time']
 
     return df_data
 
@@ -1336,6 +1419,416 @@ def trunc_speedup_plot(test_model_list, colors=None, show_plot=True):
                              cscale='linear', include_benchmark=True, colormap=colors, show_plot=show_plot)
 
 
+def draw_graph(G, weighted=False, filename=None, show_plot=True):
+
+    color_dict = {k:None for k in G.nodes}
+    for k,c in color_dict.items():
+        if k[0:2]=='pf':
+            color_dict[k] = 'tab:blue'
+        elif k[0:2]=='pl':
+            color_dict[k] = 'tab:orange'
+        elif k[0:2]=='pg':
+            color_dict[k] = 'tab:green'
+        elif k[0:2]=='va':
+            color_dict[k] = 'tab:red'
+        elif k[0:2]=='qf':
+            color_dict[k] = 'tab:brown'
+        elif k[0:2]=='ql':
+            color_dict[k] = 'tab:pink'
+        elif k[0:2]=='qg':
+            color_dict[k] = 'tab:gray'
+        elif k[0:2]=='vm':
+            color_dict[k] = 'tab:olive'
+        else:
+            color_dict[k] = 'tab:purple'
+
+    density = networkx.nx.density(G)
+    print('Graph density is {}.'.format(density))
+
+    elist = networkx.to_edgelist(G)
+    wlist = [abs(w['weight']) for t,f,w in elist]
+    weights = [5 * w / max(wlist) for w in wlist]
+
+    #weights={(u,v):{'weight':1} for u,v in G.edges}
+    #networkx.set_edge_attributes(G, weights)
+    nlist = create_shell_list(G)
+
+    options = {}
+    options['node_color'] = list(color_dict.values())
+    options['with_labels'] = False
+    options['nlist'] = nlist
+    if weighted:
+        options['width'] = weights
+        options['alpha'] = 0.66
+    else:
+        options['alpha'] = 0.33
+    plt.figure(figsize=(6, 6))
+    #networkx.draw_circular(G, **options)
+    networkx.draw_shell(G, **options)
+    #plt.show()
+
+    ## save FIGURE to png
+    if filename is not None:
+        figure_dest = tau.get_summary_file_location('figures')
+        plt.savefig(os.path.join(figure_dest, filename))
+
+    if show_plot:
+        plt.show()
+    else:
+        plt.close('all')
+
+
+def create_graph(branch_attrs, bus_attrs):
+
+    G = networkx.Graph()
+    G.add_node('syspg')
+    G.add_node('syspl')
+    G.add_nodes_from(['va'+n for n in bus_attrs['names']])     # voltage angle
+    G.add_nodes_from(['pl'+n for n in branch_attrs['names']])  # real loss
+    G.add_nodes_from(['pf'+n for n in branch_attrs['names']])  # real flow
+    G.add_nodes_from(['pg'+n for n in bus_attrs['names']])     # real injection
+    #G.add_node('sysqg')
+    G.add_node('sysql')
+    G.add_nodes_from(['vm'+n for n in bus_attrs['names']])     # voltage magnitude
+    G.add_nodes_from(['ql'+n for n in branch_attrs['names']])  # reactive loss
+    G.add_nodes_from(['qf'+n for n in branch_attrs['names']])  # reactive flow
+    G.add_nodes_from(['qg'+n for n in bus_attrs['names']])     # reactive injection
+
+    return G
+
+def create_shell_list(G):
+
+    list_sys = ['syspg', 'syspl'] + ['sysql']
+
+    list_gen = [n for n in G.nodes if n[0:2]=='pg']
+    list_gen += [n for n in G.nodes if n[0:2]=='qg']
+
+    list_flow = [n for n in G.nodes if n[0:2]=='pf']
+    list_flow += [n for n in G.nodes if n[0:2]=='qf']
+
+    list_loss = [n for n in G.nodes if n[0:2]=='pl']
+    list_loss += [n for n in G.nodes if n[0:2]=='ql']
+
+    list_volt = [n for n in G.nodes if n[0:2]=='va']
+    list_volt += [n for n in G.nodes if n[0:2]=='vm']
+
+    nlist = [list_sys, list_gen, list_loss, list_flow, list_volt]
+
+    return nlist
+
+
+def remove_unmonitored(G, md, s_tol=None, v_tol=None):
+    import math
+
+    num_edges = networkx.number_of_edges(G)
+    branches = dict(md.elements(element_type='branch'))
+    buses = dict(md.elements(element_type='bus'))
+
+    if s_tol is not None:
+        for k,branch in branches.items():
+            smax = branch['rating_long_term']
+            pf = branch['pf']
+            pt = branch['pt']
+            qf = branch['qf']
+            qt = branch['qt']
+            sp = math.sqrt(max(pf**2 + qf**2, pt**2 + qt**2))
+            slack = 1 - sp / smax
+            if slack > s_tol:
+                rm = list(G.edges('pf'+k, data=True))
+                G.remove_edges_from(rm)
+                rm = list(G.edges('qf'+k, data=True))
+                G.remove_edges_from(rm)
+
+    if v_tol is not None:
+        for n,bus in buses.items():
+            vmax = bus['v_max']
+            vmin = bus['v_min']
+            vm = bus['vm']
+            slack = (vm - vmin) / (vmax - vmin)
+            if slack < v_tol or (1-slack) < v_tol:
+                rm = list(G.edges('vm'+n, data=True))
+                G.remove_edges_from(rm)
+
+    rm_edges = num_edges - networkx.number_of_edges(G)
+    print('Removed {} unmonitored edges.'.format(rm_edges))
+
+def remove_truncate(G, md, tol=None):
+
+    num_edges = networkx.number_of_edges(G)
+    branches = dict(md.elements(element_type='branch'))
+    buses = dict(md.elements(element_type='bus'))
+
+    if tol is not None:
+        for k, branch in branches.items():
+            maxP = max([abs(df) for df in branch['ptdf'].values()])
+            maxQ = max([abs(df) for df in branch['qtdf'].values()])
+            remove_p = [('pf'+k, 'pg'+n) for n,df in branch['ptdf'].items() if abs(df)/maxP < tol]
+            remove_q = [('qf'+k, 'qg'+n) for n,df in branch['qtdf'].items() if abs(df)/maxQ < tol]
+            G.remove_edges_from(remove_p)
+            G.remove_edges_from(remove_q)
+        for m, bus in buses.items():
+            maxV = max([abs(df) for df in bus['vdf'].values()])
+            remove_v = [('pg'+n, 'vm'+m) for n,df in bus['vdf'].items() if abs(df)/maxV < tol]
+            G.remove_edges_from(remove_v)
+
+    rm_edges = num_edges - networkx.number_of_edges(G)
+    print('Removed {} truncated edges.'.format(rm_edges))
+
+def hybridize_losses(G, md, N=None):
+
+    from egret.model_library.transmission.tx_calc import reduce_branches
+    branches = dict(md.elements(element_type='branch'))
+    active_set = reduce_branches(branches, N)
+    num_edges = networkx.number_of_edges(G)
+
+    for k, branch in branches.items():
+        if k not in active_set:
+            for n, df in branch['pldf'].items():
+                rm = list(G.edges('pl'+k, data=True))
+                G. remove_edges_from(rm)
+                w = df
+                if G.has_edge('pg'+n, 'syspg'):
+                    w += G.get_edge_data('pg'+n, 'syspg')['weight']
+                G.add_edge('pg'+n, 'syspl', weight=abs(w))
+            for n, df in branch['qldf'].items():
+                rm = list(G.edges('ql'+k, data=True))
+                G.remove_edges_from(rm)
+                w = df
+                if G.has_edge('qg'+n, 'sysqg'):
+                    w += G.get_edge_data('qg'+n, 'sysqg')['weight']
+                G.add_edge('qg'+n, 'sysql', weight=abs(w))
+
+    rm_edges = num_edges - networkx.number_of_edges(G)
+    if rm_edges >= 0:
+        print('Removed {} edges with hybrid line losses.'.format(rm_edges))
+    else:
+        print('Added {} edges for hybrid line losses.'.format(rm_edges))
+
+def plot_sparse_variables(test_case=None, md=None, show_plot=True):
+
+    from egret.models.acopf import solve_acopf
+
+    if test_case is None:
+        test_case = tau.idx_to_test_case(0)
+        if os.path.basename(os.getcwd()) == 'data':
+            test_case = test_case[3:]
+
+    if md is None:
+        _md = create_ModelData(test_case)
+        md = solve_acopf(_md, solver='ipopt', solver_tee=False)
+
+    create_dicts_of_lccm(md)
+    branches = dict(md.elements(element_type='branch'))
+    branch_attrs = md.attributes(element_type='branch')
+    bus_attrs = md.attributes(element_type='bus')
+    system_attrs = md.data['system']
+
+    # load data into network object
+    G = create_graph(branch_attrs, bus_attrs)
+
+    filename = "problem_structure_blank.png"
+    draw_graph(G, filename=filename, show_plot=False)
+
+    for k, branch in branches.items():
+        for n, w in branch['Ft'].items():
+            G.add_edge('pf' + k, 'va' + n, weight=abs(w))
+        for n, w in branch['Lt'].items():
+            G.add_edge('pl' + k, 'va' + n, weight=abs(w))
+        for n, w in branch['Fv'].items():
+            G.add_edge('qf'+k, 'vm'+n, weight=abs(w))
+        for n, w in branch['Lv'].items():
+            G.add_edge('ql'+k, 'vm'+n, weight=abs(w))
+        relative_p_loss = 2 * (branch['pf'] + branch['pt']) / abs(branch['pf'] - branch['pt'])
+        relative_q_loss = 2 * (branch['qf'] + branch['qt']) / abs(branch['qf'] - branch['qt'])
+        G.add_edge('pf'+k, 'pl'+k, weight=relative_p_loss)
+        G.add_edge('qf'+k, 'ql'+k, weight=abs(relative_q_loss))
+
+    Ad = scipy.sparse.coo_matrix(system_attrs['AdjacencyMat'])
+    for i,j,v in zip(Ad.row, Ad.col, Ad.data):
+        pg = 'pg'+str(i+1)
+        qg = 'qg'+str(i+1)
+        pf = 'pf'+str(j+1)
+        qf = 'qf'+str(j+1)
+        pl = 'pl'+str(j+1)
+        ql = 'ql'+str(j+1)
+        G.add_edge(pg, pf, weight=abs(v))
+        G.add_edge(pg, pl, weight=0.5*abs(v))
+        G.add_edge(qg, qf, weight=abs(v))
+        G.add_edge(qg, ql, weight=0.5*abs(v))
+
+    filename = "problem_structure_sparse.png"
+    draw_graph(G, filename=filename, show_plot=True)
+
+
+def plot_dense_variables(test_case=None, md=None, show_plot=True):
+
+    from egret.models.acopf import solve_acopf
+
+    if test_case is None:
+        test_case = tau.idx_to_test_case(0)
+        if os.path.basename(os.getcwd()) == 'data':
+            test_case = test_case[3:]
+
+    if md is None:
+        _md = create_ModelData(test_case)
+        md = solve_acopf(_md, solver='ipopt', solver_tee=False)
+
+    create_dicts_of_fdf(md)
+    branches = dict(md.elements(element_type='branch'))
+    buses = dict(md.elements(element_type='bus'))
+    branch_attrs = md.attributes(element_type='branch')
+    bus_attrs = md.attributes(element_type='bus')
+    system_attrs = md.data['system']
+
+    # load data into network object
+    G = create_graph(branch_attrs, bus_attrs)
+
+    for k, branch in branches.items():
+        for n, w in branch['ptdf'].items():
+            G.add_edge('pf' + k, 'pg' + n, weight=abs(w))
+        for n, w in branch['pldf'].items():
+            G.add_edge('pl' + k, 'pg' + n, weight=abs(w))
+        for n, w in branch['qtdf'].items():
+            G.add_edge('qf'+k, 'qg'+n, weight=abs(w))
+        for n, w in branch['qldf'].items():
+            G.add_edge('ql'+k, 'qg'+n, weight=abs(w))
+        relative_p_loss = 2 * (branch['pf'] + branch['pt']) / abs(branch['pf'] - branch['pt'])
+        relative_q_loss = 2 * (branch['qf'] + branch['qt']) / abs(branch['qf'] - branch['qt'])
+        G.add_edge('pf'+k, 'pl'+k, weight=relative_p_loss)
+        G.add_edge('qf'+k, 'ql'+k, weight=abs(relative_q_loss))
+        G.add_edge('pl'+k, 'syspg', weight=1)
+        #G.add_edge('ql'+k, 'sysqg', weight=1)
+
+    for n, bus in buses.items():
+        for m, w in bus['vdf'].items():
+            G.add_edge('vm'+n, 'qg'+m, weight=abs(w))
+        G.add_edge('pg'+n, 'syspg', weight=1)
+        #G.add_edge('qg'+n, 'sysqg', weight=1)
+
+    filename = "problem_structure_dense_full.png"
+    draw_graph(G, show_plot=False, filename=filename)
+
+    _len_bus = len(buses.keys())
+    _len_branch = len(branches.keys())
+    _len_cycle = _len_branch - _len_bus + 1
+    remove_unmonitored(G, md, s_tol=0.5, v_tol=0.25)
+    hybridize_losses(G, md, N=_len_cycle)
+    remove_truncate(G, md, tol=1e-2)
+
+    filename = "problem_structure_dense.png"
+    draw_graph(G, show_plot=show_plot, filename=filename)
+
+
+def plot_compact_variables(test_case=None, md=None, show_plot=True):
+
+    from egret.models.acopf import solve_acopf
+
+    if test_case is None:
+        test_case = tau.idx_to_test_case(0)
+        if os.path.basename(os.getcwd()) == 'data':
+            test_case = test_case[3:]
+
+    if md is None:
+        _md = create_ModelData(test_case)
+        md = solve_acopf(_md, solver='ipopt', solver_tee=False)
+
+    create_dicts_of_fdf(md)
+    branches = dict(md.elements(element_type='branch'))
+    buses = dict(md.elements(element_type='bus'))
+    branch_attrs = md.attributes(element_type='branch')
+    bus_attrs = md.attributes(element_type='bus')
+    system_attrs = md.data['system']
+
+    # load data into network object
+    G = create_graph(branch_attrs, bus_attrs)
+
+    for k, branch in branches.items():
+        for n, w in branch['ptdf'].items():
+            G.add_edge('pf' + k, 'pg' + n, weight=abs(w))
+        for n, w in branch['qtdf'].items():
+            G.add_edge('qf'+k, 'qg'+n, weight=abs(w))
+        G.add_edge('pf'+k, 'syspl', weight=branch['ploss_distribution'])
+        G.add_edge('qf'+k, 'sysql', weight=abs(branch['qloss_distribution']))
+
+    for n, bus in buses.items():
+        G.add_edge('pg'+n, 'syspl', weight=abs(bus['ploss_sens']))
+        G.add_edge('qg'+n, 'sysql', weight=abs(bus['qloss_sens']))
+        G.add_edge('pg'+n, 'syspg', weight=1)
+        #G.add_edge('qg'+n, 'sysqg', weight=1)
+        for m, w in bus['vdf'].items():
+            G.add_edge('qg'+n, 'vm'+m, weight=abs(w))
+
+    G.add_edge('syspg', 'syspl', weight=1)
+    #G.add_edge('sysqg', 'sysql', weight=1)
+
+    filename = "problem_structure_compact_full.png"
+    draw_graph(G, filename=filename, show_plot=False)
+
+    remove_unmonitored(G, md, s_tol=0.5, v_tol=0.25)
+    remove_truncate(G, md, tol=1e-2)
+
+    filename = "problem_structure_compact.png"
+    draw_graph(G, filename=filename, show_plot=show_plot)
+
+
+def plot_ptdf_variables(test_case=None, md=None, show_plot=True):
+
+    from egret.models.acopf import solve_acopf
+
+    if test_case is None:
+        test_case = tau.idx_to_test_case(0)
+        if os.path.basename(os.getcwd()) == 'data':
+            test_case = test_case[3:]
+
+    if md is None:
+        _md = create_ModelData(test_case)
+        md = solve_acopf(_md, solver='ipopt', solver_tee=False)
+
+    create_dicts_of_fdf(md)
+    branches = dict(md.elements(element_type='branch'))
+    buses = dict(md.elements(element_type='bus'))
+    branch_attrs = md.attributes(element_type='branch')
+    bus_attrs = md.attributes(element_type='bus')
+    system_attrs = md.data['system']
+
+    # load data into network object
+    G = create_graph(branch_attrs, bus_attrs)
+
+    for k, branch in branches.items():
+        for n, w in branch['ptdf'].items():
+            G.add_edge('pf' + k, 'pg' + n, weight=abs(w))
+        G.add_edge('pf'+k, 'syspl', weight=abs(branch['ploss_distribution']))
+
+    for n, bus in buses.items():
+        G.add_edge('pg'+n, 'syspl', weight=abs(bus['ploss_sens']))
+        G.add_edge('pg'+n, 'syspg', weight=1)
+
+    G.add_edge('syspg', 'syspl', weight=1)
+
+    filename = "problem_structure_ptdf_full.png"
+    draw_graph(G, show_plot=False, filename=filename)
+
+    remove_unmonitored(G, md, s_tol=0.5)
+    remove_truncate(G, md, tol=1e-2)
+
+    filename = "problem_structure_ptdf.png"
+    draw_graph(G, show_plot=show_plot, filename=filename)
+
+
+def plot_constraint_matrices(test_case=None):
+
+    if test_case == None:
+        test_case = test.get_case_names(flag='pglib_opf_case14_ieee')[0]
+    test_case = tau.idx_to_test_case(test_case)
+    if os.path.basename(os.getcwd()) == 'data':
+        test_case = test_case[3:]
+
+    plot_sparse_variables(test_case)
+    plot_dense_variables(test_case)
+    plot_compact_variables(test_case)
+    plot_ptdf_variables(test_case)
+
+
 def generate_plots(show_plot=False):
 
     # Generate plots
@@ -1359,6 +1852,7 @@ def create_full_summary(show_plot=False):
 
     # Generate plots
     generate_plots(show_plot=show_plot)
+    plot_constraint_matrices()
 
 
 if __name__ == '__main__':
@@ -1366,3 +1860,7 @@ if __name__ == '__main__':
     create_full_summary(show_plot=False)
     #summarize_sensitivities(flag='ieee',show_plot=True)
     #generate_boxplots(show_plot=True)
+    #generate_plots(show_plot=True)
+    #summarize_sensitivities(flag='ieee', show_plot=True)
+    #generate_boxplots(show_plot=True)
+    #plot_constraint_matrices()

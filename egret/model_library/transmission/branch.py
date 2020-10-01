@@ -1014,7 +1014,9 @@ def declare_fdf_thermal_limit(model, branches, index_set, thermal_limits, ploss_
             qld = 0
         else:
             qld = qloss_distribution[bn]
-        add_constr_branch_thermal_limit(model, branch, bn, thermal_limit, pfl_of_ploss=pld, qfl_of_qloss=qld)
+
+        if thermal_limit is not None:
+            add_constr_branch_thermal_limit(model, branch, bn, thermal_limit, pfl_of_ploss=pld, qfl_of_qloss=qld)
 
 
 def add_constr_branch_thermal_limit(model, branch, branch_name, thermal_limit, pfl_of_ploss=0, qfl_of_qloss=0):
