@@ -267,6 +267,22 @@ def get_vanilla_dict(test_model_list, case=None):
 
     return tm_dict
 
+def get_barplot_dict(test_model_list, case=None):
+
+    tm_dict = {}
+    for key in test_model_list:
+        if 'lazy' in key:
+            tm_dict[key] = True
+        elif any([m in key for m in ['slopf','btheta']]):
+            tm_dict[key] = True
+        else:
+            tm_dict[key] = False
+
+    if case is not None:
+        replace_unsolved_case(tm_dict, case)
+
+    return tm_dict
+
 def get_lazy_dict(test_model_list, case=None):
 
     tm_dict = {}

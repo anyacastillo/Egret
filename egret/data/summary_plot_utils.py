@@ -457,9 +457,6 @@ def generate_network_data(test_case, test_model_list, data_generator=None):
 
 def generate_barplot(test_case, test_model_dict=None, data_name=None, units=None, file_tag=None, show_plot=False):
 
-    src_folder, case_name = os.path.split(test_case)
-    case_name, ext = os.path.splitext(case_name)
-
     if data_name is None:
         data_name = 'thermal_viol'
     if units is None:
@@ -467,52 +464,71 @@ def generate_barplot(test_case, test_model_dict=None, data_name=None, units=None
     else:
         units = data_name + " (" + units + ")"
 
-    filename = data_name + "_" + case_name + ".csv"
-    df_data = get_data(filename, test_model_dict=test_model_dict)
-    if df_data.empty:
-        return
+    def help_get_data(case):
+        src_folder, case_name = os.path.split(case)
+        case_name, ext = os.path.splitext(case_name)
+        filename = data_name + "_" + case_name + ".csv"
+        df_data = get_data(filename, test_model_dict=test_model_dict)
+        if df_data.empty:
+            return
+        return df_data, case_name
+
+    if isinstance(test_case, list):
+        df_data = pd.DataFrame(data=None)
+        for case in test_case:
+            _df, _ = help_get_data(case)
+            df_data = df_data.append(_df, ignore_index=True)
+        case_name = 'summary'
+    else:
+        df_data, case_name = help_get_data(test_case)
 
     # median, mean, and maximum error statistics
+    models = ['slopf','dlopf','clopf','plopf','ptdf','btheta']
+    trims = ['full', 'e4', 'e2']
+    labels = ['model','median','mean','max','trim']
+    summary = pd.DataFrame(data=None, columns=labels)
     data = df_data.fillna(0).abs()
-    df_med = pd.DataFrame(data=None)
-    df_med['model'] = data.columns
-    df_med['error'] = data.median().values
-    df_med['statistic'] = 'median'
-    df_avg = pd.DataFrame(data=None)
-    df_avg['model'] = data.columns
-    df_avg['error'] = data.mean().values
-    df_avg['statistic'] = 'mean'
-    df_max = pd.DataFrame(data=None)
-    df_max['model'] = data.columns
-    df_max['error'] = data.max().values
-    df_max['statistic'] = 'max'
-    df_summary = pd.concat([df_med, df_avg, df_max])
+    for c in df_data.columns:
+        row = {}
+        model = [m for m in models if m in c][0]
+        if model in ['dlopf','clopf','plopf','ptdf']:
+            trim = [t for t in trims if t in c][0]
+        else:
+            trim = 'full'
+        row['model'] = model
+        row['median'] = data[c].median()
+        row['mean'] = data[c].mean()
+        row['max'] = data[c].max()
+        row['trim'] = trim
+        summary = summary.append(row, ignore_index=True)
 
-    ## Create plot
-    sns.set(style="whitegrid")
-    ax = sns.barplot(x='model', y='error', hue='statistic', data=df_summary)
-    ax.set_yscale("log")
+    ## Create plots
+    stats = ['median', 'mean', 'max']
+    for stat in stats:
+        sns.set(style="whitegrid")
+        ax = sns.barplot(x='model', y=stat, hue='trim', data=summary)
+        ax.set_yscale("log")
+        tick_loc = mpl.ticker.LogLocator(base=10.0, subs='all')
+        tick_fmt = mpl.ticker.LogFormatterSciNotation(base=10.0, labelOnlyBase=False, minor_thresholds=(2,0))
+        ax.yaxis.set_minor_locator(tick_loc)
+        ax.yaxis.set_minor_formatter(tick_fmt)
+        ax.yaxis.set_major_formatter(tick_fmt)
+        plt.grid(True, which="minor", axis="y", ls=":", c=[0.8,0.8,0.8])
+        ax.set_xlabel("Model")
+        ax.set_ylabel(units)
+        plt.tight_layout()
+        plt.legend(loc="upper left")
 
-    #ax.set_title(case_name + " " + viol_name)
-    ax.set_xlabel("Model")
-    ax.set_ylabel(units)
-    #ax.set_yticks([])
+        ## save FIGURE as png
+        filename = case_name + "_" + data_name + "_barplot_" + stat
+        if file_tag is not None:
+            filename += "_" + file_tag
+        save_figure(filename+".png")
 
-    plt.tight_layout()
-
-    ## save FIGURE as png
-    filename = case_name + "_" + data_name + "_barplot"
-    if file_tag is not None:
-        filename += "_" + file_tag
-    filename += ".png"
-    print('...out: {}'.format(filename))
-    destination = tau.get_summary_file_location('figures')
-    plt.savefig(os.path.join(destination, filename))
-
-    if show_plot:
-        plt.show()
-    else:
-        plt.close('all')
+        if show_plot:
+            plt.show()
+        else:
+            plt.close('all')
 
 
 def generate_heatmap(test_case, test_model_dict=None, data_name=None, index_name=None, units=None, N=None,
@@ -591,6 +607,29 @@ def generate_heatmap(test_case, test_model_dict=None, data_name=None, index_name
         plt.close('all')
 
 
+def generate_plot_data(case_list):
+    # Generate data
+    data_list = [tu.pf_error, tu.qf_error, tu.thermal_viol, tu.vm_viol, tu.lmp]
+    tml = test.get_test_model_list()
+    for c in case_list:
+        for d in data_list:
+            generate_network_data(c, tml, data_generator=d)
+
+
+def generate_barplots(case_list=None, list_name=None, show_plot=False):
+
+    if case_list is None:
+        case_list = test.get_case_names()
+    tml = test.get_test_model_list()
+
+    model_dict = tau.get_barplot_dict(tml)
+    generate_barplot(case_list, test_model_dict=model_dict, data_name='pf_error', units='MW', file_tag=list_name, show_plot=show_plot)
+
+    for c in case_list:
+        model_dict = tau.get_barplot_dict(tml, case=c)
+        generate_barplot(c, test_model_dict=model_dict, data_name='pf_error', units='MW', show_plot=False)
+
+
 def generate_heatmaps(case_list=None, colors=None, show_plot=False):
 
     if case_list is None:
@@ -600,17 +639,10 @@ def generate_heatmaps(case_list=None, colors=None, show_plot=False):
         lmp_colors = get_colors('bone')
     tml = test.get_test_model_list()
 
-    # Generate data
-    data_list = [tu.pf_error, tu.qf_error, tu.thermal_viol, tu.vm_viol, tu.lmp]
-    for c in case_list:
-        for d in data_list:
-            generate_network_data(c, tml, data_generator=d)
-
     for c in case_list:
         model_dict = tau.get_vanilla_dict(tml, case=c)
         generate_heatmap(c, test_model_dict=model_dict, data_name='pf_error', N=50, file_tag='vanilla',
                          index_name='Branch', units='MW', colormap=colors, show_plot=show_plot)
-        generate_barplot(c, test_model_dict=model_dict, data_name='pf_error', units='MW', show_plot=show_plot)
 
         model_dict['acopf'] = True
         generate_heatmap(c, test_model_dict=model_dict, data_name='lmp', N=None, file_tag='vanilla',
@@ -1833,7 +1865,11 @@ def generate_plots(show_plot=False):
 
     # Generate plots
     case_dict = test.get_case_dict()
+    generate_plot_data(case_dict['ieee'])
+    generate_plot_data(case_dict['k'])
     generate_boxplots(show_plot=show_plot)
+    generate_barplots(case_dict['ieee'], list_name='ieee', show_plot=show_plot)
+    generate_barplots(case_dict['k'], list_name='polish', show_plot=show_plot)
     generate_heatmaps(case_dict['ieee'], show_plot=show_plot)
     generate_heatmaps(case_dict['k'], show_plot=show_plot)
     generate_sensitivities(case_dict['ieee'], show_plot=show_plot)
